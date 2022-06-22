@@ -73,17 +73,25 @@ def parse_args():
                         default='',
                         help="input shape")
 
+   #######
    parser.add_argument("--inputs",
                         type=str, 
                         required=False,
                         default='',
-                        help="checkpoint input")
+                        help="checkpoint/graph/onnx_sub_graph input")
 
    parser.add_argument("--outputs",
                         type=str, 
                         required=False,
                         default='',
-                        help="checkpoint output")                                               
+                        help="checkpoint/graph/onnx_sub_graph output")
+
+   #for pytorch
+   parser.add_argument("--extract_sub",
+                        type=int, 
+                        required=False,
+                        default=0,
+                        help="extract sub graph")                                                                    
                                                                   
    args = parser.parse_args()
    return args
@@ -394,6 +402,12 @@ def post_process(onnxfile):
 
    print('convert_gap_2_ap cost', end_time2 - end_time1, ' seconds')     
 
+def extract_sub_graph(input_path, output_path, input_names, output_names):
+   print('input_names:', input_names, ', output_names:', output_names)
+   input_list = input_names.split(',')
+   output_list = output_names.split(',')
+   onnx.utils.extract_model(input_path, output_path, input_list, output_list)
+
 def process(args):
    model_path = args.model_path
    model_type = args.model_type
@@ -403,8 +417,7 @@ def process(args):
    inputs = args.inputs
    outputs = args.outputs
    simplify_model = args.simplify
-
-   print('----simplify:', simplify_model)
+   extract_sub = args.extract_sub
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -430,7 +443,19 @@ def process(args):
 
    if (model_type == 'tf-ckpt' or model_type == 'tf-graph') and (args.inputs == '' or args.outputs == ''):
       print('When converting checkpoint/graph, you must tell the inputs(ex: --inputs input0:0,input1:0) and outputs(ex: --outputs output0:0)')
-      sys.exit()   
+      sys.exit()
+
+   if extract_sub == 1:
+      if args.inputs == '' or args.outputs == '':
+         print('When extract sub graph, you must tell the inputs(ex: --inputs input0:0,input1:0) and outputs(ex: --outputs output0:0)')
+         sys.exit()
+
+      if model_type != 'onnx':
+         print('WARNNING: only onnx model supports extracting...')
+         sys.exit()
+
+      extract_sub_graph(model_path, output, inputs, outputs)
+      sys.exit()                
 
    if model_type == 'pytorch':
       input_shape=args.input_shape.strip('[')
