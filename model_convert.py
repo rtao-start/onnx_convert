@@ -14,6 +14,7 @@ import time
 
 from caffe2onnx.src.load_save_model import loadcaffemodel, saveonnxmodel
 from caffe2onnx.src.caffe2onnx import Caffe2Onnx
+from onnxsim.onnx_simplifier import simplify
 
 logging.basicConfig(level=logging.INFO)
 
@@ -28,7 +29,7 @@ valid_model_type = ['caffe', 'pytorch', 'tf-h5', 'tf-ckpt', 'tf-sm', 'tf-graph',
 optimization_op_list = ['Max', 'Min', 'Sum', 'Mean']
 
 def parse_args():
-   parser = argparse.ArgumentParser(description='Convert Caffe model to ONNX.')
+   parser = argparse.ArgumentParser(description='Convert xxx model to ONNX.')
 
    parser.add_argument("--model_path",
                         type=str,  required=True,
@@ -58,7 +59,12 @@ def parse_args():
 
    parser.add_argument("--q_onnx_file",
                         type=str, required=False,
-                        help="quantization output onnx file(ex: ./output_q.onnx)")       
+                        help="quantization output onnx file(ex: ./output_q.onnx)") 
+
+   parser.add_argument("--simplify",
+                        type=int, required=False,
+                        default=1,
+                        help="simplify the model")                              
 
    #for pytorch
    parser.add_argument("--input_shape",
@@ -289,6 +295,32 @@ def optimization_op(onnxfile):
 
    return delete, export_onnx
 
+def model_simplify(model_path):
+   onnx_model = onnx.load(model_path)
+   model_simp, check = simplify(onnx_model)
+   onnx.save(model_simp, model_path)
+
+def modify_onnx2dymnamic(model_path):
+   onnx_model = onnx.load(model_path)
+
+   for idx in range(len(onnx_model.graph.input)):
+      dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
+      # dim_proto_input.dim_param = 'bs'
+      dim_proto_input.dim_value = -1
+
+   for idx in range(len(onnx_model.graph.output)):
+      dim_proto_output = onnx_model.graph.output[idx].type.tensor_type.shape.dim[0]
+      # dim_proto_output.dim_param = 'bs'
+      dim_proto_output.dim_value = -1
+
+   try:
+      onnx.checker.check_model(onnx_model)
+   except onnx.checker.ValidationError as e:
+      print('The model cannot be modified for: %s' % e)
+   else:
+      print('The model is modified!')
+      onnx.save(onnx_model, model_path)
+
 def convert_gap_2_ap(onnxfile):
    model = onnx.load(onnxfile)
 
@@ -370,6 +402,9 @@ def process(args):
    input_shape = args.input_shape
    inputs = args.inputs
    outputs = args.outputs
+   simplify_model = args.simplify
+
+   print('----simplify:', simplify_model)
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -429,6 +464,10 @@ def process(args):
    print('generate inference shape model, it cost', end_time2 - end_time1, ' seconds')
 
    post_process(output)
+
+   if simplify_model == 1:
+      print('begin doing simplify...')
+      model_simplify(output)
 
    end_time3 = time.time()
 
