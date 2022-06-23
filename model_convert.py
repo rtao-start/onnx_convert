@@ -86,12 +86,19 @@ def parse_args():
                         default='',
                         help="checkpoint/graph/onnx_sub_graph output")
 
-   #for pytorch
+   #for extract sub graph
    parser.add_argument("--extract_sub",
                         type=int, 
                         required=False,
                         default=0,
-                        help="extract sub graph")                                                                    
+                        help="extract sub graph") 
+
+   #for dynamic batch size
+   parser.add_argument("--dynamic_batch",
+                        type=int, 
+                        required=False,
+                        default=0,
+                        help="dynamic batch size")                                                                                              
                                                                   
    args = parser.parse_args()
    return args
@@ -308,13 +315,16 @@ def model_simplify(model_path):
    model_simp, check = simplify(onnx_model)
    onnx.save(model_simp, model_path)
 
-def modify_onnx2dymnamic(model_path):
-   onnx_model = onnx.load(model_path)
-
+def modify_onnx2dymnamic(onnx_model, model_path):
    for idx in range(len(onnx_model.graph.input)):
       dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
       # dim_proto_input.dim_param = 'bs'
       dim_proto_input.dim_value = -1
+
+   for idx in range(len(onnx_model.graph.value_info)):
+      dim_proto_input = onnx_model.graph.value_info[idx].type.tensor_type.shape.dim[0]
+      # dim_proto_input.dim_param = 'bs'
+      dim_proto_input.dim_value = -1   
 
    for idx in range(len(onnx_model.graph.output)):
       dim_proto_output = onnx_model.graph.output[idx].type.tensor_type.shape.dim[0]
@@ -328,7 +338,7 @@ def modify_onnx2dymnamic(model_path):
    else:
       print('The model is modified!')
       onnx.save(onnx_model, model_path)
-
+    
 def convert_gap_2_ap(onnxfile):
    model = onnx.load(onnxfile)
 
@@ -418,6 +428,7 @@ def process(args):
    outputs = args.outputs
    simplify_model = args.simplify
    extract_sub = args.extract_sub
+   dynamic_batch = args.dynamic_batch
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -479,10 +490,16 @@ def process(args):
       model = onnx.load(output)
    else:
       model = onnx.load(model_path)
-      
+
+   #modify_onnx2dymnamic(model, output)
+
    new_model = onnx.shape_inference.infer_shapes(model)
    onnx.checker.check_model(new_model)
    onnx.save(new_model, output)
+
+   if dynamic_batch == 1:
+      print('modify model to dynamic batch...')
+      modify_onnx2dymnamic(new_model, output)
 
    end_time2 = time.time()
 
