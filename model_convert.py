@@ -15,6 +15,7 @@ import time
 from caffe2onnx.src.load_save_model import loadcaffemodel, saveonnxmodel
 from caffe2onnx.src.caffe2onnx import Caffe2Onnx
 from onnxsim.onnx_simplifier import simplify
+from float16 import convert_float_to_float16
 
 logging.basicConfig(level=logging.INFO)
 
@@ -61,6 +62,7 @@ def parse_args():
                         type=str, required=False,
                         help="quantization output onnx file(ex: ./output_q.onnx)") 
 
+   #for simplify
    parser.add_argument("--simplify",
                         type=int, required=False,
                         default=1,
@@ -98,7 +100,14 @@ def parse_args():
                         type=int, 
                         required=False,
                         default=0,
-                        help="dynamic batch size")                                                                                              
+                        help="dynamic batch size")
+
+   #for fp32-->fp16
+   parser.add_argument("--fp32_to_fp16",
+                        type=int, 
+                        required=False,
+                        default=0,
+                        help="fp32-->fp16")                                                                                                                            
                                                                   
    args = parser.parse_args()
    return args
@@ -315,6 +324,8 @@ def model_simplify(model_path):
    model_simp, check = simplify(onnx_model)
    onnx.save(model_simp, model_path)
 
+   return model_simp
+
 def modify_onnx2dymnamic(onnx_model, model_path):
    for idx in range(len(onnx_model.graph.input)):
       dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
@@ -429,6 +440,7 @@ def process(args):
    simplify_model = args.simplify
    extract_sub = args.extract_sub
    dynamic_batch = args.dynamic_batch
+   fp32_to_fp16 = args.fp32_to_fp16
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -507,7 +519,12 @@ def process(args):
 
    if simplify_model == 1:
       print('begin doing simplify...')
-      model_simplify(output)
+      new_model = model_simplify(output)
+
+   if fp32_to_fp16 == 1:
+      print('begin doing fp32-->fp16...')
+      new_model = convert_float_to_float16(new_model, keep_io_types=True)
+      onnx.save(new_model, output)   
 
    end_time3 = time.time()
 
