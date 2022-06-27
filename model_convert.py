@@ -491,8 +491,6 @@ def process(args):
    else:
       model = onnx.load(model_path)
 
-   #modify_onnx2dymnamic(model, output)
-
    new_model = onnx.shape_inference.infer_shapes(model)
    onnx.checker.check_model(new_model)
    onnx.save(new_model, output)
