@@ -4,7 +4,7 @@ import onnx
 from onnx import helper
 from onnx import TensorProto
 import numpy as np
-import argparse
+import argparse, sys
 
 
 class DarkNetParser(object):
@@ -361,6 +361,9 @@ class WeightLoader(object):
             name, TensorProto.INT64, shape)
         initializer.append(scale_init)
         inputs.append(scale_input)
+
+        #print('load_reshape_scales:', shape, ', name:', name)
+
         return initializer, inputs
 
     def load_slice_params(self, slice_params):
@@ -469,7 +472,7 @@ class WeightLoader(object):
 class GraphBuilderONNX(object):
     """Class for creating an ONNX graph from a previously generated list of layer dictionaries."""
 
-    def __init__(self, output_tensors):
+    def __init__(self, output_tensors, support_mish):
         """Initialize with all DarkNet default parameters used creating YOLOv4,
         and specify the output tensors as an OrderedDict for their output dimensions
         with their names as keys.
@@ -489,6 +492,7 @@ class GraphBuilderONNX(object):
         self.batch_size = 1
         self.classes = 80
         self.num = 9
+        self.support_mish = support_mish
 
     def build_onnx_graph(
             self,
@@ -506,6 +510,7 @@ class GraphBuilderONNX(object):
         """
         for layer_name in layer_configs.keys():
             layer_dict = layer_configs[layer_name]
+            #print('----- layer_name:', layer_name)
             major_node_specs = self._make_onnx_node(layer_name, layer_dict)
             if major_node_specs.name is not None:
                 self.major_node_specs.append(major_node_specs)
@@ -520,6 +525,7 @@ class GraphBuilderONNX(object):
             output_dims = [self.batch_size, ] + \
                 self.output_tensors[tensor_name]
             layer_name, layer_dict = tensor_name, {'output_dims': output_dims}
+            #print('++++ layer_name:', layer_name, ', output_dims:', output_dims)
             transpose_name = self._make_transpose_node(layer_name, layer_dict, len(self.output_tensors))
             transposes.append(transpose_name)
 
@@ -759,37 +765,52 @@ class GraphBuilderONNX(object):
             inputs = [layer_name_logistic]
             layer_name_output = layer_name_logistic
         elif layer_dict['activation'] == 'mish':
-            layer_name_softplus = layer_name + '_softplus'
+            if self.support_mish == 0:
+                layer_name_softplus = layer_name + '_softplus'
 
-            softplus_node = helper.make_node(
-                'Softplus',
-                inputs=inputs,
-                outputs=[layer_name_softplus],
-                name=layer_name_softplus
-            )
-            self._nodes.append(softplus_node)
+                softplus_node = helper.make_node(
+                    'Softplus',
+                    inputs=inputs,
+                    outputs=[layer_name_softplus],
+                    name=layer_name_softplus
+                )
+                self._nodes.append(softplus_node)
 
-            inputs_t = [layer_name_softplus]
-            layer_name_tanh = layer_name + '_tanh'
-            tanh_node = helper.make_node(
-                'Tanh',
-                inputs=inputs_t,
-                outputs=[layer_name_tanh],
-                name=layer_name_tanh
-            )
-            self._nodes.append(tanh_node)
+                inputs_t = [layer_name_softplus]
+                layer_name_tanh = layer_name + '_tanh'
+                tanh_node = helper.make_node(
+                    'Tanh',
+                    inputs=inputs_t,
+                    outputs=[layer_name_tanh],
+                    name=layer_name_tanh
+                )
+                self._nodes.append(tanh_node)
 
-            inputs.append(layer_name_tanh)
-            layer_name_mish = layer_name + '_mish'
-            mul_node = helper.make_node(
-                'Mul',
-                inputs=inputs,
-                outputs=[layer_name_mish],
-                name=layer_name_mish
-            )
-            self._nodes.append(mul_node)
-            inputs = [layer_name_mish]
-            layer_name_output = layer_name_mish
+                inputs.append(layer_name_tanh)
+                layer_name_mish = layer_name + '_mish'
+                mul_node = helper.make_node(
+                    'Mul',
+                    inputs=inputs,
+                    outputs=[layer_name_mish],
+                    name=layer_name_mish
+                )
+                self._nodes.append(mul_node)
+                inputs = [layer_name_mish]
+                layer_name_output = layer_name_mish
+            else: #qiuzy add for mish mapping
+                print('mish mapping------------------------')
+                layer_name_mish = layer_name + '_mish'
+
+                mish_node = helper.make_node(
+                    'Mish',
+                    inputs=inputs,
+                    outputs=[layer_name_mish],
+                    name=layer_name_mish,
+                    domain=''
+                )
+                self._nodes.append(mish_node)
+                inputs = [layer_name_mish]
+                layer_name_output = layer_name_mish    
 
         elif layer_dict['activation'] == 'linear':
             pass
@@ -972,10 +993,14 @@ class GraphBuilderONNX(object):
 
     def _make_transpose_node(self, layer_name, layer_dict, output_len):
         inputs = [layer_name]
+
+        #print('------- layer_dict[\'output_dims\']:', layer_dict['output_dims'])
+
         reshape_name = layer_name + '_reshape_1'
         shape = np.array([layer_dict['output_dims'][0], self.num // output_len, self.classes + 5,
                           layer_dict['output_dims'][-2], layer_dict['output_dims'][-1]]).astype(np.int64)
         reshape_params = ReshapeParams(layer_name, shape)
+        #print('_make_transpose_node, name:', reshape_name, ', shape:', shape)
         self.param_dict[reshape_name] = reshape_params
         param_name = reshape_params.generate_param_name()
         inputs.append(param_name)
@@ -1010,7 +1035,7 @@ class GraphBuilderONNX(object):
         return output_name
 
 
-def main(cfg_file='yolov4.cfg', weights_file='yolov4.weights', output_file='yolov4.onnx', strides=None, neck='PAN'):
+def main(cfg_file='yolov4.cfg', weights_file='yolov4.weights', output_file='yolov4.onnx', strides=None, neck='PAN', support_mish=0):
     cfg_file_path = cfg_file
 
     supported_layers = ['net', 'convolutional', 'shortcut',
@@ -1044,7 +1069,7 @@ def main(cfg_file='yolov4.cfg', weights_file='yolov4.weights', output_file='yolo
         output_tensor_dims[conv_layer] = [(classes + 5) * num_anchor, width // stride, height // stride]
 
     # Create a GraphBuilderONNX object with the known output tensor dimensions:
-    builder = GraphBuilderONNX(output_tensor_dims)
+    builder = GraphBuilderONNX(output_tensor_dims, support_mish)
 
     weights_file_path = weights_file
 
@@ -1059,7 +1084,18 @@ def main(cfg_file='yolov4.cfg', weights_file='yolov4.weights', output_file='yolo
     del builder
 
     # Perform a sanity check on the ONNX model definition:
-    onnx.checker.check_model(yolo_model_def)
+    #onnx.checker.check_model(yolo_model_def) #qiuzy test
+    try:
+        onnx.checker.check_model(yolo_model_def)
+    except onnx.checker.ValidationError as e:
+        print('The model cannot be saved for: %s' % e)
+        if 'No Op registered for Mish' in str(e):
+            print('ignore mish warning, continue saving~')
+        else:
+            sys.exit()    
+    else:
+        print('Begin saving model...')
+
 
     # Serialize the generated ONNX graph to this file:
     output_file_path = output_file
@@ -1074,6 +1110,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_file', type=str, default='yolov4.onnx', help='yolo onnx file')
     parser.add_argument('--strides', nargs='+', type=int, default=[8, 16, 32], help='YOLO model cell size')
     parser.add_argument('--neck', type=str, default='PAN', help='use which kind neck')
+    parser.add_argument('--support_mish', type=int, default=0, help='mish mapping')
     args = parser.parse_args()
     main(cfg_file=args.cfg_file, weights_file=args.weights_file, output_file=args.output_file, strides=args.strides,
-         neck=args.neck)
+         neck=args.neck, support_mish=args.support_mish)

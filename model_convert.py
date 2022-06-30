@@ -256,7 +256,12 @@ def convert_dn2onnx(model_path, output, op_set):
       print('Begin converting darknet to onnx...')
       cfg_file, weights_file = get_darknet_files(model_path)
 
-      cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --output ' + output
+      cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --output_file ' + output
+     
+      if '-tiny' in cfg_file or '-tiny' in weights_file:
+         cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output
+      elif 'yolov3' in cfg_file or 'yolov3' in weights_file:
+         cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output
      
       print('convert_dn2onnx: ', cmd)
 

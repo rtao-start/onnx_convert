@@ -141,7 +141,7 @@ def convert_float_to_float16_old(model, min_positive_val=1e-7, max_finite_val=1e
         for i, n in enumerate(model.graph.input):
             if n.type.tensor_type.elem_type == onnx_proto.TensorProto.FLOAT:
                 if n.name in initializer:
-                    print('got initializer continue:', n.name)
+                    #print('got initializer continue:', n.name)
                     continue
 
                 output_name = 'graph_input_cast_' + str(i)
@@ -353,7 +353,7 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
         for i, n in enumerate(model.graph.input):
             if n.type.tensor_type.elem_type == onnx_proto.TensorProto.FLOAT:
                 if n.name in initializer:
-                    print('got initializer continue:', n.name)
+                    #print('got initializer continue:', n.name)
                     continue
 
                 output_name = 'graph_input_cast_' + str(i)
