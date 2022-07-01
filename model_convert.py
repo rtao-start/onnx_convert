@@ -318,8 +318,21 @@ def optimization_op(onnxfile):
                next_node.input[i] = delete_node.input[0]
 
       model.graph.node.remove(delete_node)
-      export_onnx = onnxfile #"./tmp.onnx"
-      onnx.checker.check_model(model)
+      export_onnx = onnxfile
+
+      try:
+         onnx.checker.check_model(model)
+      except onnx.checker.ValidationError as e:
+         print('---The model cannot be saved for: %s' % e)
+         if 'No Op registered for Mish' in str(e):
+               print('ignore mish warning, continue saving~')
+         else:
+               sys.exit()    
+      else:
+         print('---Begin saving model...')
+
+      ###################
+      #onnx.checker.check_model(model)
       onnx.save(model, export_onnx)
 
    return delete, export_onnx
@@ -350,10 +363,15 @@ def modify_onnx2dymnamic(onnx_model, model_path):
    try:
       onnx.checker.check_model(onnx_model)
    except onnx.checker.ValidationError as e:
-      print('The model cannot be modified for: %s' % e)
+      print('*** The model cannot be modified for: %s' % e)
+      if 'No Op registered for Mish' in str(e):
+         print('ignore mish warning, continue saving~')
+      else:
+         sys.exit()    
    else:
-      print('The model is modified!')
-      onnx.save(onnx_model, model_path)
+      print('*** The model is modified!')
+
+   onnx.save(onnx_model, model_path)
     
 def convert_gap_2_ap(onnxfile):
    model = onnx.load(onnxfile)
@@ -407,7 +425,18 @@ def convert_gap_2_ap(onnxfile):
                            model.graph.node.insert(d['id'], new_node)
 
    if need_convert == True:
-         onnx.checker.check_model(model)
+         #onnx.checker.check_model(model)
+         try:
+            onnx.checker.check_model(model)
+         except onnx.checker.ValidationError as e:
+            print('+++ The model cannot be saved for: %s' % e)
+            if 'No Op registered for Mish' in str(e):
+                  print('ignore mish warning, continue saving~')
+            else:
+                  sys.exit()    
+         else:
+            print('+++ Begin saving model...')
+
          onnx.save(model, onnxfile)
 
 def post_process(onnxfile):
@@ -509,7 +538,18 @@ def process(args):
       model = onnx.load(model_path)
 
    new_model = onnx.shape_inference.infer_shapes(model)
-   onnx.checker.check_model(new_model)
+   #onnx.checker.check_model(new_model)
+   try:
+      onnx.checker.check_model(new_model)
+   except onnx.checker.ValidationError as e:
+      print('### The model cannot be saved for: %s' % e)
+      if 'No Op registered for Mish' in str(e):
+            print('ignore mish warning, continue saving~')
+      else:
+            sys.exit()    
+   else:
+      print('### Begin saving model...')
+
    onnx.save(new_model, output)
 
    if dynamic_batch == 1:

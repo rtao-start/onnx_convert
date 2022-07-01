@@ -196,6 +196,30 @@ class ResizeParams(object):
         param_name = self.node_name + '_' + "scale"
         return param_name
 
+#qiuzy add for opset_11
+class ResizeParamsOpSet11(object):
+    # Helper class to store the scale parameter for an Resize node.
+
+    def __init__(self, node_name, scales, roi):
+        """Constructor based on the base node name (e.g. 86_Resize),
+        and the value of the scale input tensor.
+        Keyword arguments:
+        node_name -- base name of this YOLO Resize layer
+        value -- the value of the scale input to the Resize layer as numpy array
+        """
+        self.node_name = node_name
+        self.scales = scales
+        self.roi = roi
+
+    def generate_scales_param_name(self):
+        """Generates the scale parameter name for the Resize node."""
+        param_name = self.node_name + '_' + "scale"
+        return param_name
+
+    def generate_roi_param_name(self):
+        """Generates the scale parameter name for the Resize node."""
+        param_name = self.node_name + '_' + "roi"
+        return param_name    
 
 class ROIParams(object):
     # Helper class to store the scale parameter for an ROI node.
@@ -336,6 +360,7 @@ class WeightLoader(object):
         name = resize_params.generate_param_name()
         shape = resize_params.value.shape
         data = resize_params.value
+        print('load_resize_scales, shape:', shape, data)
         scale_init = helper.make_tensor(
             name, TensorProto.FLOAT, shape, data)
         scale_input = helper.make_tensor_value_info(
@@ -343,6 +368,44 @@ class WeightLoader(object):
         initializer.append(scale_init)
         inputs.append(scale_input)
         return initializer, inputs
+
+    #qiuzy add
+    def load_resize_scales_for_opset11(self, resize_params):
+        """
+        Returns the initializers with the value of the scale input
+        tensor given by resize_params.
+        Keyword argument:
+        resize_params -- a ResizeParams object
+        """
+        initializer = list()
+        inputs = list()
+        name = resize_params.generate_scales_param_name()
+        shape = resize_params.scales.shape
+        data = resize_params.scales
+
+        roi_name = resize_params.generate_roi_param_name()
+        roi_shape = resize_params.roi.shape
+        roi_data = resize_params.roi
+
+        print('load_resize_scales, shape:', shape, data)
+
+        roi_init = helper.make_tensor(
+            roi_name, TensorProto.FLOAT, roi_shape, roi_data)
+        roi_input = helper.make_tensor_value_info(
+            roi_name, TensorProto.FLOAT, roi_shape)
+
+        scale_init = helper.make_tensor(
+            name, TensorProto.FLOAT, shape, data)
+        scale_input = helper.make_tensor_value_info(
+            name, TensorProto.FLOAT, shape)
+
+        initializer.append(roi_init)
+        inputs.append(roi_input)
+
+        initializer.append(scale_init)
+        inputs.append(scale_input)
+
+        return initializer, inputs    
 
     def load_reshape_scales(self, reshape_params):
         """
@@ -559,8 +622,11 @@ class GraphBuilderONNX(object):
                 initializer.extend(initializer_layer)
                 inputs.extend(inputs_layer)
             elif layer_type == 'upsample':
-                initializer_layer, inputs_layer = weight_loader.load_resize_scales(
-                    params)
+                #initializer_layer, inputs_layer = weight_loader.load_resize_scales(
+                #    params)
+                #qiuzy add
+                initializer_layer, inputs_layer = weight_loader.load_resize_scales_for_opset11(
+                    params)    
                 initializer.extend(initializer_layer)
                 inputs.extend(inputs_layer)
             elif 'reshape' in layer_type:
@@ -581,7 +647,7 @@ class GraphBuilderONNX(object):
         )
         if verbose:
             print(helper.printable_graph(self.graph_def))
-        model_def = helper.make_model(self.graph_def, opset_imports=[helper.make_opsetid("", 10)],
+        model_def = helper.make_model(self.graph_def, opset_imports=[helper.make_opsetid("", 11)],
                                       producer_name='darknet to ONNX example')
         return model_def
 
@@ -607,7 +673,8 @@ class GraphBuilderONNX(object):
             node_creators['convolutional'] = self._make_conv_node
             node_creators['shortcut'] = self._make_shortcut_node
             node_creators['route'] = self._make_route_node
-            node_creators['upsample'] = self._make_resize_node
+            #node_creators['upsample'] = self._make_resize_node
+            node_creators['upsample'] = self._make_resize_node_for_opset_11 #qiuzy
             node_creators['maxpool'] = self._make_maxpool_node
 
             if layer_type in node_creators.keys():
@@ -953,10 +1020,49 @@ class GraphBuilderONNX(object):
         previous_node_specs = self._get_previous_node_specs()
         inputs = [previous_node_specs.name]
 
+        print('_make_resize_node, scales:', scales, ', shape:', scales.shape)
+
         channels = previous_node_specs.channels
         assert channels > 0
         resize_params = ResizeParams(layer_name, scales)
         scales_name = resize_params.generate_param_name()
+        inputs.append(scales_name)
+
+        resize_node = helper.make_node(
+            'Resize',
+            mode='nearest',
+            inputs=inputs,
+            outputs=[layer_name],
+            name=layer_name,
+        )
+        self._nodes.append(resize_node)
+        self.param_dict[layer_name] = resize_params
+        return layer_name, channels
+
+    #qiuzy add for opset_11
+    def _make_resize_node_for_opset_11(self, layer_name, layer_dict):
+        """Create an ONNX Resize node with the properties from
+        the DarkNet-based graph.
+        Keyword arguments:
+        layer_name -- the layer's name (also the corresponding key in layer_configs)
+        layer_dict -- a layer parameter dictionary (one element of layer_configs)
+        """
+        resize_scale_factors = float(layer_dict['stride'])
+        # Create the scale factor array with node parameters
+        scales = np.array([1.0, 1.0, resize_scale_factors, resize_scale_factors]).astype(np.float32)
+        previous_node_specs = self._get_previous_node_specs()
+        inputs = [previous_node_specs.name]
+
+        print('_make_resize_node, scales:', scales, ', shape:', scales.shape)
+
+        channels = previous_node_specs.channels
+        assert channels > 0
+
+        roi = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]).astype(np.float32)
+        resize_params = ResizeParamsOpSet11(layer_name, scales, roi)
+        roi_name = resize_params.generate_roi_param_name()
+        scales_name = resize_params.generate_scales_param_name()
+        inputs.append(roi_name)
         inputs.append(scales_name)
 
         resize_node = helper.make_node(
@@ -1084,7 +1190,7 @@ def main(cfg_file='yolov4.cfg', weights_file='yolov4.weights', output_file='yolo
     del builder
 
     # Perform a sanity check on the ONNX model definition:
-    #onnx.checker.check_model(yolo_model_def) #qiuzy test
+    #onnx.checker.check_model(yolo_model_def) #qiuzy debug
     try:
         onnx.checker.check_model(yolo_model_def)
     except onnx.checker.ValidationError as e:

@@ -132,9 +132,19 @@ def remove_unused_output(model: onnx.ModelProto, unused_output: Sequence[str]) -
             model.graph.output.remove(graph_output)
     model = onnxoptimizer.optimize(model, ['eliminate_deadend'],
                                    fixed_point=True)
-    onnx.checker.check_model(model)
-    return model
+    #onnx.checker.check_model(model) #qiuzy debug
+    try:
+        onnx.checker.check_model(model)
+    except onnx.checker.ValidationError as e:
+        if 'No Op registered for Mish' in str(e):
+            print('(osm)ignore mish warning, continue~')
+        else:
+            print('(osm)model error, exit now~')
+            sys.exit()    
+    else:
+        print('(osm)remove_unused_output successed')
 
+    return model
 
 def generate_specific_rand_input(model, input_shapes: TensorShapes):
     """
@@ -299,7 +309,18 @@ def forward_for_node_outputs(model: onnx.ModelProto,
         for i in range(1, len(subgraphs)):
             subgraphs[0].node.extend(subgraphs[i].node)
         model = onnx.utils.Extractor(model).extract_model([], output_names)
-        onnx.checker.check_model(model)
+        #onnx.checker.check_model(model) #qiuzy debug
+        try:
+            onnx.checker.check_model(model)
+        except onnx.checker.ValidationError as e:
+            if 'No Op registered for Mish' in str(e):
+                print('(---osm)ignore mish warning, continue~')
+            else:
+                print('(---osm)model error, exit now~')
+                sys.exit()    
+        else:
+            print('(---osm)start forward_for_node_outputs')
+
     res = forward(model,
                   input_data=input_data,
                   input_shapes=input_shapes,
@@ -359,7 +380,18 @@ def optimize(model: onnx.ModelProto, skip_fuse_bn: bool, skipped_optimizers: Opt
     and eliminate unused constants.
     """
 
-    onnx.checker.check_model(model)
+    #onnx.checker.check_model(model) #qiuzy debug
+    try:
+        onnx.checker.check_model(model)
+    except onnx.checker.ValidationError as e:
+        if 'No Op registered for Mish' in str(e):
+            print('(+++osm)ignore mish warning, continue~')
+        else:
+            print('(+++osm)model error, exit now~')
+            sys.exit()    
+    else:
+        print('(+++osm)optimize check success')
+
     onnx.helper.strip_doc_string(model)
     optimizers_list = onnxoptimizer.get_fuse_and_elimination_passes()
     if skip_fuse_bn:
@@ -373,9 +405,19 @@ def optimize(model: onnx.ModelProto, skip_fuse_bn: bool, skipped_optimizers: Opt
 
     model = onnxoptimizer.optimize(model, optimizers_list,
                                    fixed_point=True)
-    onnx.checker.check_model(model)
-    return model
+    #onnx.checker.check_model(model) #qiuzy debug
+    try:
+        onnx.checker.check_model(model)
+    except onnx.checker.ValidationError as e:
+        if 'No Op registered for Mish' in str(e):
+            print('(###osm)ignore mish warning, continue~')
+        else:
+            print('(###osm)model error, exit now~')
+            sys.exit()    
+    else:
+        print('(###osm)optimize successed')
 
+    return model
 
 def check(model_ori: onnx.ModelProto, model_opt: onnx.ModelProto, n_times: int,
           input_shapes: Optional[TensorShapes] = None, custom_lib: Optional[str] = None) -> bool:
@@ -389,7 +431,17 @@ def check(model_ori: onnx.ModelProto, model_opt: onnx.ModelProto, n_times: int,
     """
     if input_shapes is None:
         input_shapes = {}
-    onnx.checker.check_model(model_opt)
+    #onnx.checker.check_model(model_opt) #qiuzy debug
+    try:
+        onnx.checker.check_model(model_opt)
+    except onnx.checker.ValidationError as e:
+        if 'No Op registered for Mish' in str(e):
+            print('(+++osm)ignore mish warning, continue~')
+        else:
+            print('(+++osm)model error, exit now~')
+            sys.exit()    
+    else:
+        print('(+++osm)check pass~')
 
     if is_non_deterministic_model(model_ori) and n_times > 0:
         print("The model has random ops like RandomNormal. Skip checking..")
@@ -532,7 +584,18 @@ def simplify(model: Union[str, onnx.ModelProto],
     if isinstance(model, str):
         model = onnx.load(model)
     assert(isinstance(model, onnx.ModelProto))
-    onnx.checker.check_model(model)
+    #onnx.checker.check_model(model) #qiuzy debug
+    try:
+        onnx.checker.check_model(model)
+    except onnx.checker.ValidationError as e:
+        if 'No Op registered for Mish' in str(e):
+            print('(***osm)ignore mish warning, continue~')
+        else:
+            print('(***osm)model error, exit now~')
+            sys.exit()    
+    else:
+        print('(***osm)begin simplify~')
+
     model_ori = model
     model = copy.deepcopy(model)
 
@@ -582,7 +645,18 @@ def simplify(model: Union[str, onnx.ModelProto],
                                        custom_lib=custom_lib)
         const_nodes = clean_constant_nodes(const_nodes, res)
         model = eliminate_const_nodes(model, const_nodes, res)
-        onnx.checker.check_model(model)
+        #onnx.checker.check_model(model) #qiuzy debug
+        try:
+            onnx.checker.check_model(model)
+        except onnx.checker.ValidationError as e:
+            if 'No Op registered for Mish' in str(e):
+                print('(***osm)ignore mish warning, continue~')
+            else:
+                print('(***osm)model error, exit now~')
+                sys.exit()    
+        else:
+            print('(***osm)finish constant_folding')
+
         return model
 
     model = fixed_point(model, constant_folding, infer_shapes_and_optimize)
