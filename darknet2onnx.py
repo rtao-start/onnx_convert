@@ -1140,7 +1140,6 @@ class GraphBuilderONNX(object):
         self._nodes.append(reshape_node)
         return output_name
 
-
 def main(cfg_file='yolov4.cfg', weights_file='yolov4.weights', output_file='yolov4.onnx', strides=None, neck='PAN', support_mish=0):
     cfg_file_path = cfg_file
 

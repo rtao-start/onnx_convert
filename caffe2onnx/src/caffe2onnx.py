@@ -1103,7 +1103,7 @@ class Caffe2Onnx():
         #print("add model output information and model intermediate output information")
 
     # Create a model 
-    def createOnnxModel(self):
+    def createOnnxModel(self, op_set):
         node_def = [Node.node for Node in self.onnxNodeList]
         graph_def = helper.make_graph(
             node_def,
@@ -1113,6 +1113,7 @@ class Caffe2Onnx():
             self.onnxmodel.init_t,
             value_info=self.onnxmodel.hidden_out_tvi
         )
-        model_def = helper.make_model(graph_def, producer_name='caffe')
+        model_def = helper.make_model(graph_def, opset_imports=[helper.make_opsetid("", op_set)], #qiuzy debug
+                                        producer_name='caffe', )
         print("converting caffe model to onnx model completed successfully")
         return model_def

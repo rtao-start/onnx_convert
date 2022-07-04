@@ -20,7 +20,7 @@ def main(args):
 
     graph, params = loadcaffemodel(prototxt_path, caffemodel_path)
     c2o = Caffe2Onnx(graph, params, onnxmodel_path)
-    onnxmodel = c2o.createOnnxModel()
+    onnxmodel = c2o.createOnnxModel(11) #qiuzy debug
 
     if args.frozen is True:
         freeze(onnxmodel)

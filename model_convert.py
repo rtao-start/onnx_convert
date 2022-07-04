@@ -17,6 +17,8 @@ from caffe2onnx.src.caffe2onnx import Caffe2Onnx
 from onnxsim.onnx_simplifier import simplify
 from float16 import convert_float_to_float16
 
+support_mish = 0
+
 logging.basicConfig(level=logging.INFO)
 
 from onnx import shape_inference, TensorProto, version_converter, numpy_helper
@@ -107,7 +109,13 @@ def parse_args():
                         type=int, 
                         required=False,
                         default=0,
-                        help="fp32-->fp16")                                                                                                                            
+                        help="fp32-->fp16")
+
+   parser.add_argument("--support_mish",
+                        type=int, 
+                        required=False,
+                        default=0,
+                        help="hardware support mish")                                                                                                                                                    
                                                                   
    args = parser.parse_args()
    return args
@@ -141,7 +149,7 @@ def get_caffe_files(model_path):
    
    return prototxt_file, caffemodel_file  
 
-def convert_caffe2onnx(model_path, output):
+def convert_caffe2onnx(model_path, output, op_set):
       print('Begin converting caffe to onnx...')
       prototxt_file, caffemodel_file = get_caffe_files(model_path)
 
@@ -153,7 +161,7 @@ def convert_caffe2onnx(model_path, output):
 
       graph, params = loadcaffemodel(prototxt_file, caffemodel_file)
       c2o = Caffe2Onnx(graph, params, onnxmodel_path)
-      onnxmodel = c2o.createOnnxModel()
+      onnxmodel = c2o.createOnnxModel(op_set) #qiuzy debug
 
       saveonnxmodel(onnxmodel, onnxmodel_path)
 
@@ -253,23 +261,32 @@ def convert_pt2onnx(model_path, output, op_set, input_shape):
       )
 
 def convert_dn2onnx(model_path, output, op_set):
-      print('Begin converting darknet to onnx...')
-      cfg_file, weights_file = get_darknet_files(model_path)
+   global support_mish
+   print('Begin converting darknet to onnx...... support_mish：', support_mish)
+   cfg_file, weights_file = get_darknet_files(model_path)
 
-      cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --output_file ' + output
-     
-      if '-tiny' in cfg_file or '-tiny' in weights_file:
-         cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output
-      elif 'yolov3' in cfg_file or 'yolov3' in weights_file:
-         cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output
-     
-      print('convert_dn2onnx: ', cmd)
+   cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --output_file ' + output + ' --support_mish ' + str(support_mish)
+   
+   if '-tiny' in cfg_file or '-tiny' in weights_file:
+      cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output + ' --support_mish ' + str(support_mish)
+   elif 'yolov3' in cfg_file or 'yolov3' in weights_file:
+      cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output
+   
+   print('convert_dn2onnx: ', cmd)
 
-      os.system(cmd) 
+   os.system(cmd)
+
+def convert_mish(model_path, output, op_set):
+   global support_mish
+   print('Begin converting mish')
+
+   cmd = 'python ./mish_convert.py --onnx_file ' + model_path + ' --output_file ' + output
+   print('convert_mish: ', cmd)
+   os.system(cmd)     
 
 def convert(model_path, model_type, output, op_set, input_shape, inputs, outputs):
    if model_type == 'caffe':
-      convert_caffe2onnx(model_path, output)
+      convert_caffe2onnx(model_path, output, op_set)
 
    if model_type == 'tf-sm':
       convert_sm2onnx(model_path, output, op_set)   
@@ -457,13 +474,73 @@ def post_process(onnxfile):
 
    print('convert_gap_2_ap cost', end_time2 - end_time1, ' seconds')     
 
+def my_extract_model(
+        input_path,  # type: Text
+        output_path,  # type: Text
+        input_names,  # type: List[Text]
+        output_names  # type: List[Text]
+):  # type: (...) -> None
+   """Extracts sub-model from an ONNX model.
+
+   The sub-model is defined by the names of the input and output tensors *exactly*.
+
+   Note: For control-flow operators, e.g. If and Loop, the _boundary of sub-model_,
+   which is defined by the input and output tensors, should not _cut through_ the
+   subgraph that is connected to the _main graph_ as attributes of these operators.
+
+   Arguments:
+   input_path (string): The path to original ONNX model.
+   output_path (string): The path to save the extracted ONNX model.
+   input_names (list of string): The names of the input tensors that to be extracted.
+   output_names (list of string): The names of the output tensors that to be extracted.
+   """
+   if not os.path.exists(input_path):
+      raise ValueError("Invalid input model path: %s" % input_path)
+   if not output_path:
+      raise ValueError("Output model path shall not be empty!")
+   if not output_names:
+      raise ValueError("Output tensor names shall not be empty!")
+
+   #onnx.checker.check_model(input_path)
+   try:
+      onnx.checker.check_model(input_path)
+   except onnx.checker.ValidationError as e:
+      print('~~~~ The model cannot be extracted for: %s' % e)
+      if 'No Op registered for Mish' in str(e):
+            print('ignore mish warning, continue~')
+      else:
+            sys.exit()    
+   else:
+      print('~~~~ Begin extracting model...')
+
+   model = onnx.load(input_path)
+
+   e = onnx.utils.Extractor(model)
+   extracted = e.extract_model(input_names, output_names)
+
+   onnx.save(extracted, output_path)
+   #onnx.checker.check_model(output_path)
+   try:
+      onnx.checker.check_model(output_path)
+   except onnx.checker.ValidationError as e:
+      print('^^^^ The model cannot be extracted for: %s' % e)
+      if 'No Op registered for Mish' in str(e):
+            print('ignore mish warning, continue~')
+      else:
+            sys.exit()    
+   else:
+      print('^^^^ Finish extracting model...')
+
 def extract_sub_graph(input_path, output_path, input_names, output_names):
    print('input_names:', input_names, ', output_names:', output_names)
    input_list = input_names.split(',')
    output_list = output_names.split(',')
-   onnx.utils.extract_model(input_path, output_path, input_list, output_list)
+   #onnx.utils.extract_model(input_path, output_path, input_list, output_list)
+   my_extract_model(input_path, output_path, input_list, output_list)
 
 def process(args):
+   global support_mish
+
    model_path = args.model_path
    model_type = args.model_type
    output = args.output
@@ -475,6 +552,8 @@ def process(args):
    extract_sub = args.extract_sub
    dynamic_batch = args.dynamic_batch
    fp32_to_fp16 = args.fp32_to_fp16
+
+   support_mish = args.support_mish
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -569,7 +648,10 @@ def process(args):
    if fp32_to_fp16 == 1:
       print('begin doing fp32-->fp16...')
       new_model = convert_float_to_float16(new_model, keep_io_types=True)
-      onnx.save(new_model, output)   
+      onnx.save(new_model, output)
+
+   if model_type == 'onnx' and support_mish == 1:
+      convert_mish(model_path, output, op_set)
 
    end_time3 = time.time()
 
