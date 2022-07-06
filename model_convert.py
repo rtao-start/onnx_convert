@@ -356,7 +356,16 @@ def optimization_op(onnxfile):
 
 def model_simplify(model_path):
    onnx_model = onnx.load(model_path)
-   model_simp, check = simplify(onnx_model)
+   dynamic_input_shape_ = False
+
+   for idx in range(len(onnx_model.graph.input)):
+      dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
+      if dim_proto_input.dim_value == -1:
+         print('The model input is dynamic~~~~~~')
+         dynamic_input_shape_ = True
+         break
+
+   model_simp, check = simplify(onnx_model, dynamic_input_shape=dynamic_input_shape_)
    onnx.save(model_simp, model_path)
 
    return model_simp
@@ -456,7 +465,7 @@ def convert_gap_2_ap(onnxfile):
 
          onnx.save(model, onnxfile)
 
-def post_process(onnxfile):
+def post_process(onnxfile, inference_success):
    start_time = time.time()
 
    delete, post_process_file = optimization_op(onnxfile)
@@ -468,7 +477,10 @@ def post_process(onnxfile):
 
    print('optimization_op cost', end_time1 - start_time, ' seconds')   
 
-   convert_gap_2_ap(post_process_file) 
+   if inference_success == True:
+      convert_gap_2_ap(post_process_file)
+   else:
+      print('Cannot do inference, so skip global_average_pool-->average_pool')    
 
    end_time2 = time.time()
 
@@ -616,16 +628,27 @@ def process(args):
    else:
       model = onnx.load(model_path)
 
-   new_model = onnx.shape_inference.infer_shapes(model)
+   inference_success = False
+   new_model = model
+   #new_model = onnx.shape_inference.infer_shapes(model)
+   try:
+      new_model = onnx.shape_inference.infer_shapes(model)
+   except BaseException as e:
+      print('The model cannot be inferenced for: %s' % e)
+      new_model = model    
+   else:
+      print('Inference success---')
+      inference_success = True
+
    #onnx.checker.check_model(new_model)
    try:
       onnx.checker.check_model(new_model)
    except onnx.checker.ValidationError as e:
       print('### The model cannot be saved for: %s' % e)
       if 'No Op registered for Mish' in str(e):
-            print('ignore mish warning, continue saving~')
+            print('ignore mish warning, continue saving~')  
       else:
-            sys.exit()    
+            sys.exit()
    else:
       print('### Begin saving model...')
 
@@ -639,7 +662,7 @@ def process(args):
 
    print('generate inference shape model, it cost', end_time2 - end_time1, ' seconds')
 
-   post_process(output)
+   post_process(output, inference_success)
 
    if simplify_model == 1:
       print('begin doing simplify...')

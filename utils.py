@@ -119,7 +119,7 @@ onnx.save(onnx_model, './nn.onnx')
 ######## insert preprocess node 2
 import onnx
 
-onnx_model = onnx.load('./v4_sub.onnx')
+onnx_model = onnx.load('./mnist_model.onnx')
 graph = onnx_model.graph
 
 input_name = graph.input[0].name
@@ -138,29 +138,33 @@ std_const_node = onnx.helper.make_tensor(name='const_std',
 
 graph.initializer.append(std_const_node)
 
-resize_const_node = onnx.helper.make_tensor(name='const_size',
-                      data_type=onnx.TensorProto.FLOAT,
+resize_const_node = onnx.helper.make_tensor(name='const_resize',
+                      data_type=onnx.TensorProto.INT32,
                       dims=[2],
                       vals=[224, 224])
 
 graph.initializer.append(resize_const_node)
 
 crop_const_node = onnx.helper.make_tensor(name='const_crop',
-                      data_type=onnx.TensorProto.FLOAT,
-                      dims=[2],
-                      vals=[12, 12])
+                      data_type=onnx.TensorProto.INT32,
+                      dims=[4],
+                      vals=[100,200,300,400])
 
 graph.initializer.append(crop_const_node)
 
 pre_process_node = onnx.helper.make_node(
                 'PreProc',
                 name='preprocess',
-                inputs=[input_name, 'const_mean', 'const_std', 'const_size','const_crop'],
+                inputs=[input_name, 'const_mean', 'const_std', 'const_resize','const_crop'],
                 outputs=['pre_process'])
 
 graph.node.insert(0, pre_process_node)
 
 graph.node[1].input[0]='pre_process'
+
+graph.input[0].type.tensor_type.elem_type = 2
+graph.input[0].type.tensor_type.shape.dim[2].dim_value = -1
+graph.input[0].type.tensor_type.shape.dim[3].dim_value = -1
 
 graph = onnx.helper.make_graph(graph.node, graph.name, graph.input, graph.output, graph.initializer)
 info_model = onnx.helper.make_model(graph)
@@ -168,3 +172,8 @@ onnx_model = onnx.shape_inference.infer_shapes(info_model)
  
 #onnx.checker.check_model(onnx_model)
 onnx.save(onnx_model, './mm.onnx')
+
+m=onnx.load('./mm.onnx')
+for node_id, node in enumerate(m.graph.node):
+    print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
+            ", op:", node.op_type, ', len(input):', len(node.input))
