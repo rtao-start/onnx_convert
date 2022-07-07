@@ -177,3 +177,5 @@ m=onnx.load('./mm.onnx')
 for node_id, node in enumerate(m.graph.node):
     print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
             ", op:", node.op_type, ', len(input):', len(node.input))
+
+

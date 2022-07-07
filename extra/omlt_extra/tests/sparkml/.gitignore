@@ -1,4 +1,0 @@
-#spark files
-metastore_db/
-derby.log
-spark-warehouse

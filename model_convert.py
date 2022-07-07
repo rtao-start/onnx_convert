@@ -386,6 +386,22 @@ def modify_onnx2dymnamic(onnx_model, model_path):
       # dim_proto_output.dim_param = 'bs'
       dim_proto_output.dim_value = -1
 
+   ### for Reshape
+   reshape_param = []
+   for node_id, node in enumerate(onnx_model.graph.node):
+      #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
+      #         ", op:", node.op_type, ', len(input):', len(node.input))
+      if node.op_type == 'Reshape':
+         print('Reshape, input:', node.input)
+         if node.input[1] not in reshape_param:
+            reshape_param.append(node.input[1])
+
+   for n in reshape_param:
+      for init in onnx_model.graph.initializer:
+         if n == init.name:
+            print('got it in initializer:', n)
+            init.int64_data[0] = -1      
+
    try:
       onnx.checker.check_model(onnx_model)
    except onnx.checker.ValidationError as e:
