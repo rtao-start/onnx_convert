@@ -62,4 +62,14 @@
 11 提取子图
    命令：python model_convert.py --model_path ./output.onnx  --model_type onnx   --output ./test.onnx  --extract_sub 1 --inputs input_1:0  --outputs functional_1/concatenate/concat:0
    说明：model_type必须为onnx
+
+12 mish合成
+   命令：python model_convert.py --model_path ./dn_models --model_type darknet  --output ./output.onnx --support_mish 1
+   也可直接对onnx模型中的算子进行合成：python model_convert.py --model_path ./my.onnx --model_type onnx --output ./test.onnx  --support_mish 1
+
+13 op_set版本转换
+   命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx  --op_set 12
+   也可直接对onnx模型进行版本转换：python model_convert.py --model_path ./my.onnx --model_type onnx --output ./test.onnx  --op_set 12
+
+
       
