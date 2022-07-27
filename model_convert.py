@@ -694,7 +694,7 @@ def process(args):
       convert(model_path, model_type, output, op_set_default, input_shape, inputs, outputs)
 
    end_time1 = time.time()
-
+  
    print('finish convert, it cost', end_time1 - begin_time, ' seconds')
 
    if model_type != 'onnx':
