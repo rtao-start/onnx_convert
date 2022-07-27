@@ -1,4 +1,3 @@
-'''
 from onnx import load_model, save_model
 import torch
 import torch.nn as nn
@@ -7,7 +6,9 @@ import numpy as np
 import onnxruntime as rt
 from torch.nn.modules.upsampling import UpsamplingNearest2d
 import time 
+import onnx
 
+'''
 class TestNet(nn.Module):
     def __init__(self):
         super(TestNet,self).__init__()
@@ -116,6 +117,7 @@ onnx.checker.check_model(onnx_model)
 onnx.save(onnx_model, './nn.onnx')
 '''
 
+'''
 ######## insert preprocess node 2
 import onnx
 
@@ -177,5 +179,100 @@ m=onnx.load('./mm.onnx')
 for node_id, node in enumerate(m.graph.node):
     print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
             ", op:", node.op_type, ', len(input):', len(node.input))
+'''
+def add_value_info_for_constants(model : onnx.ModelProto):
+    """
+    Currently onnx.shape_inference doesn't use the shape of initializers, so add
+    that info explicitly as ValueInfoProtos.
+    Mutates the model.
+    Args:
+        model: The ModelProto to update.
+    """
+    # All (top-level) constants will have ValueInfos before IRv4 as they are all inputs
+    if model.ir_version < 4:
+        return
 
+    def add_const_value_infos_to_graph(graph : onnx.GraphProto):
+        inputs = {i.name for i in graph.input}
+        in_ = {i.name: i for i in graph.input}
+        for init in graph.initializer:
+            # Check it really is a constant, not an input
+            if init.name in inputs:
+                continue
 
+            # The details we want to add
+            elem_type = init.data_type
+            shape = init.dims
+
+            # Get existing or create new value info for this constant
+            vi = in_.get(init.name)
+            if vi is None:
+                vi = graph.input.add()
+                vi.name = init.name
+
+            # Even though it would be weird, we will not overwrite info even if it doesn't match
+            tt = vi.type.tensor_type
+            if tt.elem_type == onnx.TensorProto.UNDEFINED:
+                tt.elem_type = elem_type
+            if not tt.HasField("shape"):
+                # Ensure we set an empty list if the const is scalar (zero dims)
+                tt.shape.dim.extend([])
+                for dim in shape:
+                    tt.shape.dim.add().dim_value = dim
+
+        # Handle subgraphs
+        for node in graph.node:
+            for attr in node.attribute:
+                # Ref attrs refer to other attrs, so we don't need to do anything
+                if attr.ref_attr_name != "":
+                    continue
+
+                if attr.type == onnx.AttributeProto.GRAPH:
+                    add_const_value_infos_to_graph(attr.g)
+                if attr.type == onnx.AttributeProto.GRAPHS:
+                    for g in attr.graphs:
+                        add_const_value_infos_to_graph(g)
+
+    return add_const_value_infos_to_graph(model.graph)
+
+m = onnx.load('./ResCNN_tf_sim.onnx')
+'''
+#new_model = onnx.shape_inference.infer_shapes(model)
+#onnx.save(model, './vv.onnx')
+for node_id, node in enumerate(m.graph.node):
+    print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
+            ", op:", node.op_type, ', len(input):', len(node.input))
+
+print('======================================model.ir_version:', m.ir_version)
+
+for init in m.graph.initializer:
+    print('got init: ', init.name)  
+
+print('-------------------------------------------------------')
+
+add_value_info_for_constants(m)
+
+for value_info in m.graph.value_info:
+    print('got value_info: ', value_info.name)
+
+onnx.save(m, './vv.onnx')                   
+'''
+id = 0
+for node_id, node in enumerate(m.graph.node):
+    print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
+             ", op:", node.op_type, ', len(input):', len(node.input))
+    if node.op_type == 'Transpose':
+        print('Transpose, input:', node.input, node_id)
+        id = node_id
+
+del m.graph.output[:]
+
+m.graph.output.extend([onnx.ValueInfoProto(name='output/BiasAdd_raw_output___4:0')])
+#onnx.checker.check_model(m)
+
+old_node = m.graph.node[id]
+m.graph.node.remove(old_node)
+
+onnx_model = onnx.shape_inference.infer_shapes(m)
+
+onnx.save(onnx_model, './vv.onnx') 

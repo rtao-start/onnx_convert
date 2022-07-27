@@ -1,5 +1,6 @@
 import os
 import onnx
+from onnx import version_converter
 import copy
 import numpy as np
 import logging
@@ -16,6 +17,7 @@ from caffe2onnx.src.load_save_model import loadcaffemodel, saveonnxmodel
 from caffe2onnx.src.caffe2onnx import Caffe2Onnx
 from onnxsim.onnx_simplifier import simplify
 from float16 import convert_float_to_float16
+from preprocess import preproc
 
 support_mish = 0
 
@@ -115,7 +117,13 @@ def parse_args():
                         type=int, 
                         required=False,
                         default=0,
-                        help="hardware support mish")                                                                                                                                                    
+                        help="hardware support mish") 
+
+   parser.add_argument("--preproc_yaml",
+                        type=str, 
+                        required=False,
+                        default='',
+                        help="preprocess yaml file")                                                                                                                                                                            
                                                                   
    args = parser.parse_args()
    return args
@@ -360,7 +368,7 @@ def model_simplify(model_path):
 
    for idx in range(len(onnx_model.graph.input)):
       dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
-      if dim_proto_input.dim_value == -1:
+      if dim_proto_input.dim_value == -1 or dim_proto_input.dim_value == 0:
          print('The model input is dynamic~~~~~~')
          dynamic_input_shape_ = True
          break
@@ -566,6 +574,54 @@ def extract_sub_graph(input_path, output_path, input_names, output_names):
    #onnx.utils.extract_model(input_path, output_path, input_list, output_list)
    my_extract_model(input_path, output_path, input_list, output_list)
 
+def add_value_info_for_constants(model : onnx.ModelProto):
+   # All (top-level) constants will have ValueInfos before IRv4 as they are all inputs
+   if model.ir_version < 4:
+      return
+
+   def add_const_value_infos_to_graph(graph : onnx.GraphProto):
+      inputs = {i.name for i in graph.input}
+      in_ = {i.name: i for i in graph.input}
+      for init in graph.initializer:
+         # Check it really is a constant, not an input
+         if init.name in inputs:
+               continue
+
+         # The details we want to add
+         elem_type = init.data_type
+         shape = init.dims
+
+         # Get existing or create new value info for this constant
+         vi = in_.get(init.name)
+         if vi is None:
+               vi = graph.input.add()
+               vi.name = init.name
+
+         # Even though it would be weird, we will not overwrite info even if it doesn't match
+         tt = vi.type.tensor_type
+         if tt.elem_type == onnx.TensorProto.UNDEFINED:
+               tt.elem_type = elem_type
+         if not tt.HasField("shape"):
+               # Ensure we set an empty list if the const is scalar (zero dims)
+               tt.shape.dim.extend([])
+               for dim in shape:
+                  tt.shape.dim.add().dim_value = dim
+
+      # Handle subgraphs
+      for node in graph.node:
+         for attr in node.attribute:
+               # Ref attrs refer to other attrs, so we don't need to do anything
+               if attr.ref_attr_name != "":
+                  continue
+
+               if attr.type == onnx.AttributeProto.GRAPH:
+                  add_const_value_infos_to_graph(attr.g)
+               if attr.type == onnx.AttributeProto.GRAPHS:
+                  for g in attr.graphs:
+                     add_const_value_infos_to_graph(g)
+
+   return add_const_value_infos_to_graph(model.graph)
+
 def process(args):
    global support_mish
 
@@ -580,8 +636,8 @@ def process(args):
    extract_sub = args.extract_sub
    dynamic_batch = args.dynamic_batch
    fp32_to_fp16 = args.fp32_to_fp16
-
    support_mish = args.support_mish
+   preproc_yaml = args.preproc_yaml
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -597,8 +653,10 @@ def process(args):
       print('valid mode type is {}'.format(valid_model_type))
       sys.exit()
 
-   if op_set == None:
-      op_set = 11
+   op_set_default = 11
+
+   #if op_set == None:
+   #   op_set = op_set_default
 
    if model_type == 'pytorch' and args.input_shape == '':
       print('When converting pytorch model, you must tell the input shape(ex: --input_shape [1, 3, 32, 32])')
@@ -633,7 +691,7 @@ def process(args):
    begin_time = time.time()
 
    if model_type != 'onnx':
-      convert(model_path, model_type, output, op_set, input_shape, inputs, outputs)
+      convert(model_path, model_type, output, op_set_default, input_shape, inputs, outputs)
 
    end_time1 = time.time()
 
@@ -643,6 +701,14 @@ def process(args):
       model = onnx.load(output)
    else:
       model = onnx.load(model_path)
+
+   if op_set != None :
+      if model_type == 'onnx':
+         print('ONNX, add_value_info_for_constants...')
+         add_value_info_for_constants(model)
+         model = version_converter.convert_version(model, op_set)
+      elif op_set != op_set_default:
+         model = version_converter.convert_version(model, op_set)
 
    inference_success = False
    new_model = model
@@ -661,8 +727,8 @@ def process(args):
       onnx.checker.check_model(new_model)
    except onnx.checker.ValidationError as e:
       print('### The model cannot be saved for: %s' % e)
-      if 'No Op registered for Mish' in str(e):
-            print('ignore mish warning, continue saving~')  
+      if 'No Op registered for Mish' in str(e) or 'No opset import for domain' in str(e) :
+            print('ignore warning, continue saving~')  
       else:
             sys.exit()
    else:
@@ -691,6 +757,12 @@ def process(args):
 
    if model_type == 'onnx' and support_mish == 1:
       convert_mish(model_path, output, op_set)
+
+   if model_type == 'onnx' and preproc_yaml != '':
+      if os.path.exists(preproc_yaml):
+         preproc(new_model, output)
+      else:
+         print(preproc_yaml, 'is not exist')      
 
    end_time3 = time.time()
 

@@ -77,7 +77,7 @@ DEFAULT_OP_BLOCK_LIST = ['ArrayFeatureExtractor', 'Binarizer', 'CastMap', 'Categ
                          'FeatureVectorizer', 'Imputer', 'LabelEncoder', 'LinearClassifier', 'LinearRegressor',
                          'Normalizer', 'OneHotEncoder', 'SVMClassifier', 'SVMRegressor', 'Scaler',
                          'TreeEnsembleClassifier', 'TreeEnsembleRegressor', 'ZipMap', 'NonMaxSuppression', 'TopK',
-                         'RoiAlign', 'Resize', 'Range', 'CumSum', 'Min', 'Max', 'Upsample']
+                         'RoiAlign', 'Resize', 'Range', 'CumSum', 'Min', 'Max', 'Upsample', 'DequantizeLinear', 'QuantizeLinear']
 
 
 def convert_float_to_float16_old(model, min_positive_val=1e-7, max_finite_val=1e4,
@@ -429,13 +429,13 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
             # if q is graph, process graph.initializer(TensorProto), input, output and value_info (ValueInfoProto)
             if isinstance(q, onnx_proto.GraphProto):
                 for n in q.initializer:  # TensorProto type
-                    if n.data_type == onnx_proto.TensorProto.FLOAT:
+                    if n.data_type == onnx_proto.TensorProto.FLOAT and n.name != 'const_std':
                         n = convert_tensor_float_to_float16(n, min_positive_val, max_finite_val)
                         value_info_list.append(make_value_info_from_tensor(n))
                 # for all ValueInfoProto with tensor(float) type in input, output and value_info, convert them to
                 # tensor(float16) except map and seq(map). And save them in value_info_list for further processing
                 for n in itertools.chain(q.input, q.output, q.value_info):
-                    if n.type.tensor_type.elem_type == onnx_proto.TensorProto.FLOAT:
+                    if n.type.tensor_type.elem_type == onnx_proto.TensorProto.FLOAT  and n.name != 'const_std':
                         if n.name not in graph_io_to_skip:
                             n.type.tensor_type.elem_type = onnx_proto.TensorProto.FLOAT16
                             value_info_list.append(n)
