@@ -57,6 +57,7 @@
 
 10 启用fp32-->fp16转换(默认关闭)
    命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx  --fp32_to_fp16 1
+   如原始模型为qdq量化后的模型，执行simplify时可能失败，关闭simplify功能即可：python model_convert.py --model_path ./qdq.onnx --model_type onnx --output ./fp16.onnx  --fp32_to_fp16 1 --simplify 0
 
 11 提取子图
    命令：python model_convert.py --model_path ./output.onnx  --model_type onnx   --output ./test.onnx  --extract_sub 1 --inputs input_1:0  --outputs functional_1/concatenate/concat:0
