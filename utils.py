@@ -257,6 +257,8 @@ for value_info in m.graph.value_info:
 
 onnx.save(m, './vv.onnx')                   
 '''
+
+'''
 id = 0
 for node_id, node in enumerate(m.graph.node):
     print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
@@ -276,3 +278,10 @@ m.graph.node.remove(old_node)
 onnx_model = onnx.shape_inference.infer_shapes(m)
 
 onnx.save(onnx_model, './vv.onnx') 
+'''
+
+info_model = onnx.load('./fp16_resnet50.onnx')
+onnx_model = onnx.shape_inference.infer_shapes(info_model)
+ 
+onnx.checker.check_model(onnx_model)
+onnx.save(onnx_model, './nn.onnx')

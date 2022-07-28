@@ -18,6 +18,7 @@ from caffe2onnx.src.caffe2onnx import Caffe2Onnx
 from onnxsim.onnx_simplifier import simplify
 from float16 import convert_float_to_float16
 from preprocess import preproc
+from correct_batch import correct_batch_for_opset_convert
 
 support_mish = 0
 
@@ -705,6 +706,7 @@ def process(args):
    if op_set != None :
       if model_type == 'onnx':
          print('ONNX, add_value_info_for_constants...')
+         correct_batch_for_opset_convert(model)
          add_value_info_for_constants(model)
          model = version_converter.convert_version(model, op_set)
       elif op_set != op_set_default:
