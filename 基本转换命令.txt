@@ -71,5 +71,21 @@
    命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx  --op_set 12
    也可直接对onnx模型进行版本转换：python model_convert.py --model_path ./my.onnx --model_type onnx --output ./test.onnx  --op_set 12
 
+14 paddle转onnx
+   命令：
+          (1)动态paddle模型
+            python model_convert.py --model_path ./paddle_model   --model_type paddle   --output ./paddle.onnx  --model_def_file  ./mnist.py --model_class_name LeNet  --model_weights_file ./paddle_checkpoint/final.pdparams --input_shape [1,1,28,28]  (自定义的类，在mnist.py中实现class LeNet)
+          或python model_convert.py --model_path ./paddle_model   --model_type paddle   --output ./paddle.onnx  --model_def_file  ./mnist.py --model_class_name paddle.vision.models.LeNet  --model_weights_file ./paddle_checkpoint/final.pdparams --input_shape [1,1,28,28]    (paddle自带的类，在paddle.vision.models.lenet模块中，类名为LeNet)
+        (2)静态paddle模型
+          python model_convert.py --model_path ./paddle_model   --model_type paddle   --output ./paddle.onnx 
+           
+   参数说明：model_path：pytorch模型所在的路径(非文件夹)
+                   model_type：模型类型，此处固定为paddle
+                   input shape：输入shape
+                   output：输出onnx模型的文件路径
+                   model_def_file：
+                   model_weights_file：
+                   model_class_name 
+
 
       
