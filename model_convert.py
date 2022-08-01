@@ -19,6 +19,7 @@ from onnxsim.onnx_simplifier import simplify
 from float16 import convert_float_to_float16
 from preprocess import preproc
 from correct_batch import correct_batch_for_opset_convert
+from pd2onnx import convert_pd2onnx
 
 support_mish = 0
 
@@ -30,7 +31,7 @@ logger = logging.getLogger("[Any2ONNX]")
 
 import argparse
 
-valid_model_type = ['caffe', 'pytorch', 'tf-h5', 'tf-ckpt', 'tf-sm', 'tf-graph', 'darknet', 'onnx']
+valid_model_type = ['caffe', 'pytorch', 'tf-h5', 'tf-ckpt', 'tf-sm', 'tf-graph', 'darknet', 'onnx', 'paddle']
 
 optimization_op_list = ['Max', 'Min', 'Sum', 'Mean']
 
@@ -54,18 +55,6 @@ def parse_args():
    parser.add_argument("--op_set",
                         type=int, required=False,
                         help="op_set version(default: 11)")
-
-   parser.add_argument("--datatype_convert",
-                        type=str, required=False,
-                        help="data type convert(ex: fp32_to_fp16)") 
-
-   parser.add_argument("--q_dataset_file",
-                        type=str, required=False,
-                        help="quantization prepare file(ex: ./1.npy)")
-
-   parser.add_argument("--q_onnx_file",
-                        type=str, required=False,
-                        help="quantization output onnx file(ex: ./output_q.onnx)") 
 
    #for simplify
    parser.add_argument("--simplify",
@@ -120,11 +109,37 @@ def parse_args():
                         default=0,
                         help="hardware support mish") 
 
+   #insert preproc node
    parser.add_argument("--preproc_yaml",
                         type=str, 
                         required=False,
                         default='',
-                        help="preprocess yaml file")                                                                                                                                                                            
+                        help="preprocess yaml file")
+
+   #for paddle dynamic model
+   parser.add_argument("--model_def_file",
+                        type=str, 
+                        required=False,
+                        default='',
+                        help="paddle/pytorch model definition file location")
+
+   parser.add_argument("--model_weights_file",
+                        type=str, 
+                        required=False,
+                        default='',
+                        help="paddle/pytorch model weights file")                     
+
+   parser.add_argument("--model_class_name",
+                        type=str, 
+                        required=False,
+                        default='',
+                        help="paddle/pytorch model calss name")
+
+   parser.add_argument("--paddle_input_type",
+                        type=str, 
+                        required=False,
+                        default='',
+                        help="paddle/pytorch input type")                                                                                                                                                                                                                                                  
                                                                   
    args = parser.parse_args()
    return args
@@ -269,6 +284,7 @@ def convert_pt2onnx(model_path, output, op_set, input_shape):
          dynamic_axes={'input':{0:'batch_size'}, 'output':{0:'batch_size'}}
       )
 
+
 def convert_dn2onnx(model_path, output, op_set):
    global support_mish
    print('Begin converting darknet to onnx...... support_mish：', support_mish)
@@ -293,7 +309,12 @@ def convert_mish(model_path, output, op_set):
    print('convert_mish: ', cmd)
    os.system(cmd)     
 
-def convert(model_path, model_type, output, op_set, input_shape, inputs, outputs):
+def convert(model_path, model_type, output, op_set, input_shape, inputs, outputs, 
+               model_def_file,
+               model_class_name,
+               paddle_input_type,
+               model_weights_file):
+
    if model_type == 'caffe':
       convert_caffe2onnx(model_path, output, op_set)
 
@@ -313,7 +334,10 @@ def convert(model_path, model_type, output, op_set, input_shape, inputs, outputs
       convert_dn2onnx(model_path, output, op_set)    
 
    if model_type == 'pytorch':
-      convert_pt2onnx(model_path, output, op_set, input_shape)       
+      convert_pt2onnx(model_path, output, op_set, input_shape)
+
+   if model_type == 'paddle':
+      convert_pd2onnx(model_path, output, op_set, input_shape, model_def_file, model_class_name, paddle_input_type, model_weights_file)              
 
 def optimization_op(onnxfile):
    model = onnx.load(onnxfile)
@@ -639,6 +663,10 @@ def process(args):
    fp32_to_fp16 = args.fp32_to_fp16
    support_mish = args.support_mish
    preproc_yaml = args.preproc_yaml
+   model_def_file = args.model_def_file
+   model_class_name = args.model_class_name
+   paddle_input_type = args.paddle_input_type
+   model_weights_file = args.model_weights_file
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -664,6 +692,11 @@ def process(args):
       print('Also, you should provide model definition file')
       sys.exit()
 
+   if model_type == 'paddle':
+      if model_def_file != '' and args.input_shape != '' and model_class_name != '' and model_weights_file != '':
+         if paddle_input_type == '':
+            paddle_input_type = 'float32'       
+
    if (model_type == 'tf-ckpt' or model_type == 'tf-graph') and (args.inputs == '' or args.outputs == ''):
       print('When converting checkpoint/graph, you must tell the inputs(ex: --inputs input0:0,input1:0) and outputs(ex: --outputs output0:0)')
       sys.exit()
@@ -680,19 +713,29 @@ def process(args):
       extract_sub_graph(model_path, output, inputs, outputs)
       sys.exit()                
 
-   if model_type == 'pytorch':
+   if model_type == 'pytorch' or model_type == 'paddle':
       input_shape=args.input_shape.strip('[')
       input_shape=input_shape.strip(']')
       input_shape=input_shape.split(',')
       #print(type(input_shape[0])) 
-      #print('got shape:', input_shape)
+      print('got shape:', input_shape)
 
    print('begin convert..')
 
    begin_time = time.time()
 
    if model_type != 'onnx':
-      convert(model_path, model_type, output, op_set_default, input_shape, inputs, outputs)
+      convert(model_path, 
+               model_type, 
+               output, 
+               op_set_default, 
+               input_shape, 
+               inputs, 
+               outputs,
+               model_def_file,
+               model_class_name,
+               paddle_input_type,
+               model_weights_file)
 
    end_time1 = time.time()
   
