@@ -10,7 +10,6 @@ import json
 import argparse
 import h5py
 import tensorflow as tf
-import torch
 import time
 
 from caffe2onnx.src.load_save_model import loadcaffemodel, saveonnxmodel
@@ -20,6 +19,7 @@ from float16 import convert_float_to_float16
 from preprocess import preproc
 from correct_batch import correct_batch_for_opset_convert
 from pd2onnx import convert_pd2onnx, is_dynamic_paddle
+from pt2onnx import convert_pt2onnx
 
 support_mish = 0
 
@@ -62,7 +62,7 @@ def parse_args():
                         default=1,
                         help="simplify the model")                              
 
-   #for pytorch
+   #for pytorch/dynamic_paddle
    parser.add_argument("--input_shape",
                         type=str, 
                         required=False,
@@ -116,7 +116,7 @@ def parse_args():
                         default='',
                         help="preprocess yaml file")
 
-   #for paddle dynamic model
+   #for paddle dynamic model or pytorch
    parser.add_argument("--model_def_file",
                         type=str, 
                         required=False,
@@ -265,26 +265,6 @@ def ckpt2h5(trained_checkpoint_prefix):
    builder.add_meta_graph_and_variables(sess, [tf.saved_model.TRAINING, tf.saved_model.SERVING],strip_default_attrs=False)
    builder.save()
 
-def convert_pt2onnx(model_path, output, op_set, input_shape):
-      print('Begin converting pytorch to onnx...')
-      #cfg_file, weights_file = get_darknet_files(model_path)
-
-      m = torch.load(model_path)
-      m = m.cpu() #cuda()
-
-      x = torch.randn(int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3]))
-      torch.onnx.export(
-         m,
-         x,
-         output,
-         opset_version=op_set, 
-         do_constant_folding=True,   # 是否执行常量折叠优化
-         input_names=["input"],    # 模型输入名
-         output_names=["output"],  # 模型输出名
-         dynamic_axes={'input':{0:'batch_size'}, 'output':{0:'batch_size'}}
-      )
-
-
 def convert_dn2onnx(model_path, output, op_set):
    global support_mish
    print('Begin converting darknet to onnx...... support_mish：', support_mish)
@@ -334,7 +314,9 @@ def convert(model_path, model_type, output, op_set, input_shape, inputs, outputs
       convert_dn2onnx(model_path, output, op_set)    
 
    if model_type == 'pytorch':
-      convert_pt2onnx(model_path, output, op_set, input_shape)
+      #convert_pt2onnx(model_path, output, op_set, input_shape)
+      convert_pt2onnx(model_path, output, op_set, input_shape,
+                           model_def_file, model_class_name, model_weights_file)
 
    if model_type == 'paddle':
       convert_pd2onnx(model_path, output, op_set, input_shape, model_def_file, model_class_name, paddle_input_type, model_weights_file)              
@@ -677,9 +659,14 @@ def process(args):
    if model_type == 'paddle':
          dynamic_paddle = is_dynamic_paddle(input_shape, model_def_file, model_class_name, model_weights_file)
          if dynamic_paddle == True and paddle_input_type == '':
-            paddle_input_type = 'float32'    
+            paddle_input_type = 'float32' 
 
-   if dynamic_paddle == False and not os.path.exists(model_path):
+   torchvision_model = False
+   if model_type == 'pytorch':
+      if '.' in model_class_name:
+         torchvision_model = True
+
+   if dynamic_paddle == False and torchvision_model == False and not os.path.exists(model_path):
       print('ERROR: {} is not exist'.format(model_path))
       sys.exit()
 
