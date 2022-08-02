@@ -1,29 +1,47 @@
-import paddle.fluid as fluid
+import paddle
+import paddle.nn as nn
 
-class Conv_Mnist(fluid.dygraph.Layer):
-    def __init__(self):
-        super(Conv_Mnist, self).__init__()
-        self.conv1 = fluid.dygraph.Conv2D(num_channels=1, num_filters=8, filter_size=(3, 3), stride=2, padding=1)
-        self.bn1 = fluid.dygraph.BatchNorm(num_channels=8, act="leaky_relu")
+__all__ = []
 
-        self.conv2 = fluid.dygraph.Conv2D(num_channels=8, num_filters=16, filter_size=(3, 3), stride=2, padding=1)
-        self.bn2 = fluid.dygraph.BatchNorm(num_channels=16, act="leaky_relu")
 
-        self.conv3 = fluid.dygraph.Conv2D(num_channels=16, num_filters=32, filter_size=(3, 3), stride=2, padding=1)
-        self.bn3 = fluid.dygraph.BatchNorm(num_channels=32, act="leaky_relu")
+class LeNet(nn.Layer):
+    """LeNet model from
+    `"LeCun Y, Bottou L, Bengio Y, et al. Gradient-based learning applied to document recognition[J]. Proceedings of the IEEE, 1998, 86(11): 2278-2324.`_
 
-        self.fc = fluid.dygraph.Linear(input_dim=4*4*32, output_dim=10, act="softmax")
+    Args:
+        num_classes (int): output dim of last fc layer. If num_classes <=0, last fc layer 
+                            will not be defined. Default: 10.
 
-    def forward(self, x):
-        conv1 = self.conv1(x)
-        bn1 = self.bn1(conv1)
-        conv2 = self.conv2(bn1)
-        bn2 = self.bn2(conv2)
-        conv3 = self.conv3(bn2)
-        bn3 = self.bn3(conv3)
-        bn3 = fluid.layers.reshape(bn3, shape=(-1, 4*4*32))
-        out = self.fc(bn3)
+    Examples:
+        .. code-block:: python
 
-        return out
+            from paddle.vision.models import LeNet
 
-        
+            model = LeNet()
+    """
+
+    def __init__(self, num_classes=10):
+        super(LeNet, self).__init__()
+        self.num_classes = num_classes
+        self.features = nn.Sequential(
+            nn.Conv2D(
+                1, 6, 3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2D(2, 2),
+            nn.Conv2D(
+                6, 16, 5, stride=1, padding=0),
+            nn.ReLU(),
+            nn.MaxPool2D(2, 2))
+
+        if num_classes > 0:
+            self.fc = nn.Sequential(
+                nn.Linear(400, 120),
+                nn.Linear(120, 84), nn.Linear(84, num_classes))
+
+    def forward(self, inputs):
+        x = self.features(inputs)
+
+        if self.num_classes > 0:
+            x = paddle.flatten(x, 1)
+            x = self.fc(x)
+        return x

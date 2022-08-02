@@ -19,7 +19,7 @@ from onnxsim.onnx_simplifier import simplify
 from float16 import convert_float_to_float16
 from preprocess import preproc
 from correct_batch import correct_batch_for_opset_convert
-from pd2onnx import convert_pd2onnx
+from pd2onnx import convert_pd2onnx, is_dynamic_paddle
 
 support_mish = 0
 
@@ -673,7 +673,13 @@ def process(args):
    if model_type == 'tf-ckpt' or model_type == 'tf-graph' :
       print('checkpoint:', inputs, outputs)
 
-   if not os.path.exists(model_path):
+   dynamic_paddle = False
+   if model_type == 'paddle':
+         dynamic_paddle = is_dynamic_paddle(input_shape, model_def_file, model_class_name, model_weights_file)
+         if dynamic_paddle == True and paddle_input_type == '':
+            paddle_input_type = 'float32'    
+
+   if dynamic_paddle == False and not os.path.exists(model_path):
       print('ERROR: {} is not exist'.format(model_path))
       sys.exit()
 
@@ -691,11 +697,6 @@ def process(args):
       print('When converting pytorch model, you must tell the input shape(ex: --input_shape [1, 3, 32, 32])')
       print('Also, you should provide model definition file')
       sys.exit()
-
-   if model_type == 'paddle':
-      if model_def_file != '' and args.input_shape != '' and model_class_name != '' and model_weights_file != '':
-         if paddle_input_type == '':
-            paddle_input_type = 'float32'       
 
    if (model_type == 'tf-ckpt' or model_type == 'tf-graph') and (args.inputs == '' or args.outputs == ''):
       print('When converting checkpoint/graph, you must tell the inputs(ex: --inputs input0:0,input1:0) and outputs(ex: --outputs output0:0)')

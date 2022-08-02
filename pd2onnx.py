@@ -68,12 +68,16 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape,
     
     if '.' in model_class_name:
         n = model_class_name.rindex('.')
+        m = model_class_name[:n]
+        model_class_name = model_class_name.split('.')[-1]
+        '''
         m = model_class_name[:n+1]
         last = model_class_name.split('.')[-1]
         model_class_name = last
         last_ = last.lower()
         m = m + last_
         print('m is ', m)
+        '''
         target_module = m
     else:
         target_module = model_def_file.split('/')[-1]
@@ -97,19 +101,21 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape,
     else:
         print('Cound not find', model_def_file)
 
-    sys.exit()   
-
-    '''
-    cmd = 'paddle2onnx --model_dir ' + model_path + ' --opset_version ' + str(op_set) + ' --save_file ' + output \
-            + ' --model_filename '  + pdmodel + ' --params_filename ' + pdiparams
-
-    print('convert_paddle2onnx: ', cmd)
-
-    os.system(cmd)    
-    ''' 
+    #sys.exit()    
 
 def convert_pd2onnx(model_path, output, op_set, input_shape, model_def_file, model_class_name, paddle_input_type, model_weights_file):
-    if model_def_file != '' and input_shape != '' and model_class_name != '' and model_weights_file != '':
+    if is_dynamic_paddle(input_shape, model_def_file, model_class_name, model_weights_file):
         convert_pddynamic2onnx(model_path, output, op_set, input_shape, model_def_file, model_class_name, paddle_input_type, model_weights_file)              
     else:
         convert_pdstatic2onnx(model_path, output, op_set)
+
+def is_dynamic_paddle(input_shape, model_def_file, model_class_name, model_weights_file):
+    if model_class_name != '' and '.' not in model_class_name:
+        return input_shape != '' and model_def_file != '' and model_weights_file != ''
+    elif model_class_name != '' and '.' in model_class_name:
+        return input_shape != '' and model_weights_file != ''
+    else:
+        return False    
+
+               
+
