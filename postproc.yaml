@@ -1,0 +1,16 @@
+#appha: alpha通道值
+#control: 控制开关
+
+---
+  alpha:
+     - 0
+     - 0
+     - 0
+  control:
+   #数据输出类型是否需要转换为uint8
+     - 1
+   #rgb-->rgba转换(0:不需要; 1:rgb-->rgba; 2:rgb-->bgra)
+     - 1
+   #rgb-->yuv转换
+     - 0       
+...

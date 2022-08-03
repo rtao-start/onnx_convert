@@ -20,8 +20,8 @@
      - 30
   resize:
    #目标高度和宽度相同时，也可以只写一个数字
-     - 224
-     - 224
+     - 128
+     - 128
   crop:
    #默认做中心裁剪，此处可不修改
      - -1
@@ -36,5 +36,5 @@
    #是否先做归一化，再做resize+crop(或者crop+resize)  
      - true
    #output type是否为float16  
-     - true    
+     - false    
 ...
