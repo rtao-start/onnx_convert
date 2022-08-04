@@ -17,6 +17,7 @@ from caffe2onnx.src.caffe2onnx import Caffe2Onnx
 from onnxsim.onnx_simplifier import simplify
 from float16 import convert_float_to_float16
 from preprocess import preproc
+from postprocess import postproc
 from correct_batch import correct_batch_for_opset_convert
 from pd2onnx import convert_pd2onnx, is_dynamic_paddle
 from pt2onnx import convert_pt2onnx
@@ -115,6 +116,12 @@ def parse_args():
                         required=False,
                         default='',
                         help="preprocess yaml file")
+
+   parser.add_argument("--postproc_yaml",
+                        type=str, 
+                        required=False,
+                        default='',
+                        help="postprocess yaml file")                     
 
    #for paddle dynamic model or pytorch
    parser.add_argument("--model_def_file",
@@ -645,6 +652,7 @@ def process(args):
    fp32_to_fp16 = args.fp32_to_fp16
    support_mish = args.support_mish
    preproc_yaml = args.preproc_yaml
+   postproc_yaml = args.postproc_yaml
    model_def_file = args.model_def_file
    model_class_name = args.model_class_name
    paddle_input_type = args.paddle_input_type
@@ -795,7 +803,13 @@ def process(args):
       if os.path.exists(preproc_yaml):
          preproc(new_model, output)
       else:
-         print(preproc_yaml, 'is not exist')      
+         print(preproc_yaml, 'is not exist')    
+
+   if model_type == 'onnx' and postproc_yaml != '':
+      if os.path.exists(postproc_yaml):
+         postproc(new_model, output)
+      else:
+         print(postproc_yaml, 'is not exist')           
 
    end_time3 = time.time()
 

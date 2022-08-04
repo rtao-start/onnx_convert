@@ -19,48 +19,66 @@ def parse_yaml(yaml_file):
         print(data)
         print(type(data))
 
-        if 'hw' in data.keys():
-            hw_list_ = data['hw']
-            if len(hw_list_) == 2:
-                hw_list = hw_list_
-                print('got std values:', hw_list)
+        if 'norm' in data.keys():
+            print('got norm---')
+            norm_list = data['norm']
+            for n in norm_list:
+                print('n:', n)
+                if 'std' in n.keys():
+                    std_list_ = n['std']
+                    if len(std_list_) == 3 or len(std_list_) == 1:
+                        for n in std_list_:
+                            if n > 0.0:
+                                std_list.append(1.0/n)
+                            else:
+                                std_list.append(1.0/1e-6)    
 
-        if 'std' in data.keys():
-            std_list_ = data['std']
-            if len(std_list_) == 3 or len(std_list_) == 1:
-                for n in std_list_:
-                    if n > 0.0:
-                        std_list.append(1.0/n)
-                    else:
-                        std_list.append(1.0/1e-6)    
+                        print('got std values:', std_list)
 
-                print('got std values:', std_list)
+                    continue    
 
-        if 'mean' in data.keys():
-            mean_list_ = data['mean']
-            if len(mean_list_) == 3 or len(mean_list_) == 1:
-                for n in mean_list_:
-                    mean_list.append(int(n))
+                if 'mean' in n.keys():
+                    mean_list_ = n['mean']
+                    if len(mean_list_) == 3 or len(mean_list_) == 1:
+                        for n in mean_list_:
+                            mean_list.append(int(n))
 
-                print('got mean values:', mean_list)        
-        
-        if 'resize' in data.keys():
-            resize_list_ = data['resize']
-            if len(resize_list_) == 2 or len(resize_list_) == 1:
-                resize_list = resize_list_
-                print('got resize values:', resize_list)
+                        print('got mean values:', mean_list) 
 
-        if 'crop' in data.keys():
-            crop_list_ = data['crop']
-            if len(crop_list_) == 4:
-                crop_list = crop_list_
-                print('got crop values:', crop_list)
+                    continue         
 
-        if 'control' in data.keys():
-            control_list_ = data['control']
-            if len(control_list_) == 4:
-                control_list = control_list_
-                print('got control values:', control_list)
+        if 'preproc' in data.keys():
+            print('got preproc---')
+            preproc_list = data['preproc']
+            for p in preproc_list:
+                print('p:',p)
+                if 'hw' in p.keys():
+                    hw_list_ = p['hw']
+                    if len(hw_list_) == 2:
+                        hw_list = hw_list_
+                        print('got hw values:', hw_list)
+                    continue    
+
+                if 'resize' in p.keys():
+                    resize_list_ = p['resize']
+                    if len(resize_list_) == 2 or len(resize_list_) == 1:
+                        resize_list = resize_list_
+                        print('got resize values:', resize_list)
+                    continue
+
+                if 'crop' in p.keys():
+                    crop_list_ = p['crop']
+                    if len(crop_list_) == 4:
+                        crop_list = crop_list_
+                        print('got crop values:', crop_list)
+                    continue
+
+                if 'control' in p.keys():
+                    control_list_ = p['control']
+                    if len(control_list_) == 4:
+                        control_list = control_list_
+                        print('got control values:', control_list)
+                    continue
 
     if len(std_list) == 0 or len(mean_list) == 0 or len(std_list) != len(mean_list):
         return {}

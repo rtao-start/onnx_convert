@@ -7,34 +7,52 @@
 #control: 控制开关(可不写, 默认值为：false、true、false、false)
 
 ---
-  hw:
-     - 576
-     - 720
-  std:
-     - 0.012
-     - 0.335
-     - 0.279
-  mean: 
-     - 20
-     - 25
-     - 30
-  resize:
-   #目标高度和宽度相同时，也可以只写一个数字
-     - 128
-     - 128
-  crop:
-   #默认做中心裁剪，此处可不修改
-     - -1
-     - -1
-     - -1
-     - -1
-  control:
-   #是否需要做rgb-->bgr转换
-     - false 
-   #是否先做crop再做resize  
-     - true
-   #是否先做归一化，再做resize+crop(或者crop+resize)  
-     - true
-   #output type是否为float16  
-     - false    
+  #归一化参数
+  norm:
+    - std:
+      - 0.012
+      - 0.335
+      - 0.279
+    - mean: 
+      - 20
+      - 25
+      - 30
+  #前处理参数    
+  preproc:    
+    - hw:
+      - 576
+      - 720   
+    - resize:
+      #目标高度和宽度相同时，也可以只写一个数字
+      - 128
+      - 128
+    - crop:
+      #默认做中心裁剪，此处可不修改
+      - -1
+      - -1
+      - -1
+      - -1
+    - control:
+      #是否需要做rgb-->bgr转换
+      - false 
+      #是否先做crop再做resize  
+      - true
+      #是否先做归一化，再做resize+crop(或者crop+resize)  
+      - true
+      #output type是否为float16  
+      - false  
+  #后处理参数      
+  postproc:
+    #alpha通道值
+    - alpha:
+      - 0
+      - 0
+      - 0
+    - control:
+      #数据输出类型是否需要转换为uint8
+      - 1
+      #rgb-->rgba转换(0:不需要; 1:rgb-->rgba; 2:rgb-->bgra)
+      - 1
+      #rgb-->yuv转换
+      - 0         
 ...
