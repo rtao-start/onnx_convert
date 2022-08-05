@@ -1201,12 +1201,15 @@ def main(cfg_file='yolov4.cfg', weights_file='yolov4.weights', output_file='yolo
     else:
         print('Begin saving model...')
 
+    if support_mish == 1:
+        op_set = yolo_model_def.opset_import.add()
+        op_set.domain = 'com.metax-tech'
+        op_set.version = 1
 
     # Serialize the generated ONNX graph to this file:
     output_file_path = output_file
     onnx.save(yolo_model_def, output_file_path)
     print('Save ONNX File {} success!'.format(output_file_path))
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Transform YOLO weights to ONNX.')

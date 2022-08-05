@@ -150,6 +150,10 @@ def merge_mish(onnxfile, export_onnx):
                 dict_tanh = {} 
 
     if got_mish == True:
+        op_set = model.opset_import.add()
+        op_set.domain = 'com.metax-tech'
+        op_set.version = 1
+        
         onnx.save(model, export_onnx)
 
 def Test():

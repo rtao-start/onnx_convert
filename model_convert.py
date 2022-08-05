@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 import onnx
 from onnx import version_converter

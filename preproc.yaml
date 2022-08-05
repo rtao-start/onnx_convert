@@ -24,8 +24,8 @@
       - 720   
     - resize:
       #目标高度和宽度相同时，也可以只写一个数字
-      - 128
-      - 128
+      - 300
+      - 300
     - crop:
       #默认做中心裁剪，此处可不修改
       - -1
@@ -36,9 +36,9 @@
       #是否需要做rgb-->bgr转换
       - false 
       #是否先做crop再做resize  
-      - true
+      - false
       #是否先做归一化，再做resize+crop(或者crop+resize)  
-      - true
+      - false
       #output type是否为float16  
       - false  
   #后处理参数      

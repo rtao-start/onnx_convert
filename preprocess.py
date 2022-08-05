@@ -117,6 +117,9 @@ def insert_preproc_node(model, preproc_dict, output):
     h = preproc_dict['resize'][0]
     w = preproc_dict['resize'][1]
 
+    preproc_dict['resize'].append(graph.input[0].type.tensor_type.shape.dim[2].dim_value)
+    preproc_dict['resize'].append(graph.input[0].type.tensor_type.shape.dim[3].dim_value)
+
     if h == -1:
         h = graph.input[0].type.tensor_type.shape.dim[2].dim_value
 
