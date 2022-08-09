@@ -5,7 +5,7 @@ from float16 import convert_float_to_float16
 import numpy as np
 import onnxruntime as rt
 from torch.nn.modules.upsampling import UpsamplingNearest2d
-import time 
+import time, sys 
 import onnx
 
 '''
@@ -280,8 +280,75 @@ onnx_model = onnx.shape_inference.infer_shapes(m)
 onnx.save(onnx_model, './vv.onnx') 
 '''
 
-info_model = onnx.load('./fp16_resnet50.onnx')
+'''
+info_model = onnx.load('./mobilenet_v1-1.onnx')
 onnx_model = onnx.shape_inference.infer_shapes(info_model)
  
 onnx.checker.check_model(onnx_model)
 onnx.save(onnx_model, './nn.onnx')
+
+
+sys.exit()
+'''
+
+#model = onnx.load('./deart_model_sim_v11.onnx')
+model = onnx.load('./deart_model_sim_v11.onnx')
+
+#new_model = onnx.shape_inference.infer_shapes(model)
+#onnx.save(model, './vv.onnx')
+init_list = []
+
+for init in model.graph.initializer:
+    print("init name:", init.name)
+    init_list.append(init.name)   
+
+print('==================================++++++++++++++++++')
+
+real_input_init = []
+#for node_id, node in enumerate(model.graph.node):
+node = model.graph.node[0]    
+for n in node.input:
+    if n in init_list:
+        real_input_init.append(n)
+
+for n in real_input_init:
+    print("real_input_init:", n)
+
+print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+
+#ValueInfoProto 
+vip = []
+
+for input in model.graph.input:
+    if input.name in real_input_init:
+        vip.append(input)
+    elif input.name not in init_list:
+        vip.append(input)  
+
+del model.graph.input[:]
+
+model.graph.input.extend(vip)
+
+for input in model.graph.input:
+    print("got  input name:", input.name)
+
+
+onnx.checker.check_model(model)
+onnx.save(model, './3.onnx')
+
+
+
+
+'''
+from onnxsim import simplify
+onnx_model = onnx.load('./222.onnx')  # load onnx model
+model_simp, check = simplify(onnx_model, skip_shape_inference=False, input_shapes={'input:0': [1,3,224,224]})
+assert check, "Simplified ONNX model could not be validated"
+onnx.save(model_simp, './111.onnx')
+print('finished exporting onnx')
+'''
+
+
+
+
+         

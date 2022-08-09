@@ -638,6 +638,48 @@ def add_value_info_for_constants(model : onnx.ModelProto):
 
    return add_const_value_infos_to_graph(model.graph)
 
+def eliminate_unused_input_initializer(model, output):
+   init_list = []
+   for init in model.graph.initializer:
+      #print("init name:", init.name)
+      init_list.append(init.name)   
+
+   #print('==================================++++++++++++++++++')
+
+   real_input_init = []
+   node = model.graph.node[0]    
+   for n in node.input:
+      if n in init_list:
+         real_input_init.append(n)
+
+   for n in real_input_init:
+      print("real_input_init:", n)
+
+   #ValueInfoProto 
+   vip = []
+   need_eliminate = False
+
+   for input in model.graph.input:
+      if input.name in real_input_init:
+         vip.append(input)
+      elif input.name not in init_list:
+         vip.append(input)
+      elif input.name in init_list and input.name not in real_input_init:
+         need_eliminate = True
+
+   if need_eliminate == True:
+      print('need to eliminate invalid initializer in input')
+
+      del model.graph.input[:]
+
+      model.graph.input.extend(vip)
+
+      #for input in model.graph.input:
+      #   print("got  input name:", input.name)
+
+      #onnx.checker.check_model(model)
+      onnx.save(model, output)
+
 def process(args):
    global support_mish
 
@@ -811,7 +853,9 @@ def process(args):
       if os.path.exists(postproc_yaml):
          postproc(new_model, output)
       else:
-         print(postproc_yaml, 'is not exist')           
+         print(postproc_yaml, 'is not exist')
+
+   eliminate_unused_input_initializer(new_model, output)                 
 
    end_time3 = time.time()
 

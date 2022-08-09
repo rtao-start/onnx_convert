@@ -75,7 +75,7 @@ def parse_yaml(yaml_file):
 
                 if 'control' in p.keys():
                     control_list_ = p['control']
-                    if len(control_list_) == 4:
+                    if len(control_list_) == 4 or len(control_list_) == 5:
                         control_list = control_list_
                         print('got control values:', control_list)
                     continue

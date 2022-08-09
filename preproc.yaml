@@ -41,16 +41,17 @@
       - false
       #output type是否为float16  
       - false  
+      #是否需要做crop(如设为false，则只做norm+resize或resize+norm)?  
+      - false 
   #后处理参数      
   postproc:
     #alpha通道值
     - alpha:
-      - 0
-      - 0
-      - 0
+      - 128
     - control:
       #数据输出类型是否需要转换为uint8
       - 1
+      #下面两项不可以同时为true
       #rgb-->rgba转换(0:不需要; 1:rgb-->rgba; 2:rgb-->bgra)
       - 1
       #rgb-->yuv转换

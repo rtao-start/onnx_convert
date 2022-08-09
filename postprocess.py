@@ -53,9 +53,9 @@ def parse_postproc_yaml(yaml_file):
             for p in postproc_list:
                 if 'alpha' in p.keys():
                     alpha_list_ = p['alpha']
-                    if len(alpha_list_) == 3:
-                        alpha_list = alpha_list_
-                        print('got alpha values:', alpha_list) 
+                    #if len(alpha_list_) == 3:
+                    alpha_list = alpha_list_
+                    print('got alpha values:', alpha_list) 
                 
                 if 'control' in p.keys():
                     control_list = p['control']
@@ -87,6 +87,7 @@ def insert_postproc_node(model, postproc_dict, output):
 
     print('output_name:', output_name)
 
+    '''
     const_mean = onnx.helper.make_tensor(name='const_mean',
                             data_type=onnx.TensorProto.UINT8,
                             dims=[len(postproc_dict['mean'])],
@@ -100,7 +101,8 @@ def insert_postproc_node(model, postproc_dict, output):
                         vals=postproc_dict['std'])
 
     graph.initializer.append(const_std)     
-
+    '''
+    
     for node_id, node in enumerate(graph.node):
         if node.output[0] == output_name:
             last_id = node_id
@@ -143,14 +145,14 @@ def insert_postproc_node(model, postproc_dict, output):
         post_process_node = onnx.helper.make_node(
                         'PostProc',
                         name='postprocess',
-                        inputs=[output_name, 'const_std', 'const_mean', 'const_alpha', 'const_control'],
+                        inputs=[output_name, 'const_alpha', 'const_control'],
                         outputs=['post_process_output'],
                         domain='com.metax-tech')
     else:
         post_process_node = onnx.helper.make_node(
                         'PostProc',
                         name='postprocess',
-                        inputs=[output_name, 'const_std', 'const_mean', 'const_control'],
+                        inputs=[output_name, 'const_control'],
                         outputs=['post_process_output'],
                         domain='com.metax-tech')
  
