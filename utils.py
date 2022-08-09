@@ -291,8 +291,158 @@ onnx.save(onnx_model, './nn.onnx')
 sys.exit()
 '''
 
+def convert_ort_type_2_np(ort_data_type):
+    #logger.info("convert_ort_type_2_np")
+    
+    types = {
+        1 : np.float32,
+        2 : np.uint8,
+        3 : np.int8,
+        4 : np.uint16,
+        5 : np.int16,
+        6 : np.int32,
+        7 : np.int64,
+        8 : "",  #string
+        9 : np.bool_,
+        10 : np.float16,
+        11 : np.float64,
+        12 : np.uint32,
+        13 : np.uint64,
+        14 : np.complex64,
+        15 : np.complex_,
+        16 : ""
+    }
+
+    return types.get(ort_data_type, None)
+
+def get_data_list(dtype, init):
+    data_list = []
+
+    if dtype == 2: #uint8
+        data_list = init.uint8_data
+
+    if dtype == 3: #int8
+        data_list = init.int8_data    
+
+    if dtype == 4: #uint16
+        data_list = init.uint16_data
+
+    if dtype == 5: #int16
+        data_list = init.int16_data
+
+    if dtype == 6: #int32
+        data_list = init.int32_data
+
+    if dtype == 12: #uint32
+        data_list = init.uint32_data  
+
+    if dtype == 7: #int64
+        data_list = init.int64_data
+
+    if dtype == 13: #uint64
+        data_list = init.uint64_data
+
+    return data_list         
+
+def eliminate_reshape(onnxfile):
+    model = onnx.load(onnxfile)
+    reshape_input = []
+    reshape_output = []
+
+    delete_node_id = 0
+    delete = False
+    export_onnx = onnxfile
+
+    for node_id, node in enumerate(model.graph.node):
+        print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
+            ", op:", node.op_type, ', len(input):', len(node.input))
+
+        if node.op_type == 'Reshape':
+            print('got Reshape node:', node.input)
+            reshape_input.extend(node.input)
+            reshape_output.extend(node.output)
+            delete_node_id = node_id
+            break
+
+    if len(reshape_input) > 0:
+        got_value = False
+        reshape_input_shape = []
+
+        for v in model.graph.value_info:
+            if v.name == reshape_input[0]:
+                print('got value info:', reshape_input) 
+                got_value = True
+                for d in v.type.tensor_type.shape.dim:
+                    reshape_input_shape.append(d.dim_value)
+                    
+                break
+
+        if got_value == True:
+            shape_list = []
+            for init in model.graph.initializer:
+                if init.name == reshape_input[1]:
+                    print('-------')
+                    print('init.name', init.name)
+                    dtype = init.data_type
+                    np_dtype = convert_ort_type_2_np(dtype)
+                    if init.raw_data:
+                        params_list = np.fromstring(init.raw_data, dtype=np_dtype)
+                        for p in params_list:
+                            print('p:', p)
+                            shape_list.append(p)
+                    else:
+                        data_list = get_data_list(dtype, init)
+                        for p in data_list:
+                            print('---p:', p)
+                            shape_list.append(p)
+
+                    if reshape_input_shape == shape_list and len(shape_list) > 0:
+                        print('need eliminate_reshape')
+                        delete = True
+
+                    break            
+
+    if delete == True:     
+        print('delete: ', delete_node_id)
+        delete_node = model.graph.node[delete_node_id]
+
+        last_node = True
+
+        for node_id, node in enumerate(model.graph.node):
+            if node.input[0] == reshape_output[0]:
+                print('got reshape next node:', node.name)
+                next_node = model.graph.node[node_id]
+                next_node.input[0] = delete_node.input[0]
+                last_node = False
+                break
+
+        model.graph.node.remove(delete_node)
+
+        if last_node == True:
+            #model.graph.output.extend()
+            for node_id, node in enumerate(model.graph.node):
+                #print('+++++====', node.input[0], reshape_output[0])
+                if node.output[0] == reshape_input[0]:
+                    print('got reshape prev node:', node.name)
+                    prev_node = model.graph.node[node_id]
+                    prev_node.output[0] = reshape_output[0]
+                    break
+
+        export_onnx = './55.onnx'#onnxfile
+
+        ###################
+        #onnx.checker.check_model(model)
+        onnx.save(model, export_onnx)
+
+    return delete, export_onnx
+
+#eliminate_reshape('./111.onnx')
+
+#sys.exit()
+
+'''
 #model = onnx.load('./deart_model_sim_v11.onnx')
-model = onnx.load('./deart_model_sim_v11.onnx')
+model = onnx.load('./6.onnx')
 
 #new_model = onnx.shape_inference.infer_shapes(model)
 #onnx.save(model, './vv.onnx')
@@ -332,21 +482,19 @@ model.graph.input.extend(vip)
 for input in model.graph.input:
     print("got  input name:", input.name)
 
-
 onnx.checker.check_model(model)
 onnx.save(model, './3.onnx')
-
-
-
-
 '''
+
+
+
 from onnxsim import simplify
-onnx_model = onnx.load('./222.onnx')  # load onnx model
+onnx_model = onnx.load('./mobilenet_v1-1.onnx')  # load onnx model
 model_simp, check = simplify(onnx_model, skip_shape_inference=False, input_shapes={'input:0': [1,3,224,224]})
 assert check, "Simplified ONNX model could not be validated"
-onnx.save(model_simp, './111.onnx')
+onnx.save(model_simp, './zz.onnx')
 print('finished exporting onnx')
-'''
+
 
 
 

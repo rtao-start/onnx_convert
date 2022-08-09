@@ -20,7 +20,7 @@ from onnxsim.onnx_simplifier import simplify
 from float16 import convert_float_to_float16
 from preprocess import preproc
 from postprocess import postproc
-from correct_batch import correct_batch_for_opset_convert
+from correct_batch import correct_batch_for_opset_convert, convert_ort_type_2_np
 from pd2onnx import convert_pd2onnx, is_dynamic_paddle
 from pt2onnx import convert_pt2onnx
 
@@ -383,6 +383,7 @@ def model_simplify(model_path):
    dynamic_input_shape_ = False
 
    for idx in range(len(onnx_model.graph.input)):
+      print('graph_input_name:', onnx_model.graph.input[idx].name)
       dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
       if dim_proto_input.dim_value == -1 or dim_proto_input.dim_value == 0:
          print('The model input is dynamic~~~~~~')
@@ -509,9 +510,12 @@ def post_process(onnxfile, inference_success):
    start_time = time.time()
 
    delete, post_process_file = optimization_op(onnxfile)
-
    while delete == True:
       delete, post_process_file = optimization_op(post_process_file)
+
+   delete, post_process_file = eliminate_redundant_reshape(post_process_file)
+   while delete == True:
+      delete, post_process_file = eliminate_redundant_reshape(post_process_file)   
 
    end_time1 = time.time()
 
@@ -524,7 +528,7 @@ def post_process(onnxfile, inference_success):
 
    end_time2 = time.time()
 
-   print('convert_gap_2_ap cost', end_time2 - end_time1, ' seconds')     
+   print('convert_gap_2_ap cost', end_time2 - end_time1, ' seconds')  
 
 def my_extract_model(
         input_path,  # type: Text
@@ -674,11 +678,100 @@ def eliminate_unused_input_initializer(model, output):
 
       model.graph.input.extend(vip)
 
-      #for input in model.graph.input:
-      #   print("got  input name:", input.name)
+      for input in model.graph.input:
+         print("xxx got  input name:", input.name)
 
       #onnx.checker.check_model(model)
       onnx.save(model, output)
+
+def eliminate_redundant_reshape(onnxfile):
+   model = onnx.load(onnxfile)
+   reshape_input = []
+   reshape_output = []
+
+   delete_node_id = 0
+   delete = False
+
+   for node_id, node in enumerate(model.graph.node):
+      #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
+      #   ", op:", node.op_type, ', len(input):', len(node.input))
+
+      if node.op_type == 'Reshape':
+         print('eliminate_redundant_reshape, got Reshape node:', node.input)
+         reshape_input.extend(node.input)
+         reshape_output.extend(node.output)
+         delete_node_id = node_id
+         break
+
+   if len(reshape_input) > 0:
+      got_value = False
+      reshape_input_shape = []
+
+      for v in model.graph.value_info:
+         if v.name == reshape_input[0]:
+               print('got value info:', reshape_input) 
+               got_value = True
+               for d in v.type.tensor_type.shape.dim:
+                  reshape_input_shape.append(d.dim_value)
+                  
+               break
+
+      if got_value == True:
+         shape_list = []
+         for init in model.graph.initializer:
+               if init.name == reshape_input[1]:
+                  #print('-------')
+                  #print('init.name', init.name)
+                  dtype = init.data_type
+                  np_dtype = convert_ort_type_2_np(dtype)
+                  if init.raw_data:
+                     params_list = np.fromstring(init.raw_data, dtype=np_dtype)
+                     for p in params_list:
+                           #print('p:', p)
+                           shape_list.append(p)
+                  else:
+                     data_list = get_data_list(dtype, init)
+                     for p in data_list:
+                           #print('---p:', p)
+                           shape_list.append(p)
+
+                  if reshape_input_shape == shape_list and len(shape_list) > 0:
+                     print('need eliminate_reshape')
+                     delete = True
+
+                  break            
+
+   if delete == True:     
+      print('eliminate_redundant_reshape, delete: ', delete_node_id)
+      delete_node = model.graph.node[delete_node_id]
+
+      last_node = True
+
+      for node_id, node in enumerate(model.graph.node):
+         if node.input[0] == reshape_output[0]:
+               print('got reshape next node:', node.name)
+               next_node = model.graph.node[node_id]
+               next_node.input[0] = delete_node.input[0]
+               last_node = False
+               break
+
+      model.graph.node.remove(delete_node)
+
+      if last_node == True:
+         #model.graph.output.extend()
+         for node_id, node in enumerate(model.graph.node):
+               #print('+++++====', node.input[0], reshape_output[0])
+               if node.output[0] == reshape_input[0]:
+                  print('eliminate_redundant_reshape, got reshape prev node:', node.name)
+                  prev_node = model.graph.node[node_id]
+                  prev_node.output[0] = reshape_output[0]
+                  break
+
+      ###################
+      #onnx.checker.check_model(model)
+      onnx.save(model, onnxfile)
+
+   return delete, onnxfile
 
 def process(args):
    global support_mish
@@ -830,6 +923,7 @@ def process(args):
    print('generate inference shape model, it cost', end_time2 - end_time1, ' seconds')
 
    post_process(output, inference_success)
+   new_model = onnx.load(output)
 
    if simplify_model == 1:
       print('begin doing simplify...')
