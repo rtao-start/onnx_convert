@@ -26,6 +26,8 @@ from pt2onnx import convert_pt2onnx
 
 support_mish = 0
 
+inputs_as_nchw = ''
+
 logging.basicConfig(level=logging.INFO)
 
 from onnx import shape_inference, TensorProto, version_converter, numpy_helper
@@ -148,8 +150,15 @@ def parse_args():
                         type=str, 
                         required=False,
                         default='',
-                        help="paddle/pytorch input type")                                                                                                                                                                                                                                                  
-                                                                  
+                        help="paddle/pytorch input type")
+
+   #for tensorflow 
+   parser.add_argument("--inputs_as_nchw",
+                        type=str, 
+                        required=False,
+                        default='',
+                        help="tensorflow nchw")
+                                                                                                                                                                                                                                                                                                                                     
    args = parser.parse_args()
    return args
 
@@ -201,12 +210,16 @@ def convert_caffe2onnx(model_path, output, op_set):
 def convert_sm2onnx(model_path, output, op_set):
       print('Begin converting tf-savemodel to onnx...')
       cmd = 'python -m tf2onnx.convert --saved-model ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output
+      if inputs_as_nchw != '':
+         cmd += ' --inputs-as-nchw ' + inputs_as_nchw
       print('convert_tfsm2onnx: ', cmd)
       os.system(cmd)
 
 def convert_h52onnx(model_path, output, op_set):
       print('Begin converting tf-savemodel to onnx...')
       cmd = 'python -m tf2onnx.convert --keras ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output
+      if inputs_as_nchw != '':
+         cmd += ' --inputs-as-nchw ' + inputs_as_nchw
       print('convert_tfh52onnx: ', cmd)
       os.system(cmd)     
 
@@ -214,6 +227,9 @@ def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
       print('Begin converting tf-ckpt to onnx...')
       cmd = 'python -m tf2onnx.convert --checkpoint ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
               + ' --inputs '  + inputs + ' --outputs ' + outputs
+
+      if inputs_as_nchw != '':
+         cmd += ' --inputs-as-nchw ' + inputs_as_nchw
 
       print('convert_ckpt2onnx: ', cmd)
 
@@ -223,6 +239,9 @@ def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
       print('Begin converting tf-graph to onnx...')
       cmd = 'python -m tf2onnx.convert --graphdef ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
               + ' --inputs '  + inputs + ' --outputs ' + outputs
+
+      if inputs_as_nchw != '':
+         cmd += ' --inputs-as-nchw ' + inputs_as_nchw
 
       print('convert_graph2onnx: ', cmd)
       
@@ -775,6 +794,7 @@ def eliminate_redundant_reshape(onnxfile):
 
 def process(args):
    global support_mish
+   global inputs_as_nchw
 
    model_path = args.model_path
    model_type = args.model_type
@@ -794,6 +814,7 @@ def process(args):
    model_class_name = args.model_class_name
    paddle_input_type = args.paddle_input_type
    model_weights_file = args.model_weights_file
+   inputs_as_nchw = args.inputs_as_nchw
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
