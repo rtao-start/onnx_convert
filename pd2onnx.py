@@ -3,6 +3,8 @@ import importlib
 import importlib.util
 import sys, os
 
+paddle.disable_signal_handler()
+
 def get_paddle_files(model_path):
     items = os.listdir(model_path)
     has_pdmodel = False

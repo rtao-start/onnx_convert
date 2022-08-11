@@ -10,13 +10,13 @@
   #归一化参数
   norm:
     - std:
-      - 0.012
-      - 0.335
-      - 0.279
+      - 0.2
+      - 0.3
+      - 0.3
     - mean: 
-      - 20
-      - 25
-      - 30
+      - 0.1
+      - 0.2
+      - 0.3
   #前处理参数    
   preproc:    
     - hw:
@@ -39,7 +39,7 @@
       - false
       #是否先做归一化，再做resize+crop(或者crop+resize)  
       - false
-      #output type是否为float16  
+      #output type是否为float16(暂不支持)  
       - false  
       #是否需要做crop(如设为false，则只做norm+resize或resize+norm)?  
       - false 
@@ -50,10 +50,10 @@
       - 128
     - control:
       #数据输出类型是否需要转换为uint8
-      - 1
+      - true
       #下面两项不可以同时为true
       #rgb-->rgba转换(0:不需要; 1:rgb-->rgba; 2:rgb-->bgra)
-      - 1
-      #rgb-->yuv转换
-      - 0         
+      - true
+      #rgb-->yuv转换(暂不支持)
+      - false         
 ...

@@ -103,6 +103,7 @@ def insert_postproc_node(model, postproc_dict, output):
     graph.initializer.append(const_std)     
     '''
     
+    
     for node_id, node in enumerate(graph.node):
         if node.output[0] == output_name:
             last_id = node_id
@@ -126,18 +127,18 @@ def insert_postproc_node(model, postproc_dict, output):
 
         graph.initializer.append(const_alpha)                        
                   
-    const_control = onnx.helper.make_tensor(name='const_control',
+    const_control_post = onnx.helper.make_tensor(name='const_control_post',
                         data_type=onnx.TensorProto.INT32,
                         dims=[len(postproc_dict['control'])],
                         vals=postproc_dict['control'])   #fp32-->uint8, rgb-->rgba   
 
-    graph.initializer.append(const_control)                                  
+    graph.initializer.append(const_control_post)                                  
 
     #x = helper.make_tensor_value_info('x', TensorProto.UINT8, [1, 3, 576, 720])
     output_shape = graph.output[0].type.tensor_type.shape
 
     if b_alpha == True:
-        post_process_output = helper.make_tensor_value_info('post_process_output', TensorProto.UINT8, [-1, output_shape.dim[1].dim_value*output_shape.dim[2].dim_value*(output_shape.dim[3].dim_value+1)])      
+        post_process_output = helper.make_tensor_value_info('post_process_output', TensorProto.UINT8, [-1, (output_shape.dim[1].dim_value + 1)*output_shape.dim[2].dim_value*output_shape.dim[3].dim_value])      
     else:
         post_process_output = helper.make_tensor_value_info('post_process_output', TensorProto.UINT8, [-1, output_shape.dim[1].dim_value*output_shape.dim[2].dim_value*output_shape.dim[3].dim_value//2])
     
@@ -145,14 +146,14 @@ def insert_postproc_node(model, postproc_dict, output):
         post_process_node = onnx.helper.make_node(
                         'PostProc',
                         name='postprocess',
-                        inputs=[output_name, 'const_alpha', 'const_control'],
+                        inputs=[output_name, 'const_alpha', 'const_control_post'],
                         outputs=['post_process_output'],
                         domain='com.metax-tech')
     else:
         post_process_node = onnx.helper.make_node(
                         'PostProc',
                         name='postprocess',
-                        inputs=[output_name, 'const_control'],
+                        inputs=[output_name, 'const_control_post'],
                         outputs=['post_process_output'],
                         domain='com.metax-tech')
  

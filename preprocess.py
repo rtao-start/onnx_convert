@@ -1,5 +1,5 @@
 # import pyyaml module
-import yaml
+import yaml, sys
 from yaml.loader import SafeLoader
 import onnx
 from onnx import helper
@@ -30,6 +30,7 @@ def parse_yaml(yaml_file):
                         for n in std_list_:
                             if n > 0.0:
                                 std_list.append(1.0/n)
+                                print('add std:', 1.0/n)
                             else:
                                 std_list.append(1.0/1e-6)    
 
@@ -131,21 +132,28 @@ def insert_preproc_node(model, preproc_dict, output):
                             dims=[len(preproc_dict['mean'])],
                             vals=preproc_dict['mean'])
 
-    graph.initializer.append(const_mean)                        
+    graph.initializer.append(const_mean) 
+
+    print('preproc_dict[std]:', preproc_dict['std'])
+    std_list = []
+    for v in preproc_dict['std']:
+        print('std:', v)
+        std_list.append(v)                        
 
     const_std = onnx.helper.make_tensor(name='const_std',
                         data_type=onnx.TensorProto.FLOAT,
                         dims=[len(preproc_dict['std'])],
-                        vals=preproc_dict['std'])
+                        vals=std_list)
+                        #vals=preproc_dict['std'])
 
-    graph.initializer.append(const_std)                     
+    graph.initializer.append(const_std)   
 
     const_resize = onnx.helper.make_tensor(name='const_resize',
                         data_type=onnx.TensorProto.INT32,
                         dims=[len(preproc_dict['resize'])],
                         vals=preproc_dict['resize'])
 
-    graph.initializer.append(const_resize)                    
+    graph.initializer.append(const_resize)   
 
     const_crop = onnx.helper.make_tensor(name='const_crop',
                         data_type=onnx.TensorProto.INT32,
@@ -171,17 +179,33 @@ def insert_preproc_node(model, preproc_dict, output):
                     outputs=['pre_process_output'],
                     domain='com.metax-tech')
 
+    print('before insert node 0')                 
+
     graph.node.insert(0, pre_process_node)
 
+    print('after insert node 0')
+
     graph.node[1].input[0]='pre_process_output'
+
+    print('before change input 0')
              
     graph.input[0].type.tensor_type.elem_type = 2
     graph.input[0].type.tensor_type.shape.dim[2].dim_value = preproc_dict['hw'][0]
     graph.input[0].type.tensor_type.shape.dim[3].dim_value = preproc_dict['hw'][1]
 
+    print('before make graph')
+
     new_graph = onnx.helper.make_graph(graph.node, graph.name, graph.input, graph.output, graph.initializer)
+    
+    print('before make model')
+
     model = onnx.helper.make_model(new_graph)
-    model = onnx.shape_inference.infer_shapes(model)
+
+    print('before make shape_inference')
+
+    #model = onnx.shape_inference.infer_shapes(model)
+
+    print('before change opset')
  
     op_set = model.opset_import.add()
     op_set.domain = 'com.metax-tech'
