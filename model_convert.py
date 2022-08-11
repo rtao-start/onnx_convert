@@ -20,7 +20,7 @@ from onnxsim.onnx_simplifier import simplify
 from float16 import convert_float_to_float16
 from preprocess import preproc
 from postprocess import postproc
-from correct_batch import correct_batch_for_opset_convert, convert_ort_type_2_np
+from correct_batch import correct_batch_for_opset_convert, convert_ort_type_2_np, get_data_list
 from pd2onnx import convert_pd2onnx, is_dynamic_paddle
 from pt2onnx import convert_pt2onnx
 
