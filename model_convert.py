@@ -158,6 +158,13 @@ def parse_args():
                         required=False,
                         default='',
                         help="tensorflow nchw")
+
+   #for gap-->ap 
+   parser.add_argument("--gap_to_ap",
+                        type=int, 
+                        required=False,
+                        default=0,
+                        help="GlobalAveragePool-->AveragePool")                     
                                                                                                                                                                                                                                                                                                                                      
    args = parser.parse_args()
    return args
@@ -525,7 +532,7 @@ def convert_gap_2_ap(onnxfile):
 
          onnx.save(model, onnxfile)
 
-def post_process(onnxfile, inference_success):
+def post_process(onnxfile, inference_success, gap_to_ap):
    start_time = time.time()
 
    delete, post_process_file = optimization_op(onnxfile)
@@ -540,10 +547,11 @@ def post_process(onnxfile, inference_success):
 
    print('optimization_op cost', end_time1 - start_time, ' seconds')   
 
-   if inference_success == True:
-      convert_gap_2_ap(post_process_file)
-   else:
-      print('Cannot do inference, so skip global_average_pool-->average_pool')    
+   if gap_to_ap == 1:
+      if inference_success == True:
+         convert_gap_2_ap(post_process_file)
+      else:
+         print('Cannot do inference, so skip global_average_pool-->average_pool')    
 
    end_time2 = time.time()
 
@@ -815,6 +823,7 @@ def process(args):
    paddle_input_type = args.paddle_input_type
    model_weights_file = args.model_weights_file
    inputs_as_nchw = args.inputs_as_nchw
+   gap_to_ap = args.gap_to_ap
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -943,7 +952,7 @@ def process(args):
 
    print('generate inference shape model, it cost', end_time2 - end_time1, ' seconds')
 
-   post_process(output, inference_success)
+   post_process(output, inference_success, gap_to_ap)
    new_model = onnx.load(output)
 
    if simplify_model == 1:

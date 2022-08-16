@@ -79,7 +79,7 @@ def get_pool_attributes(layer, pool_type, input_shape):
         else:
             pad_h = pad_w = 0
     pads = [pad_h, pad_w, pad_h, pad_w]
-    pads = [0, 0, 0, 0]
+    #pads = [0, 0, 0, 0]  #qiuzy
     # pass strides
     stride_h = stride_w = 1
     if stride != 1:

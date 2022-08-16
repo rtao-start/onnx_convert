@@ -449,8 +449,10 @@ class Caffe2Onnx():
                 pads_output_name = [node_name + "_output"]
                 pad_output_shape = op.calculate_pad_output_shape(input_shape, pads)
                 pads_param = self.AddInputsTVIMannul(Layers[i], ["_pad"], [TensorProto.INT64], pads_shape, [pads])
-                input_name.extend(pads_param)
+                #input_name.extend(pads_param)  #qiuzy
 
+                #qiuzy
+                '''
                 pool_type = op.pooling_type(Layers[i])
                 if pool_type == "GlobalMaxPool" or pool_type == "MaxPool":
                     constant_value = [-sys.float_info.max]
@@ -462,10 +464,15 @@ class Caffe2Onnx():
 
                 pad_node = op.create_pad_node(Layers[i], pads_name, input_name, pads_output_name, input_shape)
                 self.onnxNodeList.append(pad_node)
+                '''
 
                 # 2.Build pool_node 
-                pool_node = op.create_pooling_node(Layers[i], node_name, pads_output_name, output_name,
-                                                   pad_output_shape)
+                #pool_node = op.create_pooling_node(Layers[i], node_name, pads_output_name, output_name,
+                #                                   pad_output_shape)
+
+                #qiuzy
+                pool_node = op.create_pooling_node(Layers[i], node_name, input_name, output_name,
+                                                   input_shape)                                   
 
                 # 3.Add node to node list 
                 self.onnxNodeList.append(pool_node)
