@@ -93,6 +93,9 @@
                    (动态paddle模型，对应的model_path字段，可任意填写(如：--model_path ./xxx )，实际不会用到)
                    (如果是动态模型且调用paddle自带的模型类(如paddle.vision.models.LeNet，则不需要指定model_def_file参数))
 
-
+15 pad+pool融合
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx  --fuse_pad_pool 1
+   或：python model_convert.py --model_path ./test.h5 --model_type tf-h5  --output ./output.onnx --fuse_pad_pool 1
+   
 
       
