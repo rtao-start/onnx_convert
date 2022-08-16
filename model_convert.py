@@ -13,6 +13,7 @@ import argparse
 import h5py
 import tensorflow as tf
 import time
+import fuse
 
 from caffe2onnx.src.load_save_model import loadcaffemodel, saveonnxmodel
 from caffe2onnx.src.caffe2onnx import Caffe2Onnx
@@ -164,7 +165,14 @@ def parse_args():
                         type=int, 
                         required=False,
                         default=0,
-                        help="GlobalAveragePool-->AveragePool")                     
+                        help="GlobalAveragePool-->AveragePool") 
+
+   #for pad+pool fuse
+   parser.add_argument("--fuse_pad_pool",
+                        type=int, 
+                        required=False,
+                        default=0,
+                        help="fuse pad+pool")                                                  
                                                                                                                                                                                                                                                                                                                                      
    args = parser.parse_args()
    return args
@@ -705,8 +713,8 @@ def eliminate_unused_input_initializer(model, output):
 
       model.graph.input.extend(vip)
 
-      for input in model.graph.input:
-         print("xxx got  input name:", input.name)
+      #for input in model.graph.input:
+      #   print("xxx got  input name:", input.name)
 
       #onnx.checker.check_model(model)
       onnx.save(model, output)
@@ -824,6 +832,7 @@ def process(args):
    model_weights_file = args.model_weights_file
    inputs_as_nchw = args.inputs_as_nchw
    gap_to_ap = args.gap_to_ap
+   fuse_pad_pool = args.fuse_pad_pool
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -958,6 +967,10 @@ def process(args):
    if simplify_model == 1:
       print('begin doing simplify...')
       new_model = model_simplify(output)
+
+   if fuse_pad_pool == 1:
+      print('begin doing fuse_pad_to_pool...')
+      new_model = fuse.fuse_pad_to_pool(new_model, output)   
 
    if fp32_to_fp16 == 1:
       print('begin doing fp32-->fp16...')

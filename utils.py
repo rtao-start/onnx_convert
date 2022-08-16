@@ -486,14 +486,98 @@ onnx.checker.check_model(model)
 onnx.save(model, './3.onnx')
 '''
 
-
-
+'''
 from onnxsim import simplify
 onnx_model = onnx.load('./mobilenet_v1-1.onnx')  # load onnx model
 model_simp, check = simplify(onnx_model, skip_shape_inference=False, input_shapes={'input:0': [1,3,224,224]})
 assert check, "Simplified ONNX model could not be validated"
 onnx.save(model_simp, './zz.onnx')
 print('finished exporting onnx')
+'''
+
+import argparse
+
+def fuse_pad_to_pool(onnxfile, export_onnx):
+    model = onnx.load(onnxfile)
+
+    dict_pad = {}
+    dict_pool = {}
+    dict_mul = {}
+
+    got_pad_pool = False
+
+    for node_id, node in enumerate(model.graph.node):
+        #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
+        #         ", op:", node.op_type, ', len(input):', len(node.input))
+
+        if node.op_type == 'Pad':
+            dict_pad['input'] = node.input
+            dict_pad['output'] = node.output
+            dict_pad['id'] = node_id
+
+        if node.op_type == 'MaxPool':
+            if len(dict_pad) > 0 and node.input == dict_pad['output']:
+                dict_pool['input'] = node.input
+                dict_pool['output'] = node.output
+                dict_pool['id'] = node_id
+                print('got pad+pool pair, pad:', dict_pad['input'], dict_pad['output'])
+                print('got pad+pool pair, pool:', dict_pool['input'], dict_pool['output'])
+                pads = []
+
+                got_pad_pool = True
+
+                for init in model.graph.initializer:
+                    if init.name == dict_pad['input'][1]:
+                        print('got init(pads):', init.name)
+                        dtype = init.data_type
+                        np_dtype = convert_ort_type_2_np(dtype)
+                        if init.raw_data:
+                            params_list = np.fromstring(init.raw_data, dtype=np_dtype)
+                            for p in params_list:
+                                print('p:', p)
+                                pads.append(p)
+                        else:
+                            data_list = get_data_list(dtype, init)
+                            for p in data_list:
+                                print('---p:', p)
+                                pads.append(p)
+                    elif init.name == dict_pad['input'][2]:
+                        print('got init(constane_value):', init.name)  
+
+                pads_real = [pads[2], pads[3], pads[6], pads[7]]
+
+                for attr in node.attribute:
+                    #print('attr:', attr)
+                    if attr.name == 'pads':
+                        del attr.ints[:]
+                        attr.ints.extend(pads_real)
+                        print('pads:---', attr.ints)
+                        break
+     
+                node.input[0] = dict_pad['input'][0]
+
+                old_node = model.graph.node[dict_pad['id']] 
+                model.graph.node.remove(old_node)
+
+                dict_pad = {}
+                dict_pool = {}
+            else:
+                #print('clear pad dict')
+                dict_pad = {}    
+
+    if got_pad_pool == True:
+        print('got pad+pool node------------')
+
+        op_set = model.opset_import.add()
+        op_set.domain = 'com.metax-tech'
+        op_set.version = 1
+        
+        onnx.save(model, export_onnx)
+        
+
+export_onnx = './tmp.onnx'
+fuse_pad_to_pool('./v3-tiny.onnx', export_onnx)   
+
 
 
 
