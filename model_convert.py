@@ -14,6 +14,7 @@ import h5py
 import tensorflow as tf
 import time
 import fuse
+from swish_convert import merge_swish_and_hard_swish
 
 from caffe2onnx.src.load_save_model import loadcaffemodel, saveonnxmodel
 from caffe2onnx.src.caffe2onnx import Caffe2Onnx
@@ -172,9 +173,17 @@ def parse_args():
                         type=int, 
                         required=False,
                         default=0,
-                        help="fuse pad+pool")                                                  
+                        help="fuse pad+pool") 
+
+   #for merge swish
+   parser.add_argument("--support_swish",
+                        type=int, 
+                        required=False,
+                        default=0,
+                        help="Sigmoid+Mul-->swish; HardSigmoid+Mul-->HardSwish")                                                                       
                                                                                                                                                                                                                                                                                                                                      
    args = parser.parse_args()
+
    return args
 
 def get_caffe_files(model_path):
@@ -833,6 +842,7 @@ def process(args):
    inputs_as_nchw = args.inputs_as_nchw
    gap_to_ap = args.gap_to_ap
    fuse_pad_pool = args.fuse_pad_pool
+   support_swish = args.support_swish
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -979,6 +989,9 @@ def process(args):
 
    if model_type == 'onnx' and support_mish == 1:
       convert_mish(model_path, output, op_set)
+
+   if model_type == 'onnx' and support_swish == 1:
+      merge_swish_and_hard_swish(new_model, output)   
 
    if model_type == 'onnx' and preproc_yaml != '':
       if os.path.exists(preproc_yaml):

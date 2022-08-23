@@ -97,5 +97,11 @@
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx  --fuse_pad_pool 1
    或：python model_convert.py --model_path ./test.h5 --model_type tf-h5  --output ./output.onnx --fuse_pad_pool 1
    
+16 GlobalAveragePool-->AveragePool
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx  --gap_to_ap 1
+   或：python model_convert.py --model_path ./test.h5 --model_type tf-h5  --output ./output.onnx --gap_to_ap_ 1
 
+17 swish合成
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --support_swish 1
+   说明: 仅支持model_type为onnx, 调用命令会自动将模型中符合条件的Sigmoid+Mul组合转换为Swish(或将HardSigmoid+Mul组合转换为HardSwish)
       
