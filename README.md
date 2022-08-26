@@ -1,5 +1,3 @@
-# onnx_convert
-
 1 caffe转onnx
    命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx
    参数说明：model_path：caffe模型所在的文件夹，文件夹里需要有对应的.caffemodel文件和.prototxt文件
@@ -35,18 +33,75 @@
                    outputs：原始模型的输出变量名称
 
 6 pytorch转onnx
-   命令：python model_convert.py --model_path ./mnist_model.pkl  --model_type pytorch --output ./output.onnx  --input_shape [1,1,28,28]
+   命令： python model_convert.py --model_path ./mnist_model.pkl  --model_type pytorch  --output ./torch.onnx  --model_def_file  ./CNN.py  --model_class_name CNN --input_shape [1,1,28,28]   (完整模型加权重参数)
+              或 python model_convert.py --model_path ./mnist_model.pkl  --model_type pytorch  --output ./unet.onnx  --model_def_file  ./unet.py   --model_class_name Net  --model_weights_file ./9_epoch_iou_0.9743422508239746.pth  --input_shape [64,3,32,32]  (只含权重参数，model_path可任意指定，实际不会使用)
+              或 python model_convert.py --model_path ./xxx --model_type pytorch  --output ./resnet50.onnx  --model_class_name torchvision.models.resnet50  --model_weights_file ./0.96966957919051920.9139525532770406.pth   --input_shape [16,3,256,256]  (只含权重参数，使用torchvision中的类，model_path可任意指定，实际不会使用，不需要model_def_file参数)
    参数说明：model_path：pytorch模型所在的路径(非文件夹)
                    model_type：模型类型，此处固定为pytorch
-                   input shape：输入shape
                    output：输出onnx模型的文件路径
-  注：
-      (1)pytorch模型转换时，需要有模型的定义文件。
-      (2)暂时只支持全量模型的转化，不支持只保存参数的模型进行转换(如有需求可以添加)。
+                   input shape：输入shape
+                   model_def_file：模型定义文件
+                   model_weights_file：权重文件
+                   model_class_name：类名(可以是自定义的类或pytorch提供的模型类)
 
 7 darknet转onnx
    命令：python model_convert.py --model_path ./dn_models --model_type darknet  --output ./output.onnx
    参数说明：model_path：darknet模型所在的文件夹，文件夹里需要有对应的.cfg文件和.weights文件
                    model_type：模型类型，此处固定为darknet
                    output：输出onnx模型的文件路径
-                    
+
+****************************************************************************************
+8 启用动态batch(默认关闭)
+   命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx  --dynamic_batch 1
+                
+9 关闭simplify功能(默认打开)
+   命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx  --simplify 0
+
+10 启用fp32-->fp16转换(默认关闭)
+   命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx  --fp32_to_fp16 1
+   如原始模型为qdq量化后的模型，执行simplify时可能失败，关闭simplify功能即可：python model_convert.py --model_path ./qdq.onnx --model_type onnx --output ./fp16.onnx  --fp32_to_fp16 1 --simplify 0
+
+11 提取子图
+   命令：python model_convert.py --model_path ./output.onnx  --model_type onnx   --output ./test.onnx  --extract_sub 1 --inputs input_1:0  --outputs functional_1/concatenate/concat:0
+   说明：model_type必须为onnx
+
+12 mish合成
+   命令：python model_convert.py --model_path ./dn_models --model_type darknet  --output ./output.onnx --support_mish 1
+   也可直接对onnx模型中的算子进行合成：python model_convert.py --model_path ./my.onnx --model_type onnx --output ./test.onnx  --support_mish 1
+
+13 op_set版本转换
+   命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx  --op_set 12
+   也可直接对onnx模型进行版本转换：python model_convert.py --model_path ./my.onnx --model_type onnx --output ./test.onnx  --op_set 12
+
+14 paddle转onnx
+   命令：
+          (1)动态paddle模型
+            python model_convert.py --model_path ./xxx   --model_type paddle   --output ./paddle.onnx  --model_def_file  ./mnist.py --model_class_name LeNet  --model_weights_file ./paddle_checkpoint/final.pdparams --input_shape [1,1,28,28]  (自定义的类，在mnist.py中实现class LeNet)
+          或python model_convert.py --model_path ./xxx  --model_type paddle   --output ./paddle.onnx  --model_class_name paddle.vision.models.LeNet  --model_weights_file ./paddle_checkpoint/final.pdparams --input_shape [1,1,28,28]    (paddle自带的类，类名为LeNet)
+        (2)静态paddle模型
+          python model_convert.py --model_path ./paddle_model   --model_type paddle   --output ./paddle.onnx 
+           
+   参数说明：model_path：pytorch模型所在的路径(非文件夹)
+                   model_type：模型类型，此处固定为paddle
+                   output：输出onnx模型的文件路径
+                   (以下五个参数，动态paddle模型才需要输入)
+                   input shape：输入shape
+                   model_def_file：模型定义文件
+                   model_weights_file：模型权重文件
+                   model_class_name：类名(可以是自定义的类或paddle提供的模型类)
+                   paddle_input_type：输入数据类型(可不指定，默认为float32)
+                   (动态paddle模型，对应的model_path字段，可任意填写(如：--model_path ./xxx )，实际不会用到)
+                   (如果是动态模型且调用paddle自带的模型类(如paddle.vision.models.LeNet，则不需要指定model_def_file参数))
+
+15 pad+pool融合
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx  --fuse_pad_pool 1
+   或：python model_convert.py --model_path ./test.h5 --model_type tf-h5  --output ./output.onnx --fuse_pad_pool 1
+   
+16 GlobalAveragePool-->AveragePool
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx  --gap_to_ap 1
+   或：python model_convert.py --model_path ./test.h5 --model_type tf-h5  --output ./output.onnx --gap_to_ap_ 1
+
+17 swish合成
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --support_swish 1
+   说明: 仅支持model_type为onnx, 调用命令会自动将模型中符合条件的Sigmoid+Mul组合转换为Swish(或将HardSigmoid+Mul组合转换为HardSwish)
+      
