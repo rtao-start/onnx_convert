@@ -2,7 +2,6 @@ import numpy as np
 import caffe2onnx.src.c2oObject as Node
 import math
 
-
 def getConvAttri(layer, input_shape):
     dilations = [1, 1]
     if layer.convolution_param.dilation != []:

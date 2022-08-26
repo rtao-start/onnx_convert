@@ -120,8 +120,12 @@ def get_pool_attributes(layer, pool_type, input_shape):
                   "pads": pads,
                   "ceil_mode": ceil_mode
                   }
-    return attributes
 
+    #qiuzy
+    if pool_type == 'AveragePool':
+        attributes['count_include_pad'] = 1
+
+    return attributes
 
 def get_pooling_output_shape(input_shape, layer, attributes, with_indices=False):
     number = input_shape[0][0]

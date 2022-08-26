@@ -30,11 +30,11 @@ support_mish = 0
 
 inputs_as_nchw = ''
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, filename='./convert.log', filemode='w')
 
 from onnx import shape_inference, TensorProto, version_converter, numpy_helper
 
-logger = logging.getLogger("[Any2ONNX]")
+logger = logging.getLogger("[MacaConverter]")
 
 import argparse
 
@@ -636,7 +636,16 @@ def extract_sub_graph(input_path, output_path, input_names, output_names):
    input_list = input_names.split(',')
    output_list = output_names.split(',')
    #onnx.utils.extract_model(input_path, output_path, input_list, output_list)
-   my_extract_model(input_path, output_path, input_list, output_list)
+   #my_extract_model(input_path, output_path, input_list, output_list)
+
+   try:
+      onnx.utils.extract_model(input_path, output_path, input_list, output_list)
+   except BaseException as e:
+      print('The model cannot be extracted for: %s' % e)
+      return False   
+   else:
+      print('Inference success---')
+      return True
 
 def add_value_info_for_constants(model : onnx.ModelProto):
    # All (top-level) constants will have ValueInfos before IRv4 as they are all inputs
@@ -892,7 +901,10 @@ def process(args):
          print('WARNNING: only onnx model supports extracting...')
          sys.exit()
 
-      extract_sub_graph(model_path, output, inputs, outputs)
+      r = extract_sub_graph(model_path, output, inputs, outputs)
+      if r == True:
+         logger.info('Convert Success!')
+         
       sys.exit()                
 
    if model_type == 'pytorch' or model_type == 'paddle':
@@ -1010,6 +1022,9 @@ def process(args):
    end_time3 = time.time()
 
    print('The whole progress cost', end_time3 - begin_time, ' seconds')
+
+   logger.info('Convert Success!')
+
 
 def usage():
     print('python model_convert.py --model_path ./my_model --model_type caffe --output ./c2o.onnx')
