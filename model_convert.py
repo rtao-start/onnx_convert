@@ -438,7 +438,7 @@ def model_simplify(model_path):
 
    return model_simp
 
-def modify_onnx2dymnamic(onnx_model, model_path):
+def modify_onnx2dynamic(onnx_model, model_path):
    for idx in range(len(onnx_model.graph.input)):
       dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
       # dim_proto_input.dim_param = 'bs'
@@ -467,9 +467,19 @@ def modify_onnx2dymnamic(onnx_model, model_path):
    for n in reshape_param:
       for init in onnx_model.graph.initializer:
          if n == init.name:
-            print('got it in initializer:', n)
-            init.int64_data[0] = -1      
-
+            print('got it in initializer:', n, init.int64_data)
+            #init.int64_data[0] = -1
+            dtype = init.data_type
+            np_dtype = convert_ort_type_2_np(dtype)
+            if init.raw_data:
+               params_list = np.fromstring(init.raw_data, dtype=np_dtype)
+               if params_list[0] != -1:
+                     params_list[0] = -1
+                     init.raw_data = params_list.tostring()
+            else:
+               data_list = get_data_list(dtype, init)
+               if len(data_list) > 0 and data_list[0] != -1:
+                     data_list[0] = -1
    try:
       onnx.checker.check_model(onnx_model)
    except onnx.checker.ValidationError as e:
@@ -977,7 +987,7 @@ def process(args):
 
    if dynamic_batch == 1:
       print('modify model to dynamic batch...')
-      modify_onnx2dymnamic(new_model, output)
+      modify_onnx2dynamic(new_model, output)
 
    end_time2 = time.time()
 
