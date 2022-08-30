@@ -425,13 +425,20 @@ def model_simplify(model_path):
    onnx_model = onnx.load(model_path)
    dynamic_input_shape_ = False
 
+   init_list = []
+
+   for init in onnx_model.graph.initializer:
+      init_list.append(init.name)
+
    for idx in range(len(onnx_model.graph.input)):
       print('graph_input_name:', onnx_model.graph.input[idx].name)
-      dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
-      if dim_proto_input.dim_value == -1 or dim_proto_input.dim_value == 0:
-         print('The model input is dynamic~~~~~~')
-         dynamic_input_shape_ = True
-         break
+      if onnx_model.graph.input[idx].name not in init_list:
+         if len(onnx_model.graph.input[idx].type.tensor_type.shape.dim) > 0:
+            dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
+            if dim_proto_input.dim_value == -1 or dim_proto_input.dim_value == 0:
+               print('The model input is dynamic~~~~~~')
+               dynamic_input_shape_ = True
+               break
 
    model_simp, check = simplify(onnx_model, dynamic_input_shape=dynamic_input_shape_)
    onnx.save(model_simp, model_path)
