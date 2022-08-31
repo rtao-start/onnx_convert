@@ -241,7 +241,10 @@ def convert_sm2onnx(model_path, output, op_set):
       if inputs_as_nchw != '':
          cmd += ' --inputs-as-nchw ' + inputs_as_nchw
       print('convert_tfsm2onnx: ', cmd)
-      os.system(cmd)
+      r = os.system(cmd)
+      if r != 0:
+         print('convert_sm2onnx failed')
+         sys.exit()
 
 def convert_h52onnx(model_path, output, op_set):
       print('Begin converting tf-savemodel to onnx...')
@@ -249,7 +252,10 @@ def convert_h52onnx(model_path, output, op_set):
       if inputs_as_nchw != '':
          cmd += ' --inputs-as-nchw ' + inputs_as_nchw
       print('convert_tfh52onnx: ', cmd)
-      os.system(cmd)     
+      r = os.system(cmd)
+      if r != 0:
+         print('convert_h52onnx failed')
+         sys.exit()     
 
 def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
       print('Begin converting tf-ckpt to onnx...')
@@ -261,7 +267,10 @@ def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
 
       print('convert_ckpt2onnx: ', cmd)
 
-      os.system(cmd)
+      r = os.system(cmd)
+      if r != 0:
+         print('convert_ckpt2onnx failed')
+         sys.exit()   
 
 def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
       print('Begin converting tf-graph to onnx...')
@@ -273,7 +282,10 @@ def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
 
       print('convert_graph2onnx: ', cmd)
       
-      os.system(cmd)      
+      r = os.system(cmd)
+      if r != 0:
+         print('convert_graph2onnx failed')
+         sys.exit()         
 
 def get_darknet_files(model_path):
    items = os.listdir(model_path)
@@ -343,7 +355,10 @@ def convert_dn2onnx(model_path, output, op_set):
    
    print('convert_dn2onnx: ', cmd)
 
-   os.system(cmd)
+   r = os.system(cmd)
+   if r != 0:
+      print('convert_dn2onnx failed')
+      sys.exit() 
 
 def convert_mish(model_path, output, op_set):
    global support_mish
@@ -351,7 +366,10 @@ def convert_mish(model_path, output, op_set):
 
    cmd = 'python ./mish_convert.py --onnx_file ' + model_path + ' --output_file ' + output
    print('convert_mish: ', cmd)
-   os.system(cmd)     
+   r = os.system(cmd)
+   if r != 0:
+      print('convert_mish failed')
+      sys.exit()      
 
 def convert(model_path, model_type, output, op_set, input_shape, inputs, outputs, 
                model_def_file,
@@ -393,8 +411,8 @@ def optimization_op(onnxfile):
    export_onnx = onnxfile
 
    for node_id, node in enumerate(model.graph.node):
-      print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
-               ", op:", node.op_type, ', len(input):', len(node.input))
+      #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
+      #         ", op:", node.op_type, ', len(input):', len(node.input))
 
       if node.op_type in optimization_op_list and len(node.input) == 1:
          delete_node_id = node_id
@@ -443,7 +461,7 @@ def model_simplify(model_path):
       init_list.append(init.name)
 
    for idx in range(len(onnx_model.graph.input)):
-      print('graph_input_name:', onnx_model.graph.input[idx].name)
+      #print('graph_input_name:', onnx_model.graph.input[idx].name)
       if onnx_model.graph.input[idx].name not in init_list:
          if len(onnx_model.graph.input[idx].type.tensor_type.shape.dim) > 0:
             dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
@@ -521,8 +539,8 @@ def convert_gap_2_ap(onnxfile):
    need_convert = False
 
    for node_id, node in enumerate(model.graph.node):
-      print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
-               ", op:", node.op_type)
+      #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
+      #         ", op:", node.op_type)
 
       if node.op_type == 'GlobalAveragePool':
          has_global_average_pool = True 
@@ -747,8 +765,8 @@ def eliminate_unused_input_initializer(model, output):
       if n in init_list:
          real_input_init.append(n)
 
-   for n in real_input_init:
-      print("real_input_init:", n)
+   #for n in real_input_init:
+   #   print("real_input_init:", n)
 
    #ValueInfoProto 
    vip = []
@@ -763,7 +781,7 @@ def eliminate_unused_input_initializer(model, output):
          need_eliminate = True
 
    if need_eliminate == True:
-      print('need to eliminate invalid initializer in input')
+      print('Now eliminate invalid initializer in input')
 
       del model.graph.input[:]
 

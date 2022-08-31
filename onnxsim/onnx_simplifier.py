@@ -385,12 +385,12 @@ def optimize(model: onnx.ModelProto, skip_fuse_bn: bool, skipped_optimizers: Opt
         onnx.checker.check_model(model)
     except onnx.checker.ValidationError as e:
         if 'No Op registered for Mish' in str(e):
-            print('(+++osm)ignore mish warning, continue~')
+            print('(optimize)ignore mish warning, continue~')
         else:
-            print('(+++osm)model error, exit now~')
+            print('(optimize)model error, exit now~')
             sys.exit()    
     else:
-        print('(+++osm)optimize check success')
+        print('(optimize)optimize check success')
 
     onnx.helper.strip_doc_string(model)
     optimizers_list = onnxoptimizer.get_fuse_and_elimination_passes()
@@ -410,12 +410,12 @@ def optimize(model: onnx.ModelProto, skip_fuse_bn: bool, skipped_optimizers: Opt
         onnx.checker.check_model(model)
     except onnx.checker.ValidationError as e:
         if 'No Op registered for Mish' in str(e):
-            print('(###osm)ignore mish warning, continue~')
+            print('(optimize)ignore mish warning, continue~')
         else:
-            print('(###osm)model error, exit now~')
+            print('(optimize)model error, exit now~')
             sys.exit()    
     else:
-        print('(###osm)optimize successed')
+        print('(optimize)optimize successed')
 
     return model
 
@@ -436,12 +436,12 @@ def check(model_ori: onnx.ModelProto, model_opt: onnx.ModelProto, n_times: int,
         onnx.checker.check_model(model_opt)
     except onnx.checker.ValidationError as e:
         if 'No Op registered for Mish' in str(e):
-            print('(+++osm)ignore mish warning, continue~')
+            print('(osm check)ignore mish warning, continue~')
         else:
-            print('(+++osm)model error, exit now~')
+            print('(osm check)model error, exit now~')
             sys.exit()    
     else:
-        print('(+++osm)check pass~')
+        print('(osm check)check pass~')
 
     if is_non_deterministic_model(model_ori) and n_times > 0:
         print("The model has random ops like RandomNormal. Skip checking..")
@@ -589,12 +589,12 @@ def simplify(model: Union[str, onnx.ModelProto],
         onnx.checker.check_model(model)
     except onnx.checker.ValidationError as e:
         if 'No Op registered for Mish' in str(e):
-            print('(***osm)ignore mish warning, continue~')
+            print('(simplify)ignore mish warning, continue~')
         else:
-            print('(***osm)model error, exit now~')
+            print('(simplify)model error, exit now~')
             sys.exit()    
     else:
-        print('(***osm)begin simplify~')
+        print('(simplify)begin simplify~')
 
     model_ori = model
     model = copy.deepcopy(model)
@@ -650,12 +650,12 @@ def simplify(model: Union[str, onnx.ModelProto],
             onnx.checker.check_model(model)
         except onnx.checker.ValidationError as e:
             if 'No Op registered for Mish' in str(e):
-                print('(***osm)ignore mish warning, continue~')
+                print('(simplify)ignore mish warning, continue~')
             else:
-                print('(***osm)model error, exit now~')
+                print('(simplify)model error, exit now~')
                 sys.exit()    
         else:
-            print('(***osm)finish constant_folding')
+            print('(simplify)finish constant_folding')
 
         return model
 
