@@ -188,30 +188,35 @@ def parse_args():
 
 def get_caffe_files(model_path):
    items = os.listdir(model_path)
-   has_prototxt = False
-   has_caffemodel = False
+   prototxt_cnt = 0
+   caffemodel_cnt = 0
    prototxt_file = ''
    caffemodel_file = ''
 
    for f in items:
       if f.endswith(".prototxt"):
-         has_prototxt = True
+         prototxt_cnt = prototxt_cnt + 1
          prototxt_file = f
       elif f.endswith(".caffemodel"):
-         has_caffemodel = True
+         caffemodel_cnt = caffemodel_cnt + 1
          caffemodel_file = f
 
-      if has_prototxt == True and has_caffemodel == True:
-         if model_path.endswith("/"):
-            prototxt_file = model_path + prototxt_file
-            caffemodel_file = model_path + caffemodel_file
-         else:
-            prototxt_file = model_path + '/' + prototxt_file
-            caffemodel_file = model_path + '/' + caffemodel_file
-
-         print('got prototxt_file:{}, caffemodel_file:{}'.format(prototxt_file, caffemodel_file))
-
-         break        
+   if prototxt_cnt == 1 and caffemodel_cnt == 1:
+      if model_path.endswith("/"):
+         prototxt_file = model_path + prototxt_file
+         caffemodel_file = model_path + caffemodel_file
+      else:
+         prototxt_file = model_path + '/' + prototxt_file
+         caffemodel_file = model_path + '/' + caffemodel_file
+      print('got prototxt_file:{}, caffemodel_file:{}'.format(prototxt_file, caffemodel_file))
+   elif prototxt_cnt > 1 or caffemodel_cnt > 1:
+      prototxt_file = ''
+      caffemodel_file = ''
+      print('ERROR: prototxt_cnt > 1 or caffemodel_cnt > 1')
+   elif prototxt_cnt == 0 or caffemodel_cnt == 0:
+      prototxt_file = ''
+      caffemodel_file = ''
+      print('ERROR: No .prototxt file or no .caffemodel file')       
    
    return prototxt_file, caffemodel_file  
 
@@ -220,7 +225,6 @@ def convert_caffe2onnx(model_path, output, op_set):
       prototxt_file, caffemodel_file = get_caffe_files(model_path)
 
       if prototxt_file == '' or caffemodel_file == '':
-         print('ERROR: prototxt file or caffemodel file is None')
          sys.exit()
 
       onnxmodel_path = output
@@ -273,31 +277,37 @@ def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
 
 def get_darknet_files(model_path):
    items = os.listdir(model_path)
-   has_cfg = False
-   has_weights = False
+   cfg_cnt = 0
+   weights_cnt = 0
    cfg_file = ''
    weights_file = ''
 
    for f in items:
       if f.endswith(".cfg"):
-         has_cfg = True
+         cfg_cnt = cfg_cnt + 1
          cfg_file = f
       elif f.endswith(".weights"):
-         has_weights = True
+         weights_cnt = weights_cnt + 1
          weights_file = f
 
-      if has_cfg == True and has_weights == True:
-         if model_path.endswith("/"):
-            cfg_file = model_path + cfg_file
-            weights_file = model_path + weights_file
-         else:
-            cfg_file = model_path + '/' + cfg_file
-            weights_file = model_path + '/' + weights_file
+   if cfg_cnt == 1 and weights_cnt == 1:
+      if model_path.endswith("/"):
+         cfg_file = model_path + cfg_file
+         weights_file = model_path + weights_file
+      else:
+         cfg_file = model_path + '/' + cfg_file
+         weights_file = model_path + '/' + weights_file
 
-         print('got cfg_file:{}, weights_file:{}'.format(cfg_file, weights_file))
-
-         break        
-   
+      print('got cfg_file:{}, weights_file:{}'.format(cfg_file, weights_file))
+   elif cfg_cnt > 1 or weights_cnt > 1:
+      cfg_file = ''
+      weights_file = ''
+      print('ERROR: cfg_cnt > 1 or weights_cnt > 1')
+   elif cfg_cnt == 0 or weights_cnt == 0:
+      cfg_file = ''
+      weights_file = ''
+      print('ERROR: No .cfg file or no .weights file')   
+     
    return cfg_file, weights_file  
 
 #tf.compat.v1.disable_v2_behavior()
@@ -321,6 +331,8 @@ def convert_dn2onnx(model_path, output, op_set):
    global support_mish
    print('Begin converting darknet to onnx...... support_mish：', support_mish)
    cfg_file, weights_file = get_darknet_files(model_path)
+   if cfg_file == '' or weights_file == '':
+      sys.exit()
 
    cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --output_file ' + output + ' --support_mish ' + str(support_mish)
    
