@@ -578,11 +578,16 @@ def convert_gap_2_ap(onnxfile):
 
          onnx.save(model, onnxfile)
 
+   return need_convert      
+
 def post_process(onnxfile, inference_success, gap_to_ap):
    start_time = time.time()
 
+   debug_print = False
+
    delete, post_process_file = optimization_op(onnxfile)
    while delete == True:
+      debug_print = True
       delete, post_process_file = optimization_op(post_process_file)
 
    delete, post_process_file = eliminate_redundant_reshape(post_process_file)
@@ -591,17 +596,21 @@ def post_process(onnxfile, inference_success, gap_to_ap):
 
    end_time1 = time.time()
 
-   print('optimization_op cost', end_time1 - start_time, ' seconds')   
+   if debug_print == True:
+      print('optimization_op cost', end_time1 - start_time, ' seconds')
+
+   debug_print = False      
 
    if gap_to_ap == 1:
       if inference_success == True:
-         convert_gap_2_ap(post_process_file)
+         debug_print = convert_gap_2_ap(post_process_file)
       else:
          print('Cannot do inference, so skip global_average_pool-->average_pool')    
 
    end_time2 = time.time()
 
-   print('convert_gap_2_ap cost', end_time2 - end_time1, ' seconds')  
+   if debug_print == True:
+      print('convert_gap_2_ap cost', end_time2 - end_time1, ' seconds')  
 
 def my_extract_model(
         input_path,  # type: Text
