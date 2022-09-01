@@ -29,26 +29,41 @@ def convert_ort_type_2_np(ort_data_type):
 def get_data_list(dtype, init):
     data_list = []
 
+    if dtype == 1: #float
+        data_list = init.float_data
+
     if dtype == 2: #uint8
-        data_list = init.uint8_data
+        data_list = init.int32_data
 
     if dtype == 3: #int8
-        data_list = init.int8_data    
+        data_list = init.int32_data    
 
     if dtype == 4: #uint16
-        data_list = init.uint16_data
+        data_list = init.int32_data
 
     if dtype == 5: #int16
-        data_list = init.int16_data
+        data_list = init.int32_data
 
     if dtype == 6: #int32
         data_list = init.int32_data
 
-    if dtype == 12: #uint32
-        data_list = init.uint32_data  
-
     if dtype == 7: #int64
         data_list = init.int64_data
+
+    if dtype == 8: #string
+        data_list = init.string_data       
+
+    if dtype == 9: #bool
+        data_list = init.int32_data    
+
+    if dtype == 10: #float16
+        data_list = init.int32_data
+         
+    if dtype == 11: #double
+        data_list = init.double_data      
+
+    if dtype == 12: #uint32
+        data_list = init.uint64_data  
 
     if dtype == 13: #uint64
         data_list = init.uint64_data
