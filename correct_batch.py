@@ -55,17 +55,22 @@ def get_data_list(dtype, init):
 
     return data_list                      
 
-
 def correct_batch_for_opset_convert(model):
     input_shape = model.graph.input[0].type.tensor_type.shape.dim
     input_batch = input_shape[0].dim_value
     print('correct_batch_for_opset_convert, input_batch:', input_batch)
 
+    init_list = []
+    for init in model.graph.initializer:
+        init_list.append(init.name)
+
     for idx in range(len(model.graph.value_info)):
-      dim_proto_input = model.graph.value_info[idx].type.tensor_type.shape.dim[0]
-      if dim_proto_input.dim_value != input_batch:
-        #print('$$$', dim_proto_input.dim_value, input_batch)
-        dim_proto_input.dim_value = input_batch
+        if model.graph.value_info[idx].name not in init_list:
+            if len(model.graph.value_info[idx].type.tensor_type.shape.dim) > 0:
+                dim_proto_input = model.graph.value_info[idx].type.tensor_type.shape.dim[0]
+                if dim_proto_input.dim_value != input_batch:
+                    #print('$$$', dim_proto_input.dim_value, input_batch)
+                    dim_proto_input.dim_value = input_batch
 
     reshape_input_list = []
     for node in model.graph.node:

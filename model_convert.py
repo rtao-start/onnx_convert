@@ -451,7 +451,7 @@ def optimization_op(onnxfile):
 
    return delete, export_onnx
 
-def model_simplify(model_path):
+def model_simplify(model_path, simplify_model):
    onnx_model = onnx.load(model_path)
    dynamic_input_shape_ = False
 
@@ -476,14 +476,14 @@ def model_simplify(model_path):
                input_shapes_[onnx_model.graph.input[idx].name] = input_shape
                break
 
-   if dynamic_input_shape_ == True:
-      model_simp, check = simplify(onnx_model, input_shapes=input_shapes_)
-   else:   
-      model_simp, check = simplify(onnx_model, dynamic_input_shape=False)
-
-   #model_simp, check = simplify(onnx_model, dynamic_input_shape=dynamic_input_shape_)
-   if dynamic_input_shape_ == True:
-      correct_batch_for_opset_convert(model_simp)
+   if simplify_model == 2:
+      if dynamic_input_shape_ == True:
+         model_simp, check = simplify(onnx_model, input_shapes=input_shapes_)
+         correct_batch_for_opset_convert(model_simp)
+      else:   
+         model_simp, check = simplify(onnx_model, dynamic_input_shape=False)
+   else:
+      model_simp, check = simplify(onnx_model, dynamic_input_shape=dynamic_input_shape_)
 
    onnx.save(model_simp, model_path)
 
@@ -495,11 +495,12 @@ def modify_onnx2dynamic(onnx_model, model_path):
       # dim_proto_input.dim_param = 'bs'
       dim_proto_input.dim_value = -1
 
+
    for idx in range(len(onnx_model.graph.value_info)):
       dim_proto_input = onnx_model.graph.value_info[idx].type.tensor_type.shape.dim[0]
       # dim_proto_input.dim_param = 'bs'
       dim_proto_input.dim_value = -1   
-
+  
    for idx in range(len(onnx_model.graph.output)):
       dim_proto_output = onnx_model.graph.output[idx].type.tensor_type.shape.dim[0]
       # dim_proto_output.dim_param = 'bs'
@@ -524,13 +525,30 @@ def modify_onnx2dynamic(onnx_model, model_path):
             np_dtype = convert_ort_type_2_np(dtype)
             if init.raw_data:
                params_list = np.fromstring(init.raw_data, dtype=np_dtype)
+               print('len(params_list):', len(params_list))
+               adjust = True
+               for val in params_list:
+                  print('------ val:', val)
+                  if val == -1:
+                     adjust = False
+
                if params_list[0] != -1:
                      params_list[0] = -1
                      init.raw_data = params_list.tostring()
             else:
                data_list = get_data_list(dtype, init)
+               adjust = True
+               print('len(data_list):', len(data_list))
+
+               for val in data_list:
+                  print('++++++ val:', val)
+                  if val == -1:
+                     adjust = False
+
                if len(data_list) > 0 and data_list[0] != -1:
                      data_list[0] = -1
+
+   #onnx_model = onnx.shape_inference.infer_shapes(onnx_model)                  
    try:
       onnx.checker.check_model(onnx_model)
    except onnx.checker.ValidationError as e:
@@ -1021,6 +1039,7 @@ def process(args):
 
    inference_success = False
    new_model = model
+
    #new_model = onnx.shape_inference.infer_shapes(model)
    try:
       new_model = onnx.shape_inference.infer_shapes(model)
@@ -1056,9 +1075,9 @@ def process(args):
    post_process(output, inference_success, gap_to_ap)
    new_model = onnx.load(output)
 
-   if simplify_model == 1:
+   if simplify_model == 1 or simplify_model == 2:
       print('begin doing simplify...')
-      new_model = model_simplify(output)
+      new_model = model_simplify(output, simplify_model)
 
    if fuse_pad_pool == 1:
       print('begin doing fuse_pad_to_pool...')
