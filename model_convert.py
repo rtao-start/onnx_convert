@@ -499,20 +499,24 @@ def model_simplify(model_path, simplify_model):
 
 def modify_onnx2dynamic(onnx_model, model_path):
    for idx in range(len(onnx_model.graph.input)):
-      dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
-      # dim_proto_input.dim_param = 'bs'
-      dim_proto_input.dim_value = -1
+      if len(onnx_model.graph.input[idx].type.tensor_type.shape.dim) > 0:
+         dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
+         # dim_proto_input.dim_param = 'bs'
+         dim_proto_input.dim_value = -1
 
 
    for idx in range(len(onnx_model.graph.value_info)):
-      dim_proto_input = onnx_model.graph.value_info[idx].type.tensor_type.shape.dim[0]
-      # dim_proto_input.dim_param = 'bs'
-      dim_proto_input.dim_value = -1   
+      print('ZZZZ name:', onnx_model.graph.value_info[idx].name)
+      if len(onnx_model.graph.value_info[idx].type.tensor_type.shape.dim) > 0:
+         dim_proto_input = onnx_model.graph.value_info[idx].type.tensor_type.shape.dim[0]
+         # dim_proto_input.dim_param = 'bs'
+         dim_proto_input.dim_value = -1   
   
    for idx in range(len(onnx_model.graph.output)):
-      dim_proto_output = onnx_model.graph.output[idx].type.tensor_type.shape.dim[0]
-      # dim_proto_output.dim_param = 'bs'
-      dim_proto_output.dim_value = -1
+      if len(onnx_model.graph.output[idx].type.tensor_type.shape.dim):
+         dim_proto_output = onnx_model.graph.output[idx].type.tensor_type.shape.dim[0]
+         # dim_proto_output.dim_param = 'bs'
+         dim_proto_output.dim_value = -1
 
    ### for Reshape
    reshape_param = []
