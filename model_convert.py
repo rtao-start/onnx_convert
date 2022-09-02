@@ -66,6 +66,7 @@ def parse_args():
    #for simplify
    parser.add_argument("--simplify",
                         type=int, required=False,
+                        choices=[0, 1, 2],
                         default=1,
                         help="simplify the model")                              
 
@@ -93,6 +94,7 @@ def parse_args():
    parser.add_argument("--extract_sub",
                         type=int, 
                         required=False,
+                        choices=[0, 1],
                         default=0,
                         help="extract sub graph") 
 
@@ -101,6 +103,7 @@ def parse_args():
                         type=int, 
                         required=False,
                         default=0,
+                        choices=[0, 1],
                         help="dynamic batch size")
 
    #for fp32-->fp16
@@ -108,12 +111,14 @@ def parse_args():
                         type=int, 
                         required=False,
                         default=0,
+                        choices=[0, 1],
                         help="fp32-->fp16")
 
    parser.add_argument("--support_mish",
                         type=int, 
                         required=False,
                         default=0,
+                        choices=[0, 1],
                         help="hardware support mish") 
 
    #insert preproc node
@@ -165,6 +170,7 @@ def parse_args():
    parser.add_argument("--gap_to_ap",
                         type=int, 
                         required=False,
+                        choices=[0, 1],
                         default=0,
                         help="GlobalAveragePool-->AveragePool") 
 
@@ -173,12 +179,14 @@ def parse_args():
                         type=int, 
                         required=False,
                         default=0,
+                        choices=[0, 1],
                         help="fuse pad+pool") 
 
    #for merge swish
    parser.add_argument("--support_swish",
                         type=int, 
                         required=False,
+                        choices=[0, 1],
                         default=0,
                         help="Sigmoid+Mul-->swish; HardSigmoid+Mul-->HardSwish")                                                                       
                                                                                                                                                                                                                                                                                                                                      
