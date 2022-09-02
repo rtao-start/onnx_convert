@@ -976,8 +976,8 @@ def process(args):
 
    op_set_default = 11
 
-   #if op_set == None:
-   #   op_set = op_set_default
+   if op_set != None and op_set < op_set_default:
+      op_set_default = op_set
 
    if model_type == 'pytorch' and args.input_shape == '':
       print('When converting pytorch model, you must tell the input shape(ex: --input_shape [1, 3, 32, 32])')
@@ -1043,6 +1043,8 @@ def process(args):
          add_value_info_for_constants(model)
          model = version_converter.convert_version(model, op_set)
       elif op_set != op_set_default:
+         correct_batch_for_opset_convert(model)
+         add_value_info_for_constants(model)
          model = version_converter.convert_version(model, op_set)
 
    inference_success = False
