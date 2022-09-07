@@ -77,7 +77,7 @@ DEFAULT_OP_BLOCK_LIST = ['ArrayFeatureExtractor', 'Binarizer', 'CastMap', 'Categ
                          'FeatureVectorizer', 'Imputer', 'LabelEncoder', 'LinearClassifier', 'LinearRegressor',
                          'Normalizer', 'OneHotEncoder', 'SVMClassifier', 'SVMRegressor', 'Scaler',
                          'TreeEnsembleClassifier', 'TreeEnsembleRegressor', 'ZipMap', 'NonMaxSuppression', 'TopK',
-                         'RoiAlign', 'Resize', 'Range', 'CumSum', 'Min', 'Max', 'Upsample', 'DequantizeLinear', 'QuantizeLinear']
+                         'RoiAlign', 'ResizeTest', 'Range', 'CumSum', 'Min', 'Max', 'Upsample', 'DequantizeLinear', 'QuantizeLinear']
 
 
 def convert_float_to_float16_old(model, min_positive_val=1e-7, max_finite_val=1e4,
@@ -134,14 +134,12 @@ def convert_float_to_float16_old(model, min_positive_val=1e-7, max_finite_val=1e
     #qiuzy add
     initializer = []
     for init in model.graph.initializer:
-        print('got init: ', init.name)
         initializer.append(init.name)
 
     if keep_io_types:
         for i, n in enumerate(model.graph.input):
             if n.type.tensor_type.elem_type == onnx_proto.TensorProto.FLOAT:
                 if n.name in initializer:
-                    #print('got initializer continue:', n.name)
                     continue
 
                 output_name = 'graph_input_cast_' + str(i)
@@ -158,7 +156,6 @@ def convert_float_to_float16_old(model, min_positive_val=1e-7, max_finite_val=1e
                 model.graph.node.extend(new_node)
                 value_info_list.append(new_value_info)
                 io_casts.add(node_name)
-                print('11111 add cast node:', node_name, n.name)
 
         for i, n in enumerate(model.graph.output):
             if n.type.tensor_type.elem_type == onnx_proto.TensorProto.FLOAT:
@@ -176,26 +173,20 @@ def convert_float_to_float16_old(model, min_positive_val=1e-7, max_finite_val=1e
                 model.graph.node.extend(new_node)
                 value_info_list.append(new_value_info)
                 io_casts.add(node_name)
-                print('222222222 add cast node:', node_name)
 
     while queue:
         next_level = []
 
-        print('process queue------------')
-
         for q in queue:
             # if q is model, push q.graph (GraphProto)
             if isinstance(q, onnx_proto.ModelProto):
-                print('onnx_proto.ModelProto++++++++')
                 next_level.append(q.graph)
             # if q is model.graph, push q.node.attribute (AttributeProto)
             if isinstance(q, onnx_proto.GraphProto):
-                print('onnx_proto.GraphProto++++++++')
                 for n in q.node:
                     # if n is in the block list (doesn't support float16), no conversion for the node,
                     # and save the node for further processing
                     if n.name in io_casts:
-                        print('n.name in io_casts', n.name)
                         continue
                     for i in range(len(n.input)):
                         if n.input[i] in name_mapping:
@@ -221,18 +212,15 @@ def convert_float_to_float16_old(model, min_positive_val=1e-7, max_finite_val=1e
                 next_level.append(q.g)
                 for n in q.graphs:
                     next_level.append(n)
-                print('zzzzzzzzzzzzzzzzzzzzzzz-----------')    
                 q.t.CopyFrom(convert_tensor_float_to_float16(q.t, min_positive_val, max_finite_val))
                 for n in q.tensors:
                     n = convert_tensor_float_to_float16(n, min_positive_val, max_finite_val)
-                    print('xxxxxxxxxxxxxxxxxxxxxxx-----------')
             # if q is graph, process graph.initializer(TensorProto), input, output and value_info (ValueInfoProto)
             if isinstance(q, onnx_proto.GraphProto):
                 for n in q.initializer:  # TensorProto type
                     if n.data_type == onnx_proto.TensorProto.FLOAT:
                         n = convert_tensor_float_to_float16(n, min_positive_val, max_finite_val)
                         value_info_list.append(make_value_info_from_tensor(n))
-                        print('cccccccccccccccccccccccccc-----------')
                 # for all ValueInfoProto with tensor(float) type in input, output and value_info, convert them to
                 # tensor(float16) except map and seq(map). And save them in value_info_list for further processing
                 for n in itertools.chain(q.input, q.output, q.value_info):
@@ -240,7 +228,6 @@ def convert_float_to_float16_old(model, min_positive_val=1e-7, max_finite_val=1e
                         if n.name not in graph_io_to_skip:
                             n.type.tensor_type.elem_type = onnx_proto.TensorProto.FLOAT16
                             value_info_list.append(n)
-                            print('vvvvvvvvvvvvvvvvvvvvvvvv-----------')
         queue = next_level
 
     # process the nodes in block list that doesn't support tensor(float16)
@@ -264,7 +251,6 @@ def convert_float_to_float16_old(model, min_positive_val=1e-7, max_finite_val=1e
                     model.graph.node.extend(new_node)
                     # change current node's input name
                     node.input[i] = output_name
-                    print('33333 extend node:', node_name)
                     break
         # if output's name is in the value_info_list meaning output is tensor(float16) type, insert a float to
         # float16 Cast node after the node, change current node's output name and create new value_info for the new name
@@ -285,11 +271,22 @@ def convert_float_to_float16_old(model, min_positive_val=1e-7, max_finite_val=1e
                     # change current node's input name
                     node.output[i] = input_name
 
-                    print('4444444 extend node:', node_name)
-
                     break
 
     return model
+
+#qiuzy
+def get_resize_param(model):
+    resize_param_list = []
+
+    for n in model.graph.node:
+        if n.op_type == 'Resize':
+            for in_ in n.input[1:]:
+                if in_ not in resize_param_list:
+                    resize_param_list.append(in_)
+
+    return resize_param_list                 
+
 
 def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
                              keep_io_types=False, disable_shape_infer=False,
@@ -312,6 +309,8 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
         new_onnx_model = convert_float_to_float16(onnx_model)
         save_model(new_onnx_model, 'new_model.onnx')
     '''
+
+    resize_param_list = get_resize_param(model)
 
     func_infer_shape = None
     if not disable_shape_infer and onnx.__version__ >= '1.2':
@@ -346,14 +345,12 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
     #qiuzy add
     initializer = []
     for init in model.graph.initializer:
-        print('got init: ', init.name)
         initializer.append(init.name)
 
     if keep_io_types:
         for i, n in enumerate(model.graph.input):
             if n.type.tensor_type.elem_type == onnx_proto.TensorProto.FLOAT:
                 if n.name in initializer:
-                    #print('got initializer continue:', n.name)
                     continue
 
                 output_name = 'graph_input_cast_' + str(i)
@@ -429,9 +426,10 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
             # if q is graph, process graph.initializer(TensorProto), input, output and value_info (ValueInfoProto)
             if isinstance(q, onnx_proto.GraphProto):
                 for n in q.initializer:  # TensorProto type
-                    if n.data_type == onnx_proto.TensorProto.FLOAT and n.name != 'const_std':
-                        n = convert_tensor_float_to_float16(n, min_positive_val, max_finite_val)
-                        value_info_list.append(make_value_info_from_tensor(n))
+                    if n.name not in resize_param_list:
+                        if n.data_type == onnx_proto.TensorProto.FLOAT and n.name != 'const_std':
+                            n = convert_tensor_float_to_float16(n, min_positive_val, max_finite_val)
+                            value_info_list.append(make_value_info_from_tensor(n))
                 # for all ValueInfoProto with tensor(float) type in input, output and value_info, convert them to
                 # tensor(float16) except map and seq(map). And save them in value_info_list for further processing
                 for n in itertools.chain(q.input, q.output, q.value_info):
@@ -470,7 +468,7 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
                 continue
             record_list = []
             # 新加入部分
-            if node.op_type == "Resize":
+            if node.op_type == "ResizeTest":
                 node_name = node.name + '_input_cast_k' + str(i)
                 for n in model.graph.node:
                     if n in record_list:
@@ -479,7 +477,7 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
                     #     continue
                     for j, output_name in enumerate(n.output):
                         if output_name == node.input[i]:# and "Cast" not in node.input[i] :
-                            if node.op_type == "Resize" and len(node.input) > 3 and i == 3:
+                            if node.op_type == "ResizeTest" and len(node.input) > 3 and i == 3:
                                 continue
                             new_node = [helper.make_node('Cast', ['Cast_in_32_' + input], ['Cast_out_32_' + input], to=1, name=node_name)]
                             model.graph.node.extend(new_node)
@@ -517,7 +515,7 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
                 continue
             record_list = []
             # 新加入部分
-            if node.op_type == "Resize":
+            if node.op_type == "ResizeTest":
                 node_name = node.name + '_output_cast_k' + str(i)
                 for n in model.graph.node:
                     # if n.op_type == "Cast":

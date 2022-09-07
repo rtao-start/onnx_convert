@@ -63,9 +63,9 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape,
                 opset_version=op_set, 
                 do_constant_folding=True,   # 是否执行常量折叠优化
                 input_names=["input"],    # 模型输入名
-                output_names=["output"],  # 模型输出名
+                output_names=["output"]  # 模型输出名
                 #dynamic_axes={'input':{0:'batch_size'}, 'output':{0:'batch_size'}}
-                dynamic_axes={'input':{0:'-1'}, 'output':{0:'-1'}}
+                #dynamic_axes={'input':{0:'-1'}, 'output':{0:'-1'}}
             )
         else:
             print('There is no', model_class_name, ' in', model_def_file)   
@@ -101,7 +101,7 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape,
         target_module = model_def_file.split('/')[-1]
         target_module = target_module.split('.')[-2]
 
-    print('convert_pt_model_and_params_2_onnx, target_module:', target_module)
+    print('convert_pt_state_dict_2_onnx, target_module:', target_module)
 
     module_find = check_module(target_module)
     if module_find != None:
