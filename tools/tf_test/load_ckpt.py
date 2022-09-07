@@ -41,13 +41,16 @@ y_pred = graph.get_tensor_by_name("y_pred:0")
 
 ## Let's feed the images to the input placeholders
 x= graph.get_tensor_by_name("x:0") 
-y_true = graph.get_tensor_by_name("y_true:0") 
-y_test_images = np.zeros((1, 2)) 
+
+#y_true = graph.get_tensor_by_name("y_true:0") 
+#y_test_images = np.zeros((1, 2)) 
 
 
 ### Creating the feed_dict that is required to be fed to calculate y_pred 
-feed_dict_testing = {x: x_batch, y_true: y_test_images}
-result=sess.run(y_pred, feed_dict=feed_dict_testing)
+#feed_dict_testing = {x: x_batch, y_true: y_test_images}
+
+feed_dict_testing = {x: x_batch}
+result = sess.run(y_pred, feed_dict=feed_dict_testing)
 
 print('result:', result.shape)
 

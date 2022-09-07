@@ -1068,11 +1068,7 @@ def process(args):
    try:
       onnx.checker.check_model(new_model)
    except onnx.checker.ValidationError as e:
-      print('### The model cannot be saved for: %s' % e)
-      if 'No Op registered for Mish' in str(e) or 'No opset import for domain' in str(e) :
-            print('ignore warning, continue saving~')  
-      else:
-            sys.exit()
+      print('ignore warning(check_model), continue saving~')  
    else:
       print('### Begin saving model...')
 

@@ -6,7 +6,7 @@ import time
 config = tf.compat.v1.ConfigProto()
 
 sess = tf.compat.v1.Session(config=config)
-with gfile.FastGFile('../graph.pb', 'rb') as f:
+with gfile.FastGFile('../../graph.pb', 'rb') as f:
     graph_def = tf.compat.v1.GraphDef()
     graph_def.ParseFromString(f.read())
     sess.graph.as_default()
@@ -28,6 +28,12 @@ feed_dict_testing = {x: data}
 result = sess.run(y_pred, feed_dict=feed_dict_testing)
 
 print('result:', result)
+
+in_ = data.transpose(0,3,1,2)
+np.save('pb_input.npy', in_)
+
+np.save('pb_output.npy', result)
+
 
 '''
 start = time.time()

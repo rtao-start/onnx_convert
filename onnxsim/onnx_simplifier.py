@@ -136,11 +136,7 @@ def remove_unused_output(model: onnx.ModelProto, unused_output: Sequence[str]) -
     try:
         onnx.checker.check_model(model)
     except onnx.checker.ValidationError as e:
-        if 'No Op registered for Mish' in str(e):
-            print('(osm)ignore mish warning, continue~')
-        else:
-            print('(osm)model error, exit now~')
-            sys.exit()    
+        print('(osm)ignore mish warning, continue~')
     else:
         print('(osm)remove_unused_output successed')
 
@@ -313,11 +309,7 @@ def forward_for_node_outputs(model: onnx.ModelProto,
         try:
             onnx.checker.check_model(model)
         except onnx.checker.ValidationError as e:
-            if 'No Op registered for Mish' in str(e):
-                print('(---osm)ignore mish warning, continue~')
-            else:
-                print('(---osm)model error, exit now~')
-                sys.exit()    
+            print('(---osm)ignore mish warning, continue~')
         else:
             print('(---osm)start forward_for_node_outputs')
 
@@ -384,11 +376,7 @@ def optimize(model: onnx.ModelProto, skip_fuse_bn: bool, skipped_optimizers: Opt
     try:
         onnx.checker.check_model(model)
     except onnx.checker.ValidationError as e:
-        if 'No Op registered for Mish' in str(e):
-            print('(optimize)ignore mish warning, continue~')
-        else:
-            print('(optimize)model error, exit now~')
-            sys.exit()    
+        print('(optimize)ignore mish warning, continue~') 
     else:
         print('(optimize)optimize check success')
 
@@ -409,11 +397,7 @@ def optimize(model: onnx.ModelProto, skip_fuse_bn: bool, skipped_optimizers: Opt
     try:
         onnx.checker.check_model(model)
     except onnx.checker.ValidationError as e:
-        if 'No Op registered for Mish' in str(e):
-            print('(optimize)ignore mish warning, continue~')
-        else:
-            print('(optimize)model error, exit now~')
-            sys.exit()    
+        print('(optimize)ignore mish warning, continue~')
     else:
         print('(optimize)optimize successed')
 
@@ -435,11 +419,7 @@ def check(model_ori: onnx.ModelProto, model_opt: onnx.ModelProto, n_times: int,
     try:
         onnx.checker.check_model(model_opt)
     except onnx.checker.ValidationError as e:
-        if 'No Op registered for Mish' in str(e):
-            print('(osm check)ignore mish warning, continue~')
-        else:
-            print('(osm check)model error, exit now~')
-            sys.exit()    
+        print('(osm check)ignore mish warning, continue~')
     else:
         print('(osm check)check pass~')
 
@@ -588,11 +568,7 @@ def simplify(model: Union[str, onnx.ModelProto],
     try:
         onnx.checker.check_model(model)
     except onnx.checker.ValidationError as e:
-        if 'No Op registered for Mish' in str(e):
-            print('(simplify)ignore mish warning, continue~')
-        else:
-            print('(simplify)model error, exit now~')
-            sys.exit()    
+        print('(simplify)ignore mish warning, continue~')
     else:
         print('(simplify)begin simplify~')
 
@@ -649,11 +625,7 @@ def simplify(model: Union[str, onnx.ModelProto],
         try:
             onnx.checker.check_model(model)
         except onnx.checker.ValidationError as e:
-            if 'No Op registered for Mish' in str(e):
-                print('(simplify)ignore mish warning, continue~')
-            else:
-                print('(simplify)model error, exit now~')
-                sys.exit()    
+            print('(simplify)ignore mish warning, continue~')
         else:
             print('(simplify)finish constant_folding')
 
