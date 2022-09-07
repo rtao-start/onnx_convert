@@ -63,9 +63,9 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape,
                 opset_version=op_set, 
                 do_constant_folding=True,   # 是否执行常量折叠优化
                 input_names=["input"],    # 模型输入名
-                output_names=["output"]  # 模型输出名
+                output_names=["output"],  # 模型输出名
                 #dynamic_axes={'input':{0:'batch_size'}, 'output':{0:'batch_size'}}
-                #dynamic_axes={'input':{0:'-1'}, 'output':{0:'-1'}}
+                dynamic_axes={'input':{0:'-1'}, 'output':{0:'-1'}}
             )
         else:
             print('There is no', model_class_name, ' in', model_def_file)   
