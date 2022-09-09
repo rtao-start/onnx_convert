@@ -343,6 +343,7 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
     io_casts = set()
 
     #qiuzy add
+    attributes_black_list = ['cubic_coeff_a ', 'extrapolation_value', 'extrapolation_value', ]
     initializer = []
     for init in model.graph.initializer:
         initializer.append(init.name)
@@ -413,7 +414,8 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
                                     attr.i = 10
                                     break
                         for attr in n.attribute:
-                            next_level.append(attr)
+                            if attr.name not in attributes_black_list:
+                                next_level.append(attr)
             # if q is model.graph.node.attribute, push q.g and q.graphs (GraphProto)
             # and process node.attribute.t and node.attribute.tensors (TensorProto)
             if isinstance(q, onnx_proto.AttributeProto):
@@ -434,7 +436,7 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
                 # tensor(float16) except map and seq(map). And save them in value_info_list for further processing
                 for n in itertools.chain(q.input, q.output, q.value_info):
                     if n.type.tensor_type.elem_type == onnx_proto.TensorProto.FLOAT  and n.name != 'const_std':
-                        if n.name not in graph_io_to_skip:
+                        if n.name not in graph_io_to_skip and n.name not in resize_param_list:
                             n.type.tensor_type.elem_type = onnx_proto.TensorProto.FLOAT16
                             value_info_list.append(n)
         queue = next_level
