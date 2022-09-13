@@ -174,8 +174,8 @@ def insert_postproc_node(model, postproc_dict, output):
     #onnx.checker.check_model(onnx_model)
     onnx.save(model, output)
   
-def postproc(model, output):
-    post_dict = parse_postproc_yaml('./preproc.yaml') 
+def postproc(model, output, postproc_yaml):
+    post_dict = parse_postproc_yaml(postproc_yaml) 
 
     print('---------------------------------')
 

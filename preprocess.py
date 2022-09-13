@@ -214,8 +214,8 @@ def insert_preproc_node(model, preproc_dict, output):
     #onnx.checker.check_model(onnx_model)
     onnx.save(model, output)
   
-def preproc(model, output):
-    preproc_dict = parse_yaml('./preproc.yaml') 
+def preproc(model, output, preproc_yaml):
+    preproc_dict = parse_yaml(preproc_yaml) 
 
     print('---------------------------------')
 

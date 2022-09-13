@@ -964,12 +964,13 @@ def process(args):
          if dynamic_paddle == True and paddle_input_type == '':
             paddle_input_type = 'float32' 
 
-   torchvision_model = False
+   can_ignore_model_path = False
    if model_type == 'pytorch':
-      if '.' in model_class_name:
-         torchvision_model = True
+      #if '.' in model_class_name:
+      if model_weights_file != '':
+         can_ignore_model_path = True
 
-   if dynamic_paddle == False and torchvision_model == False and not os.path.exists(model_path):
+   if dynamic_paddle == False and can_ignore_model_path == False and not os.path.exists(model_path):
       print('ERROR: {} is not exist'.format(model_path))
       sys.exit()
 
@@ -1106,13 +1107,13 @@ def process(args):
 
    if model_type == 'onnx' and preproc_yaml != '':
       if os.path.exists(preproc_yaml):
-         preproc(new_model, output)
+         preproc(new_model, output, preproc_yaml)
       else:
          print(preproc_yaml, 'is not exist')    
 
    if model_type == 'onnx' and postproc_yaml != '':
       if os.path.exists(postproc_yaml):
-         postproc(new_model, output)
+         postproc(new_model, output, postproc_yaml)
       else:
          print(postproc_yaml, 'is not exist')
 
