@@ -53,7 +53,7 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape,
         cls = getattr(module, model_class_name, None)
         if cls != None:
             model = cls()
-            m = torch.load(model_path)
+            m = torch.load(model_path, map_location=torch.device('cpu'))
             m = m.cpu() #cuda()
             x = torch.randn(int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3]))
             torch.onnx.export(
@@ -110,7 +110,7 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape,
         cls = getattr(module, model_class_name, None)
         if cls != None:
             m = cls()
-            m.load_state_dict(torch.load(model_weights_file))
+            m.load_state_dict(torch.load(model_weights_file, map_location=torch.device('cpu')))
             m = m.cpu() #cuda()
             x = torch.randn(int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3]))
             torch.onnx.export(

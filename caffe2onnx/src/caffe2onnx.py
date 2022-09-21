@@ -589,6 +589,10 @@ class Caffe2Onnx():
                 # 2.Build relu_node
                 sigmoid_node = op.createSigmoid(Layers[i], node_name, input_name, output_name, input_shape)
 
+                #qiuzy
+                if output_name == input_name:
+                    output_name[0] = output_name + '_'
+
                 # 3.Add node to node list 
                 self.onnxNodeList.append(sigmoid_node)
             elif Layers[i].type == 'Log':

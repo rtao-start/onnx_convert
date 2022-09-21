@@ -26,6 +26,8 @@ from correct_batch import correct_batch_for_opset_convert, convert_ort_type_2_np
 from pd2onnx import convert_pd2onnx, is_dynamic_paddle
 from pt2onnx import convert_pt2onnx
 
+using_wheel = False
+
 support_mish = 0
 
 inputs_as_nchw = ''
@@ -41,6 +43,10 @@ import argparse
 valid_model_type = ['caffe', 'pytorch', 'tf-h5', 'tf-ckpt', 'tf-sm', 'tf-graph', 'darknet', 'onnx', 'paddle']
 
 optimization_op_list = ['Max', 'Min', 'Sum', 'Mean']
+
+def set_using_wheel():
+   global using_wheel
+   using_wheel = True
 
 def parse_args():
    parser = argparse.ArgumentParser(description='Convert xxx model to ONNX.')
@@ -245,7 +251,12 @@ def convert_caffe2onnx(model_path, output, op_set):
 
 def convert_sm2onnx(model_path, output, op_set):
       print('Begin converting tf-savemodel to onnx...')
-      cmd = 'python -m tf2onnx.convert --saved-model ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output
+
+      if using_wheel == False:
+         cmd = 'python -m tf2onnx.convert --saved-model ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output
+      else:
+         cmd = 'python -m maca_converter.tf2onnx.convert --saved-model ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output
+      
       if inputs_as_nchw != '':
          cmd += ' --inputs-as-nchw ' + inputs_as_nchw
       print('convert_tfsm2onnx: ', cmd)
@@ -256,7 +267,12 @@ def convert_sm2onnx(model_path, output, op_set):
 
 def convert_h52onnx(model_path, output, op_set):
       print('Begin converting tf-savemodel to onnx...')
-      cmd = 'python -m tf2onnx.convert --keras ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output
+
+      if using_wheel == False:
+         cmd = 'python -m tf2onnx.convert --keras ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output
+      else:
+         cmd = 'python -m maca_converter.tf2onnx.convert --keras ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output
+      
       if inputs_as_nchw != '':
          cmd += ' --inputs-as-nchw ' + inputs_as_nchw
       print('convert_tfh52onnx: ', cmd)
@@ -267,9 +283,13 @@ def convert_h52onnx(model_path, output, op_set):
 
 def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
       print('Begin converting tf-ckpt to onnx...')
-      cmd = 'python -m tf2onnx.convert --checkpoint ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
-              + ' --inputs '  + inputs + ' --outputs ' + outputs
 
+      if using_wheel == False:
+         cmd = 'python -m tf2onnx.convert --checkpoint ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
+               + ' --inputs '  + inputs + ' --outputs ' + outputs
+      else:
+         cmd = 'python -m maca_converter.tf2onnx.convert --checkpoint ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
+               + ' --inputs '  + inputs + ' --outputs ' + outputs
       if inputs_as_nchw != '':
          cmd += ' --inputs-as-nchw ' + inputs_as_nchw
 
@@ -282,7 +302,11 @@ def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
 
 def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
       print('Begin converting tf-graph to onnx...')
-      cmd = 'python -m tf2onnx.convert --graphdef ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
+      if using_wheel == False:
+         cmd = 'python -m tf2onnx.convert --graphdef ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
+              + ' --inputs '  + inputs + ' --outputs ' + outputs
+      else:
+         cmd = 'python -m maca_converter.tf2onnx.convert --graphdef ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
               + ' --inputs '  + inputs + ' --outputs ' + outputs
 
       if inputs_as_nchw != '':
@@ -354,13 +378,21 @@ def convert_dn2onnx(model_path, output, op_set):
    if cfg_file == '' or weights_file == '':
       sys.exit()
 
-   cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --output_file ' + output + ' --support_mish ' + str(support_mish)
-   
+   if using_wheel == False:
+      cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --output_file ' + output + ' --support_mish ' + str(support_mish)
+   else:
+      cmd = 'python -m maca_converter.darknet2onnx --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --output_file ' + output + ' --support_mish ' + str(support_mish)
+
    if '-tiny' in cfg_file or '-tiny' in weights_file:
-      cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output + ' --support_mish ' + str(support_mish)
+      if using_wheel == False:
+         cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output + ' --support_mish ' + str(support_mish)
+      else:
+         cmd = 'python -m maca_converter.darknet2onnx --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output + ' --support_mish ' + str(support_mish)   
    elif 'yolov3' in cfg_file or 'yolov3' in weights_file:
-      cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output
-   
+      if using_wheel == False:
+         cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output
+      else:
+         cmd = 'python -m maca_converter.darknet2onnx --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output
    print('convert_dn2onnx: ', cmd)
 
    r = os.system(cmd)
@@ -372,7 +404,11 @@ def convert_mish(model_path, output, op_set):
    global support_mish
    print('Begin converting mish')
 
-   cmd = 'python ./mish_convert.py --onnx_file ' + model_path + ' --output_file ' + output
+   if using_wheel == False:
+      cmd = 'python ./mish_convert.py --onnx_file ' + model_path + ' --output_file ' + output
+   else:
+      cmd = 'python -m maca_converter.mish_convert --onnx_file ' + model_path + ' --output_file ' + output
+   
    print('convert_mish: ', cmd)
    r = os.system(cmd)
    if r != 0:
