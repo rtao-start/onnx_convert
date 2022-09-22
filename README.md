@@ -1,3 +1,6 @@
+--------------------------------------------------------------------------------------------
+(下面的命令都是以源码方式运行的，如果需要以whl安装包的方式运行，只需要将命令中的model_convert.py改为 -m maca_converter，如python -m maca_converter --model_path ./caffe_model --model_type caffe --output ./output.onnx)
+---------------------------------------------------------------------------------------------
 1 caffe转onnx
    命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx
    参数说明：model_path：caffe模型所在的文件夹，文件夹里需要有对应的.caffemodel文件和.prototxt文件
