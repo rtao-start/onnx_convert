@@ -103,7 +103,7 @@ def get_tensor_value(tensor):
 
     return data_list   
 
-def set_tensor_value(tensor, v): 
+def set_tensor_value(tensor, v, dims=[]): 
     data_list = []
 
     print('tensor.name', tensor.name)
@@ -120,4 +120,8 @@ def set_tensor_value(tensor, v):
         del data_list[:]
         data_list[:] = v[:]
         print('set data list')
+
+    if len(dims) > 0:
+        del tensor.dims[:]
+        tensor.dims[:] = dims[:]     
 

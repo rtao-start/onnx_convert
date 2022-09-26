@@ -2,6 +2,8 @@ import onnx
 import sys
 import values
 import numpy as np
+import copy
+from onnx import TensorProto
 
 constant_combination_case_1A = [False, False, False]
 constant_combination_case_1B = [False, False, True]
@@ -40,11 +42,14 @@ def is_shared_init(model, init, node_name):
 
     return False            
 
-def is_shared_constant(model, constant, node_name):
+def is_shared_constant(model, constant):
+    count = 0
     for node in model.graph.node:
-        if node.name != node_name:
-            if constant in node.input:
-                return True
+        if constant in node.input:
+            count = count + 1
+
+    if count > 1:
+        return True            
 
     return False
 
@@ -63,20 +68,83 @@ def proc_gemm_case_3(model, node_id, node, attr):
 
     length = len(node.input)
 
-    if True: #alpha != 1.0:
+    insert = False
+
+    if transA != 30000:
+        print('proc_gemm_case_3, Do TransA', node_id)
+        insert = True
+        output = node.input[0] + '_transpose_'
+        transpose_output = onnx.helper.make_tensor_value_info(output, TensorProto.UNDEFINED, ['a', 'b'])      
+
+        transpose_node = onnx.helper.make_node(
+                    'Transpose',
+                    name=output,
+                    inputs=[node.input[0]],
+                    outputs=[output])
+
+        node.input[0] = output
+        #model.graph.node.append(transpose_node)
+        model.graph.node.insert(node_id, transpose_node)
+
+        attributes = node.attribute
+        for attr in attributes:
+            if attr.name == 'transA':
+                attr.i = 0
+
+    if transB != 1 and alpha != 1.0:
         alpha_proc = False
         for init in model.graph.initializer:
             if node.input[1] == init.name:
                 alpha_proc = True
 
                 v = values.get_init_value(model, init.name)
-                print('init shape:', init.dims[0], init.dims[1])
-                print('init value:', init.name)
+                print('000 init shape:', init.dims[0], init.dims[1])
+                print('000 init value:', init.name)
 
                 if isinstance(v, np.ndarray) == True:
-                    B = v * alpha * 2
+                    B = v.reshape(init.dims[0], init.dims[1])
+                    B = B.transpose()
+                    print('+++B.shape:', B.shape)
+                    B = B.flatten()
+                    B = v * alpha
                 else:    
-                    B = np.array(v) * alpha *2
+                    B = np.array(v).reshape(init.dims[0], init.dims[1])
+                    B = B.transpose()
+                    print('---B.shape:', B.shape)
+                    B = B.flatten()
+                    B = B * alpha
+                    B = B.tolist()
+
+                dims_= [init.dims[1], init.dims[0]]
+
+                if is_shared_init(model, init.name, node.name) == True:
+                    B_ = onnx.helper.make_tensor(name=node.input[1] + '__',
+                                        data_type=init.data_type,
+                                        dims=dims_,
+                                        vals=B)
+
+                    model.graph.initializer.append(B_) 
+
+                    node.input[1] = node.input[1] + '__'
+                else:
+                    values.set_tensor_value(init, B, dims_)
+
+                break
+                #print('B:', B)
+    elif alpha != 1.0:
+        alpha_proc = False
+        for init in model.graph.initializer:
+            if node.input[1] == init.name:
+                alpha_proc = True
+
+                v = values.get_init_value(model, init.name)
+                print('111 init shape:', init.dims[0], init.dims[1])
+                print('111 init value:', init.name)
+
+                if isinstance(v, np.ndarray) == True:
+                    B = v * alpha
+                else:    
+                    B = np.array(v) * alpha
                     #B = B.reshape(init.dims[0], init.dims[1])
                     print('B.shape:', B.shape)
                     B = B.tolist()
@@ -106,8 +174,50 @@ def proc_gemm_case_3(model, node_id, node, attr):
                             print('value:', value)
 
                     break
+    elif transB != 1:
+        alpha_proc = False
+        for init in model.graph.initializer:
+            if node.input[1] == init.name:
+                alpha_proc = True
 
-    if True: #beta != 1.0:
+                v = values.get_init_value(model, init.name)
+                print('222 init shape:', init.dims[0], init.dims[1])
+                print('222 init value:', init.name)
+
+                if isinstance(v, np.ndarray) == True:
+                    B = v.reshape(init.dims[0], init.dims[1])
+                    B = B.transpose()
+                    print('=== B.shape:', B.shape)
+                    B = B.flatten()
+                else:    
+                    B = np.array(v).reshape(init.dims[0], init.dims[1])
+                    B = B.transpose()
+                    print('!!!! B.shape:', B.shape)
+                    B = B.flatten()
+                    B = B.tolist()
+
+                dims_= [init.dims[1], init.dims[0]]
+
+                if is_shared_init(model, init.name, node.name) == True:
+                    B_ = onnx.helper.make_tensor(name=node.input[1] + '__',
+                                        data_type=init.data_type,
+                                        dims=dims_,
+                                        vals=B)
+
+                    model.graph.initializer.append(B_) 
+
+                    node.input[1] = node.input[1] + '__'
+                else:
+                    values.set_tensor_value(init, B, dims_)
+
+                attributes = node.attribute
+                for attr in attributes:
+                    if attr.name == 'transB':
+                        attr.i = 1
+
+                break
+
+    if beta != 1.0:
         beta_proc = False 
         if length == 3:
             for init in model.graph.initializer:
@@ -116,11 +226,11 @@ def proc_gemm_case_3(model, node_id, node, attr):
                     v = values.get_init_value(model, init.name)
 
                     if isinstance(v, np.ndarray) == True:
-                        C = v * beta *2 
+                        C = v * beta
                     else:    
                         print('---init shape:', init.dims[0])
                         #print('---init value:', init.name, v)
-                        C = np.array(v) * beta *2
+                        C = np.array(v) * beta
                         print('C.shape:', C.shape)
                         C = C.tolist()
 
@@ -144,7 +254,7 @@ def proc_gemm_case_3(model, node_id, node, attr):
                         attributes = n.attribute
                         for attr in attributes:
                             if attr.name == 'value':
-                                if is_shared_constant(mode, node.input[2], n.name):
+                                if is_shared_constant(model, node.input[2]):
                                     new_node = copy.deepcopy(n)
                                     new_name = n.name + '__'
                                     new_node.name = new_name
@@ -156,16 +266,16 @@ def proc_gemm_case_3(model, node_id, node, attr):
                                             v_ = values.get_tensor_value(attr_.t)
 
                                             if isinstance(v_, np.ndarray) == True:
-                                                C = v * 2 * 1 #beta
+                                                C = v_ * beta
                                             else:
-                                                C = [i * 1 * 2 for i in v]
+                                                C = [i * beta for i in v_]
 
                                             values.set_tensor_value(attr_.t, C)    
 
                                             break
 
                                     node.input[2] = new_node.output[0]
-                                    mode.graph.node.append(new_node)            
+                                    model.graph.node.append(new_node)            
                                 else: 
                                     v = values.get_tensor_value(attr.t)
                                     if isinstance(v, np.ndarray) == True:
@@ -176,6 +286,7 @@ def proc_gemm_case_3(model, node_id, node, attr):
                                     values.set_tensor_value(attr.t, C)   
                                 break         
                         break
+    return insert
 
 def proc_gemm_case_4(model, node_id, node, attr):
     pass        
@@ -206,11 +317,17 @@ def gemm_convert(model, output):
 
     for node in model.graph.node:
         if node.op_type == 'Constant': 
-            const_list.append(node.output[0])    
+            const_list.append(node.output[0])
+
+    skip = False            
 
     for node_id, node in enumerate(model.graph.node):
-        #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
-        #         ", op:", node.op_type, ', len(input):', len(node.input))
+        print('loop model', node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
+                 ", op:", node.op_type)
+
+        if skip == True:
+            skip = False
+            continue         
 
         input_const_flag = [False, False]
         length = len(node.input)
@@ -251,7 +368,6 @@ def gemm_convert(model, output):
             gemm_attr['transA'] = transA
             gemm_attr['transB'] = transB                   
 
-
             for i, input in enumerate(node.input):
                 if input in init_list:
                     print('init input:', input, i)
@@ -267,8 +383,11 @@ def gemm_convert(model, output):
                     if e == input_const_flag:
                         print('index = ', index)
                         ii = index + 1
-                        proc_gemm['case_' + str(ii)](model, node_id, node, gemm_attr)
+                        insert = proc_gemm['case_' + str(ii)](model, node_id, node, gemm_attr)
                         onnx.save(model, output)
+
+                        if insert == True:
+                            skip = True
 
 
 model = onnx.load('./gemm2.onnx')
