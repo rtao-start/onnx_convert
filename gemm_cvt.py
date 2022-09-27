@@ -511,9 +511,9 @@ def proc_gemm_case_3(model, node_id, node, attr):
                                 else: 
                                     v = values.get_tensor_value(attr.t)
                                     if isinstance(v, np.ndarray) == True:
-                                        C = v * 2 * 1 #beta
+                                        C = v * beta
                                     else:
-                                        C = [i * 1 * 2 for i in v]   
+                                        C = [i * beta for i in v]   
 
                                     values.set_tensor_value(attr.t, C)   
                                 break         
