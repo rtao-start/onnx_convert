@@ -108,4 +108,7 @@
 17 swish合成
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --support_swish 1
    说明: 仅支持model_type为onnx, 调用命令会自动将模型中符合条件的Sigmoid+Mul组合转换为Swish(或将HardSigmoid+Mul组合转换为HardSwish)
-      
+
+18 BN转Conv
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --bn_to_conv 1
+   说明: 支持将无法融合的BN算子转换成1x1的分组卷积

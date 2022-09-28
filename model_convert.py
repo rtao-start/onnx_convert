@@ -15,6 +15,7 @@ import tensorflow as tf
 import time
 import fuse
 from swish_convert import merge_swish_and_hard_swish
+import bn2conv
 
 from caffe2onnx.src.load_save_model import loadcaffemodel, saveonnxmodel
 from caffe2onnx.src.caffe2onnx import Caffe2Onnx
@@ -194,7 +195,15 @@ def parse_args():
                         required=False,
                         choices=[0, 1],
                         default=0,
-                        help="Sigmoid+Mul-->swish; HardSigmoid+Mul-->HardSwish")                                                                       
+                        help="Sigmoid+Mul-->swish; HardSigmoid+Mul-->HardSwish")   
+
+   #for convert BN to GroupConv(1x1)
+   parser.add_argument("--bn_to_conv",
+                        type=int, 
+                        required=False,
+                        choices=[0, 1],
+                        default=0,
+                        help="convert bn to group 1x1_conv")                                                                                             
                                                                                                                                                                                                                                                                                                                                      
    args = parser.parse_args()
 
@@ -988,6 +997,7 @@ def process(args):
    gap_to_ap = args.gap_to_ap
    fuse_pad_pool = args.fuse_pad_pool
    support_swish = args.support_swish
+   bn_to_conv = args.bn_to_conv
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -1152,6 +1162,9 @@ def process(args):
          postproc(new_model, output, postproc_yaml)
       else:
          print(postproc_yaml, 'is not exist')
+
+   if bn_to_conv == 1:
+      bn2conv.bn2conv(new_model, output)      
 
    eliminate_unused_input_initializer(new_model, output)                 
 
