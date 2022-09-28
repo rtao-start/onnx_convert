@@ -122,7 +122,7 @@ def bn2conv(model, output):
             node.input.append(w_var_name) 
             node.input.append(b_var_name) 
 
-    onnx.save(model, output)
+    onnx.save(model, output)  
 
 '''
 model = onnx.load('./test.onnx')
