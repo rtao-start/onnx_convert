@@ -254,7 +254,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
 
                 # C is Tensor
                 if beta_proc == False:
-                    for vi model.graph.value_info:
+                    for vi in model.graph.value_info:
                         if vi.name == c_name:
                             type_ = vi.elem_type
 
@@ -331,17 +331,14 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
 
             # C is Tensor
             if C_proc == False:
-                for vi model.graph.value_info:
-                    if vi.name == c_name:
-                            add_node = onnx.helper.make_node(
-                                'Add',
-                                name=add_name,
-                                inputs=[c_name, add_element],
-                                outputs=[output_0]) 
+                add_node = onnx.helper.make_node(
+                    'Add',
+                    name=add_name,
+                    inputs=[c_name, add_element],
+                    outputs=[output_0]) 
 
-                            model.graph.node.insert(node_index, add_node)
-                            node_index = node_index + 1
-                            skip = skip + 1  
-
-                        break  
+                model.graph.node.insert(node_index, add_node)
+                node_index = node_index + 1
+                skip = skip + 1  
+                
     return skip
