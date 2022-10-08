@@ -4,10 +4,27 @@ import numpy as np
 import copy
 from onnx import TensorProto
 
-from ttc import proc_gemm_ttc_ttt
-
 sys.path.append(os.path.abspath('..'))
 import values
+
+def is_shared_init(model, init, node_name):
+    for node in model.graph.node:
+        if node.name != node_name:
+            if init in node.input:
+                return True
+
+    return False            
+
+def is_shared_constant(model, constant):
+    count = 0
+    for node in model.graph.node:
+        if constant in node.input:
+            count = count + 1
+
+    if count > 1:
+        return True            
+
+    return False
 
 def proc_gemm_tcc(model, node_id, node, attr):
     print('proc_gemm_tcc-----------')

@@ -7,6 +7,26 @@ from onnx import TensorProto
 sys.path.append(os.path.abspath('..'))
 import values
 
+def is_shared_init(model, init, node_name):
+    for node in model.graph.node:
+        if node.name != node_name:
+            if init in node.input:
+                return True
+
+    return False            
+
+def is_shared_constant(model, constant):
+    count = 0
+    for node in model.graph.node:
+        if constant in node.input:
+            count = count + 1
+
+    if count > 1:
+        return True            
+
+    return False
+
+
 def proc_gemm_ttc_ttt(model, node_id, node, attr):
     print('proc_gemm_ttc_ttt-----------')
     alpha = attr['alpha']
@@ -90,10 +110,11 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
             input_type = vi.type.tensor_type.elem_type
             print('XXX get type', type, input_0)
 
-    if alpha != 100.0:
+    if alpha != 1.0:
         mul_node_name = matmul_output_name + '_mul_'
         mul_node_output = mul_node_name + 'output_'
-        const_alpha = onnx.helper.make_tensor(name='const_alpha',
+        alpha_name = matmul_output_name + 'const_alpha'
+        const_alpha = onnx.helper.make_tensor(name=alpha_name,
                             data_type=input_type,
                             dims=(),
                             vals=[alpha])
@@ -103,7 +124,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
         mul_node = onnx.helper.make_node(
                     'Mul',
                     name=mul_node_name,
-                    inputs=['const_alpha', matmul_output_name],
+                    inputs=[alpha_name, matmul_output_name],
                     outputs=[mul_node_output])
 
         model.graph.node.insert(node_index, mul_node)
@@ -113,114 +134,214 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
 
     #matmul_output_tensor = onnx.helper.make_tensor_value_info(matmul_output_name, TensorProto.UNDEFINED, ['a', 'b'])      
 
-    if length == 3:       
-        if beta != 11.0:
-            add_name = matmul_output_name + '_add_'
-            add_element = matmul_output_name
+    if length == 3:
+        add_name = matmul_output_name + '_add_'
+        add_element = matmul_output_name
+        mul_name_c = matmul_output_name + '_mul_c_'
+        beta_name = matmul_output_name + 'const_beta'
+        add_name_c = matmul_output_name + '_add_c_'
 
-            if mul_node_output != '':
-                add_name = mul_node_output + '_add_'
-                add_element = mul_node_output
+        if mul_node_output != '':
+            add_name = mul_node_output + '_add_'
+            add_element = mul_node_output
+            mul_name_c = mul_node_output + '_mul_c_'
+            beta_name = mul_node_output + 'const_beta'
+            add_name_c = mul_node_output + '_add_c_'
 
-            beta_proc = False 
+        if beta != 1.0:
+            if beta > 0.0:  
+                beta_proc = False 
+                for init in model.graph.initializer:
+                    if c_name == init.name: # C is initializer
+                        beta_proc = True
+                        v = values.get_init_value(model, init.name)
+
+                        if isinstance(v, np.ndarray) == True:
+                            C = v * beta
+                        else:    
+                            print('---init shape:', init.dims[0])
+                            #print('---init value:', init.name, v)
+                            C = np.array(v) * beta
+                            print('C.shape:', C.shape)
+                            C = C.tolist()
+
+                        if is_shared_init(model, init.name, node.name) == True: 
+                            new_name = c_name + '__'    
+                            C_ = onnx.helper.make_tensor(name=new_name,
+                                                data_type=init.data_type,
+                                                dims=[init.dims[0]],
+                                                vals=C)
+
+                            model.graph.initializer.append(C_) 
+
+                            add_node = onnx.helper.make_node(
+                                'Add',
+                                name=add_name,
+                                inputs=[new_name, add_element],
+                                outputs=[output_0])
+                        else:
+                            values.set_tensor_value(init, C)
+
+                            add_node = onnx.helper.make_node(
+                                'Add',
+                                name=add_name,
+                                inputs=[init.name, add_element],
+                                outputs=[output_0])
+
+                        model.graph.node.insert(node_index, add_node)
+                        node_index = node_index + 1           
+
+                        break
+
+                if beta_proc == False:
+                    for n in model.graph.node:
+                        if c_name == n.output[0]: #C is Constant
+                            beta_proc = True
+                            attributes = n.attribute
+                            for attr in attributes:
+                                if attr.name == 'value':
+                                    if is_shared_constant(model, node.input[2]):
+                                        new_node = copy.deepcopy(n)
+                                        new_name = n.name + '__'
+                                        new_node.name = new_name
+                                        new_node.output[0] = new_node.output[0] + '__'
+                                        attrs = new_node.attribute
+
+                                        for attr_ in attrs:
+                                            if attr_.name == 'value':
+                                                v_ = values.get_tensor_value(attr_.t)
+
+                                                if isinstance(v_, np.ndarray) == True:
+                                                    C = v_ * beta
+                                                else:
+                                                    C = [i * beta for i in v_]
+
+                                                values.set_tensor_value(attr_.t, C)    
+
+                                                break
+
+                                        #node.input[2] = new_node.output[0]
+                                        
+                                        add_node = onnx.helper.make_node(
+                                                        'Add',
+                                                        name=add_name,
+                                                        inputs=[new_node.output[0], add_element],
+                                                        outputs=[output_0])
+
+                                        model.graph.node.append(new_node) 
+
+                                    else: 
+                                        v = values.get_tensor_value(attr.t)
+                                        if isinstance(v, np.ndarray) == True:
+                                            C = v * beta
+                                        else:
+                                            C = [i * beta for i in v]   
+
+                                        values.set_tensor_value(attr.t, C) 
+
+                                        add_node = onnx.helper.make_node(
+                                                        'Add',
+                                                        name=add_name,
+                                                        inputs=[c_name, add_element],
+                                                        outputs=[output_0])
+
+                                    model.graph.node.insert(node_index, add_node)
+                                    node_index = node_index + 1
+                                    skip = skip + 1
+
+                                    break         
+                            break
+
+                # C is Tensor
+                if beta_proc == False:
+                    for vi model.graph.value_info:
+                        if vi.name == c_name:
+                            type_ = vi.elem_type
+
+                            if len(vi.type.tensor_type.shape.dim) > 0:
+                                shape_ = [s.dim_value for s in vi.type.tensor_type.shape.dim]
+                                print('c_name: ', c_name, ', shape: ', shape_)
+
+                                mul_c_output = mul_name_c + '_output_'
+
+                                const_beta = onnx.helper.make_tensor(name=beta_name,
+                                                    data_type=type_,
+                                                    dims=(),
+                                                    vals=[beta])
+
+                                model.graph.initializer.append(const_beta)                    
+
+                                mul_node_c = onnx.helper.make_node(
+                                            'Mul',
+                                            name=mul_name_c,
+                                            inputs=[beta_name, c_name],
+                                            outputs=[onnx.helper.make_tensor_value_info(mul_c_output,
+                                                                        type_,
+                                                                        shape_)])
+
+                                model.graph.node.insert(node_index, mul_node_c)
+                                node_index = node_index + 1
+                                skip = skip + 1 
+
+                                add_node_c = onnx.helper.make_node(
+                                    'Add',
+                                    name=add_name_c,
+                                    inputs=[mul_c_output, add_element],
+                                    outputs=[output_0]) 
+
+                                model.graph.node.insert(node_index, add_node_c)
+                                node_index = node_index + 1
+                                skip = skip + 1  
+
+                            break                                            
+        else:
+            C_proc = False
             for init in model.graph.initializer:
                 if c_name == init.name:
-                    beta_proc = True
-                    v = values.get_init_value(model, init.name)
-
-                    if isinstance(v, np.ndarray) == True:
-                        C = v * beta
-                    else:    
-                        print('---init shape:', init.dims[0])
-                        #print('---init value:', init.name, v)
-                        C = np.array(v) * beta
-                        print('C.shape:', C.shape)
-                        C = C.tolist()
-
-                    if is_shared_init(model, init.name, node.name) == True: 
-                        new_name = c_name + '__'    
-                        C_ = onnx.helper.make_tensor(name=new_name,
-                                            data_type=init.data_type,
-                                            dims=[init.dims[0]],
-                                            vals=C)
-
-                        model.graph.initializer.append(C_) 
-
-                        add_node = onnx.helper.make_node(
-                            'Add',
-                            name=add_name,
-                            inputs=[new_name, add_element],
-                            outputs=[output_0])
-                    else:
-                        values.set_tensor_value(init, C)
-
-                        add_node = onnx.helper.make_node(
-                            'Add',
-                            name=add_name,
-                            inputs=[init.name, add_element],
-                            outputs=[output_0])
+                    C_proc = True
+                    add_node = onnx.helper.make_node(
+                                'Add',
+                                name=add_name,
+                                inputs=[init.name, add_element],
+                                outputs=[output_0])
 
                     model.graph.node.insert(node_index, add_node)
-                    node_index = node_index + 1           
+                    node_index = node_index + 1    
 
-                    break
-
-            if beta_proc == False:
+                    break    
+            
+            if C_proc == False:
                 for n in model.graph.node:
                     if c_name == n.output[0]:
-                        beta_proc = True
+                        C_proc = True
                         attributes = n.attribute
                         for attr in attributes:
                             if attr.name == 'value':
-                                if is_shared_constant(model, node.input[2]):
-                                    new_node = copy.deepcopy(n)
-                                    new_name = n.name + '__'
-                                    new_node.name = new_name
-                                    new_node.output[0] = new_node.output[0] + '__'
-                                    attrs = new_node.attribute
+                                add_node = onnx.helper.make_node(
+                                                'Add',
+                                                name=add_name,
+                                                inputs=[c_name, add_element],
+                                                outputs=[output_0])
 
-                                    for attr_ in attrs:
-                                        if attr_.name == 'value':
-                                            v_ = values.get_tensor_value(attr_.t)
+                            model.graph.node.insert(node_index, add_node)
+                            node_index = node_index + 1
+                            skip = skip + 1
+                            break         
+                        break    
 
-                                            if isinstance(v_, np.ndarray) == True:
-                                                C = v_ * beta
-                                            else:
-                                                C = [i * beta for i in v_]
+            # C is Tensor
+            if C_proc == False:
+                for vi model.graph.value_info:
+                    if vi.name == c_name:
+                            add_node = onnx.helper.make_node(
+                                'Add',
+                                name=add_name,
+                                inputs=[c_name, add_element],
+                                outputs=[output_0]) 
 
-                                            values.set_tensor_value(attr_.t, C)    
+                            model.graph.node.insert(node_index, add_node)
+                            node_index = node_index + 1
+                            skip = skip + 1  
 
-                                            break
-
-                                    #node.input[2] = new_node.output[0]
-                                    
-                                    add_node = onnx.helper.make_node(
-                                                    'Add',
-                                                    name=add_name,
-                                                    inputs=[new_node.output[0], add_element],
-                                                    outputs=[output_0])
-
-                                    model.graph.node.append(new_node) 
-
-                                else: 
-                                    v = values.get_tensor_value(attr.t)
-                                    if isinstance(v, np.ndarray) == True:
-                                        C = v * 2 * 1 #beta
-                                    else:
-                                        C = [i * 1 * 2 for i in v]   
-
-                                    values.set_tensor_value(attr.t, C) 
-
-                                    add_node = onnx.helper.make_node(
-                                                    'Add',
-                                                    name=add_name,
-                                                    inputs=[c_name, add_element],
-                                                    outputs=[output_0])
-
-                                model.graph.node.insert(node_index, add_node)
-                                node_index = node_index + 1
-                                skip = skip + 1
-
-                                break         
-                        break
+                        break  
     return skip
