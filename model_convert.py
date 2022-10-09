@@ -203,7 +203,14 @@ def parse_args():
                         required=False,
                         choices=[0, 1],
                         default=0,
-                        help="convert bn to group 1x1_conv")                                                                                             
+                        help="convert bn to group 1x1_conv")          
+
+   #for pytorch/pdaale
+   parser.add_argument("--output_num",
+                        type=int, 
+                        required=False,
+                        default=1,
+                        help="")                                                                                                               
                                                                                                                                                                                                                                                                                                                                      
    args = parser.parse_args()
 
@@ -382,7 +389,7 @@ def ckpt2h5(trained_checkpoint_prefix):
 
 def convert_dn2onnx(model_path, output, op_set):
    global support_mish
-   print('Begin converting darknet to onnx...... support_mish：', support_mish)
+   print('Begin converting darknet to onnx...... support_mish:', support_mish)
    cfg_file, weights_file = get_darknet_files(model_path)
    if cfg_file == '' or weights_file == '':
       sys.exit()
@@ -424,11 +431,12 @@ def convert_mish(model_path, output, op_set):
       print('convert_mish failed')
       sys.exit()      
 
-def convert(model_path, model_type, output, op_set, input_shape, inputs, outputs, 
+def convert(model_path, model_type, output, op_set, input_shape_list, inputs, outputs, 
                model_def_file,
                model_class_name,
                paddle_input_type,
-               model_weights_file):
+               model_weights_file,
+               output_num):
 
    if model_type == 'caffe':
       convert_caffe2onnx(model_path, output, op_set)
@@ -450,11 +458,11 @@ def convert(model_path, model_type, output, op_set, input_shape, inputs, outputs
 
    if model_type == 'pytorch':
       #convert_pt2onnx(model_path, output, op_set, input_shape)
-      convert_pt2onnx(model_path, output, op_set, input_shape,
-                           model_def_file, model_class_name, model_weights_file)
+      convert_pt2onnx(model_path, output, op_set, input_shape_list,
+                           model_def_file, model_class_name, model_weights_file, output_num)
 
    if model_type == 'paddle':
-      convert_pd2onnx(model_path, output, op_set, input_shape, model_def_file, model_class_name, paddle_input_type, model_weights_file)              
+      convert_pd2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, paddle_input_type, model_weights_file)              
 
 def optimization_op(onnxfile):
    model = onnx.load(onnxfile)
@@ -998,11 +1006,19 @@ def process(args):
    fuse_pad_pool = args.fuse_pad_pool
    support_swish = args.support_swish
    bn_to_conv = args.bn_to_conv
+   output_num = args.output_num
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
    if model_type == 'tf-ckpt' or model_type == 'tf-graph' :
       print('checkpoint:', inputs, outputs)
+
+   print('---input_shape:', input_shape)
+
+   input_shape_list = input_shape.split('/') 
+   print('---input_shape_list:', input_shape_list) 
+
+   #input_shape = input_shape_list[0]  
 
    dynamic_paddle = False
    if model_type == 'paddle':
@@ -1054,12 +1070,13 @@ def process(args):
          
       sys.exit()                
 
+   '''
    if model_type == 'pytorch' or model_type == 'paddle':
-      input_shape=args.input_shape.strip('[')
+      input_shape=input_shape.strip('[')
       input_shape=input_shape.strip(']')
       input_shape=input_shape.split(',')
-      #print(type(input_shape[0])) 
       print('got shape:', input_shape)
+   '''   
 
    print('begin convert..')
 
@@ -1070,13 +1087,14 @@ def process(args):
                model_type, 
                output, 
                op_set_default, 
-               input_shape, 
+               input_shape_list, 
                inputs, 
                outputs,
                model_def_file,
                model_class_name,
                paddle_input_type,
-               model_weights_file)
+               model_weights_file,
+               output_num)
 
    end_time1 = time.time()
   
