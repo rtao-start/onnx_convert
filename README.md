@@ -47,6 +47,11 @@
                    model_weights_file：权重文件
                    model_class_name：类名(可以是自定义的类或pytorch提供的模型类)
 
+   多输入/多输出模型：
+     python model_convert.py --model_path ./multi_input.pth  --model_type pytorch  --output ./torch.onnx  --model_def_file  ./pt_multi_input.py   --model_class_name nettest --input_shape [1,3,200,300]/[1,3,200,300] --output_num 2
+   或：
+     python model_convert.py --model_path ./xxx   --model_type pytorch  --output ./torch.onnx  --model_def_file  ./pt_multi_input.py   --model_class_name nettest  --model_weights_file ./multi_input_state.pth  --input_shape [1,3,500,600]/[1,3,500,600] --output_num 2  
+
 7 darknet转onnx
    命令：python model_convert.py --model_path ./dn_models --model_type darknet  --output ./output.onnx
    参数说明：model_path：darknet模型所在的文件夹，文件夹里需要有对应的.cfg文件和.weights文件
@@ -96,7 +101,9 @@
                    paddle_input_type：输入数据类型(可不指定，默认为float32)
                    (动态paddle模型，对应的model_path字段，可任意填写(如：--model_path ./xxx )，实际不会用到)
                    (如果是动态模型且调用paddle自带的模型类(如paddle.vision.models.LeNet，则不需要指定model_def_file参数))
-
+   多输入/多输出模型：
+     python model_convert.py --model_path ./xxx   --model_type paddle  --output ./paddle.onnx  --model_def_file  ./paddle_mi.py  --model_class_name MyModel  --model_weights_file ./mi.pdparams --input_shape [1,3,200,300]/[1,3,200,300]
+      
 15 pad+pool融合
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx  --fuse_pad_pool 1
    或：python model_convert.py --model_path ./test.h5 --model_type tf-h5  --output ./output.onnx --fuse_pad_pool 1
