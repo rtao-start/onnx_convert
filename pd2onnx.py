@@ -63,11 +63,11 @@ def check_module(module_name):
         return module_spec
 
 def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
-                           model_def_file, model_class_name, paddle_input_type, model_weights_file):
+                           model_def_file, model_class_name, model_input_type, model_weights_file):
     print('Begin converting dynamin paddle to onnx...')
     
     input_shape_list_ = []
-
+    
     for input_shape in input_shape_list:
         input_shape=input_shape.strip('[')
         input_shape=input_shape.strip(']')
@@ -85,10 +85,24 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
 
     print('convert_pddynamic2onnx, got input_shape_list_int:', input_shape_list_int)
 
+    input_type_list = []
+    if model_input_type != '':
+        input_type_list = model_input_type.split(',')
+
+    print('convert_pddynamic2onnx, input_type_list', input_type_list)
+
+    if len(input_type_list) > 0 and len(input_type_list) != len(input_shape_list_int):
+        print('Error, len of input_type_list != len of input_shape_list')
+        sys.exit(-1)
+
     input_spec_list = []
 
     for idx, input_shape in enumerate(input_shape_list_int):
-        input_spec = paddle.static.InputSpec(shape=input_shape, dtype=paddle_input_type, name='input_'+str(idx))
+        data_type = 'float32'
+        if len(input_type_list) > 0:
+            data_type = input_type_list[idx]
+            
+        input_spec = paddle.static.InputSpec(shape=input_shape, dtype=data_type, name='input_'+str(idx))
         input_spec_list.append(input_spec)
 
     out=output.split('.onnx')[-2]
@@ -124,7 +138,7 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
             model = cls()
             model.set_dict(paddle.load(model_weights_file))
             model.eval()
-            #input_spec = paddle.static.InputSpec(shape=in_shape, dtype=paddle_input_type, name='input')
+            #input_spec = paddle.static.InputSpec(shape=in_shape, dtype=model_input_type, name='input')
             paddle.onnx.export(model, out, input_spec=input_spec_list, opset_version=op_set)
         else:
             print('There is no', model_class_name, ' in', model_def_file)   
@@ -133,9 +147,9 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
 
     #sys.exit()    
 
-def convert_pd2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, paddle_input_type, model_weights_file):
+def convert_pd2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, model_input_type, model_weights_file):
     if is_dynamic_paddle(input_shape_list, model_def_file, model_class_name, model_weights_file):
-        convert_pddynamic2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, paddle_input_type, model_weights_file)              
+        convert_pddynamic2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, model_input_type, model_weights_file)              
     else:
         convert_pdstatic2onnx(model_path, output, op_set)
 

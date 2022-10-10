@@ -160,7 +160,7 @@ def parse_args():
                         default='',
                         help="paddle/pytorch model calss name")
 
-   parser.add_argument("--paddle_input_type",
+   parser.add_argument("--model_input_type",
                         type=str, 
                         required=False,
                         default='',
@@ -434,7 +434,7 @@ def convert_mish(model_path, output, op_set):
 def convert(model_path, model_type, output, op_set, input_shape_list, inputs, outputs, 
                model_def_file,
                model_class_name,
-               paddle_input_type,
+               model_input_type,
                model_weights_file,
                output_num):
 
@@ -459,10 +459,10 @@ def convert(model_path, model_type, output, op_set, input_shape_list, inputs, ou
    if model_type == 'pytorch':
       #convert_pt2onnx(model_path, output, op_set, input_shape)
       convert_pt2onnx(model_path, output, op_set, input_shape_list,
-                           model_def_file, model_class_name, model_weights_file, output_num)
+                           model_def_file, model_class_name, model_weights_file, output_num, model_input_type)
 
    if model_type == 'paddle':
-      convert_pd2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, paddle_input_type, model_weights_file)              
+      convert_pd2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, model_input_type, model_weights_file)              
 
 def optimization_op(onnxfile):
    model = onnx.load(onnxfile)
@@ -999,7 +999,7 @@ def process(args):
    postproc_yaml = args.postproc_yaml
    model_def_file = args.model_def_file
    model_class_name = args.model_class_name
-   paddle_input_type = args.paddle_input_type
+   model_input_type = args.model_input_type
    model_weights_file = args.model_weights_file
    inputs_as_nchw = args.inputs_as_nchw
    gap_to_ap = args.gap_to_ap
@@ -1023,8 +1023,8 @@ def process(args):
    dynamic_paddle = False
    if model_type == 'paddle':
          dynamic_paddle = is_dynamic_paddle(input_shape_list, model_def_file, model_class_name, model_weights_file)
-         if dynamic_paddle == True and paddle_input_type == '':
-            paddle_input_type = 'float32' 
+         #if dynamic_paddle == True and model_input_type == '':
+         #   model_input_type = 'float32' 
 
    can_ignore_model_path = False
    if model_type == 'pytorch':
@@ -1084,7 +1084,7 @@ def process(args):
                outputs,
                model_def_file,
                model_class_name,
-               paddle_input_type,
+               model_input_type,
                model_weights_file,
                output_num)
 
