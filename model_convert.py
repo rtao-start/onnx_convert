@@ -1022,7 +1022,7 @@ def process(args):
 
    dynamic_paddle = False
    if model_type == 'paddle':
-         dynamic_paddle = is_dynamic_paddle(input_shape, model_def_file, model_class_name, model_weights_file)
+         dynamic_paddle = is_dynamic_paddle(input_shape_list, model_def_file, model_class_name, model_weights_file)
          if dynamic_paddle == True and paddle_input_type == '':
             paddle_input_type = 'float32' 
 
@@ -1069,14 +1069,6 @@ def process(args):
          logger.info('Convert Success!')
          
       sys.exit()                
-
-   '''
-   if model_type == 'pytorch' or model_type == 'paddle':
-      input_shape=input_shape.strip('[')
-      input_shape=input_shape.strip(']')
-      input_shape=input_shape.split(',')
-      print('got shape:', input_shape)
-   '''   
 
    print('begin convert..')
 

@@ -36,6 +36,10 @@ def get_paddle_files(model_path):
 
 def convert_pdstatic2onnx(model_path, output, op_set):
     print('Begin converting static paddle to onnx...')
+    if model_path.startswith('./'):
+        cwd = os.getcwd()
+        model_path = cwd + model_path[1:]
+
     pdmodel, pdiparams = get_paddle_files(model_path)
 
     cmd = 'paddle2onnx --model_dir ' + model_path + ' --opset_version ' + str(op_set) + ' --save_file ' + output \
@@ -58,11 +62,35 @@ def check_module(module_name):
         print("Module: {} can be imported".format(module_name))
         return module_spec
 
-def convert_pddynamic2onnx(model_path, output, op_set, input_shape,
+def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
                            model_def_file, model_class_name, paddle_input_type, model_weights_file):
     print('Begin converting dynamin paddle to onnx...')
+    
+    input_shape_list_ = []
 
-    in_shape=[int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3])]
+    for input_shape in input_shape_list:
+        input_shape=input_shape.strip('[')
+        input_shape=input_shape.strip(']')
+        input_shape=input_shape.split(',')
+        print('convert_pddynamic2onnx, got shape:', input_shape)
+        input_shape_list_.append(input_shape)
+
+    print('convert_pddynamic2onnx, got input_shape_list:', input_shape_list_)
+
+    input_shape_list_int = []
+
+    for input_shape in input_shape_list_:
+        shape = [int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3])]
+        input_shape_list_int.append(shape)
+
+    print('convert_pddynamic2onnx, got input_shape_list_int:', input_shape_list_int)
+
+    input_spec_list = []
+
+    for idx, input_shape in enumerate(input_shape_list_int):
+        input_spec = paddle.static.InputSpec(shape=input_shape, dtype=paddle_input_type, name='input_'+str(idx))
+        input_spec_list.append(input_spec)
+
     out=output.split('.onnx')[-2]
     print('out is ', out)
 
@@ -96,8 +124,8 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape,
             model = cls()
             model.set_dict(paddle.load(model_weights_file))
             model.eval()
-            input_spec = paddle.static.InputSpec(shape=in_shape, dtype=paddle_input_type, name='input')
-            paddle.onnx.export(model, out, input_spec=[input_spec], opset_version=op_set)
+            #input_spec = paddle.static.InputSpec(shape=in_shape, dtype=paddle_input_type, name='input')
+            paddle.onnx.export(model, out, input_spec=input_spec_list, opset_version=op_set)
         else:
             print('There is no', model_class_name, ' in', model_def_file)   
     else:
@@ -105,17 +133,17 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape,
 
     #sys.exit()    
 
-def convert_pd2onnx(model_path, output, op_set, input_shape, model_def_file, model_class_name, paddle_input_type, model_weights_file):
-    if is_dynamic_paddle(input_shape, model_def_file, model_class_name, model_weights_file):
-        convert_pddynamic2onnx(model_path, output, op_set, input_shape, model_def_file, model_class_name, paddle_input_type, model_weights_file)              
+def convert_pd2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, paddle_input_type, model_weights_file):
+    if is_dynamic_paddle(input_shape_list, model_def_file, model_class_name, model_weights_file):
+        convert_pddynamic2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, paddle_input_type, model_weights_file)              
     else:
         convert_pdstatic2onnx(model_path, output, op_set)
 
-def is_dynamic_paddle(input_shape, model_def_file, model_class_name, model_weights_file):
+def is_dynamic_paddle(input_shape_list, model_def_file, model_class_name, model_weights_file):
     if model_class_name != '' and '.' not in model_class_name:
-        return input_shape != '' and model_def_file != '' and model_weights_file != ''
+        return input_shape_list != '' and model_def_file != '' and model_weights_file != ''
     elif model_class_name != '' and '.' in model_class_name:
-        return input_shape != '' and model_weights_file != ''
+        return input_shape_list != '' and model_weights_file != ''
     else:
         return False    
 
