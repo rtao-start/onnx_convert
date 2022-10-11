@@ -873,7 +873,7 @@ class GraphBuilderONNX(object):
                     inputs=inputs,
                     outputs=[layer_name_mish],
                     name=layer_name_mish,
-                    domain=''
+                    domain='com.metax-tech'
                 )
                 self._nodes.append(mish_node)
                 inputs = [layer_name_mish]
@@ -1194,7 +1194,7 @@ def main(cfg_file='yolov4.cfg', weights_file='yolov4.weights', output_file='yolo
         onnx.checker.check_model(yolo_model_def)
     except onnx.checker.ValidationError as e:
         print('The model cannot be saved for: %s' % e)
-        if 'No Op registered for Mish' in str(e):
+        if 'No' in str(e):
             print('ignore mish warning, continue saving~')
         else:
             sys.exit()    
