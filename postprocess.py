@@ -183,7 +183,9 @@ def postproc(model, output, postproc_yaml):
         print(k, ':', v)   
 
     if len(post_dict) > 0:
-        insert_postproc_node(model, post_dict, output)    
+        insert_postproc_node(model, post_dict, output) 
+
+    return model       
 '''
 if __name__ == "__main__":
     model = onnx.load('./r1.onnx')

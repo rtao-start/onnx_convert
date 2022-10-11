@@ -223,4 +223,6 @@ def preproc(model, output, preproc_yaml):
         print(k, ':', v)   
 
     if len(preproc_dict) > 0:
-        insert_preproc_node(model, preproc_dict, output)    
+        insert_preproc_node(model, preproc_dict, output)
+
+    return model        

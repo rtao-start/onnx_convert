@@ -15,6 +15,7 @@ import tensorflow as tf
 import time
 import fuse
 from swish_convert import merge_swish_and_hard_swish
+from mish_convert import merge_mish
 import bn2conv
 
 from caffe2onnx.src.load_save_model import loadcaffemodel, saveonnxmodel
@@ -211,7 +212,14 @@ def parse_args():
                         required=False,
                         default=1,
                         help="")                                                                                                               
-                                                                                                                                                                                                                                                                                                                                     
+
+   #for pytorch
+   parser.add_argument("--keep_batch",
+                        type=int, 
+                        required=False,
+                        default=0,
+                        help="whether keep model batch size(if 0, set it to dynamic(-1))")       
+
    args = parser.parse_args()
 
    return args
@@ -436,7 +444,8 @@ def convert(model_path, model_type, output, op_set, input_shape_list, inputs, ou
                model_class_name,
                model_input_type,
                model_weights_file,
-               output_num):
+               output_num,
+               keep_batch):
 
    if model_type == 'caffe':
       convert_caffe2onnx(model_path, output, op_set)
@@ -459,7 +468,7 @@ def convert(model_path, model_type, output, op_set, input_shape_list, inputs, ou
    if model_type == 'pytorch':
       #convert_pt2onnx(model_path, output, op_set, input_shape)
       convert_pt2onnx(model_path, output, op_set, input_shape_list,
-                           model_def_file, model_class_name, model_weights_file, output_num, model_input_type)
+                           model_def_file, model_class_name, model_weights_file, output_num, model_input_type, keep_batch)
 
    if model_type == 'paddle':
       convert_pd2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, model_input_type, model_weights_file)              
@@ -1007,6 +1016,7 @@ def process(args):
    support_swish = args.support_swish
    bn_to_conv = args.bn_to_conv
    output_num = args.output_num
+   keep_batch = args.keep_batch
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -1086,7 +1096,8 @@ def process(args):
                model_class_name,
                model_input_type,
                model_weights_file,
-               output_num)
+               output_num,
+               keep_batch)
 
    end_time1 = time.time()
   
@@ -1156,25 +1167,25 @@ def process(args):
       onnx.save(new_model, output)
 
    if model_type == 'onnx' and support_mish == 1:
-      convert_mish(model_path, output, op_set)
+      new_model = merge_mish(model_path, output)
 
    if model_type == 'onnx' and support_swish == 1:
-      merge_swish_and_hard_swish(new_model, output)   
+      new_model = merge_swish_and_hard_swish(new_model, output)   
 
    if model_type == 'onnx' and preproc_yaml != '':
       if os.path.exists(preproc_yaml):
-         preproc(new_model, output, preproc_yaml)
+         new_model = preproc(new_model, output, preproc_yaml)
       else:
          print(preproc_yaml, 'is not exist')    
 
    if model_type == 'onnx' and postproc_yaml != '':
       if os.path.exists(postproc_yaml):
-         postproc(new_model, output, postproc_yaml)
+         new_model = postproc(new_model, output, postproc_yaml)
       else:
          print(postproc_yaml, 'is not exist')
 
    if bn_to_conv == 1:
-      bn2conv.bn2conv(new_model, output)      
+      new_model = bn2conv.bn2conv(new_model, output)      
 
    eliminate_unused_input_initializer(new_model, output)                 
 

@@ -115,4 +115,6 @@ def merge_swish_and_hard_swish(model, output):
     merge_swish(model, output)
     merge_hard_swish(model, output)
 
+    return model
+
     
