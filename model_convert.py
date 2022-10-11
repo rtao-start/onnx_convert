@@ -216,6 +216,7 @@ def parse_args():
    #for pytorch
    parser.add_argument("--keep_batch",
                         type=int, 
+                        choices=[0, 1],
                         required=False,
                         default=0,
                         help="whether keep model batch size(if 0, set it to dynamic(-1))")       

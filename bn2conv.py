@@ -124,6 +124,8 @@ def bn2conv(model, output):
 
     onnx.save(model, output)  
 
+    return model
+
 '''
 model = onnx.load('./test.onnx')
 model = onnx.shape_inference.infer_shapes(model)  

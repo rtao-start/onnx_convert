@@ -26,7 +26,7 @@ def convert_to_np_type(data_type):
         'null' : ""
     }
 
-    return types.get(data_type, None)
+    return types.get(data_type, np.float32)
 
 
 def check_module(module_name):
@@ -43,8 +43,13 @@ def check_module(module_name):
         return module_spec
 
 def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_list,
-                           model_def_file, model_class_name, output_num, model_input_type):
+                           model_def_file, model_class_name, output_num, model_input_type, keep_batch):
     print('Begin converting pytorch to onnx...')
+
+    if model_def_file != '':
+        index = model_def_file.rindex('/')
+        dir_path = model_def_file[:index]
+        sys.path.append(dir_path)
 
     input_type_list = []
     if model_input_type != '':
@@ -102,11 +107,12 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
     print('---input_name_list:', input_name_list)
 
     dynamic_axes_dict = {}
-    for input_name in input_name_list:
-        dynamic_axes_dict[input_name] = {0:'-1'}
+    if keep_batch == 0:
+        for input_name in input_name_list:
+            dynamic_axes_dict[input_name] = {0:'-1'}
 
-    for output_name in output_name_list:
-        dynamic_axes_dict[output_name] = {0:'-1'}
+        for output_name in output_name_list:
+            dynamic_axes_dict[output_name] = {0:'-1'}
 
     #in_shape=[int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3])]
     
@@ -163,8 +169,13 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
     #sys.exit() 
 
 def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
-                           model_def_file, model_class_name, model_weights_file, output_num, model_input_type):
+                           model_def_file, model_class_name, model_weights_file, output_num, model_input_type, keep_batch):
     print('Begin converting pytorch state dict to onnx...')
+
+    if model_def_file != '':
+        index = model_def_file.rindex('/')
+        dir_path = model_def_file[:index]
+        sys.path.append(dir_path)
 
     input_type_list = []
     if model_input_type != '':
@@ -219,11 +230,12 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
     print('convert_pt_state_dict_2_onnx, input_name_list:', input_name_list)
 
     dynamic_axes_dict = {}
-    for input_name in input_name_list:
-        dynamic_axes_dict[input_name] = {0:'-1'}
+    if keep_batch == 0:
+        for input_name in input_name_list:
+            dynamic_axes_dict[input_name] = {0:'-1'}
 
-    for output_name in output_name_list:
-        dynamic_axes_dict[output_name] = {0:'-1'}
+        for output_name in output_name_list:
+            dynamic_axes_dict[output_name] = {0:'-1'}
 
     in_shape=[int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3])]
     out=output.split('.onnx')[-2]
@@ -276,10 +288,11 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
         print('Cound not find', model_def_file)
 
 def convert_pt2onnx(model_path, output, op_set, input_shape_list,
-                           model_def_file, model_class_name, model_weights_file, output_num, model_input_type):
+                           model_def_file, model_class_name, model_weights_file, output_num, 
+                           model_input_type, keep_batch):
     if model_weights_file == '':
         convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_list,
-                           model_def_file, model_class_name, output_num, model_input_type)
+                           model_def_file, model_class_name, output_num, model_input_type, keep_batch)
     else:
         convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
-                    model_def_file, model_class_name, model_weights_file, output_num, model_input_type)
+                    model_def_file, model_class_name, model_weights_file, output_num, model_input_type, keep_batch)
