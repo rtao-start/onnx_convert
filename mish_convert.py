@@ -131,6 +131,7 @@ def merge_mish(onnxfile, export_onnx):
                                             op_type='Mish',
                                             inputs=dict_sp['input'],
                                             outputs=dict_mul['output'],
+                                            domain='com.metax-tech'
                                             )
 
                     model.graph.node.insert(dict_sp['id'], mish_node)

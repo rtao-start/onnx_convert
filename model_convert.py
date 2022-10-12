@@ -164,6 +164,7 @@ def parse_args():
    parser.add_argument("--model_input_type",
                         type=str, 
                         required=False,
+                        #choices=['float', 'float32', 'float16', 'uint8', 'int8', 'uint16', 'int16', 'uint32', 'int32', 'uint64', 'int64', 'bool'],
                         default='',
                         help="paddle/pytorch input type")
 
@@ -768,11 +769,7 @@ def my_extract_model(
    try:
       onnx.checker.check_model(input_path)
    except onnx.checker.ValidationError as e:
-      print('~~~~ The model cannot be extracted for: %s' % e)
-      if 'No Op registered for Mish' in str(e):
-            print('ignore mish warning, continue~')
-      else:
-            sys.exit()    
+      print('Extract warning:: %s' % e)
    else:
       print('~~~~ Begin extracting model...')
 
@@ -786,11 +783,7 @@ def my_extract_model(
    try:
       onnx.checker.check_model(output_path)
    except onnx.checker.ValidationError as e:
-      print('^^^^ The model cannot be extracted for: %s' % e)
-      if 'No Op registered for Mish' in str(e):
-            print('ignore mish warning, continue~')
-      else:
-            sys.exit()    
+      print('Extracted warning: %s' % e)
    else:
       print('^^^^ Finish extracting model...')
 
@@ -799,8 +792,9 @@ def extract_sub_graph(input_path, output_path, input_names, output_names):
    input_list = input_names.split(',')
    output_list = output_names.split(',')
    #onnx.utils.extract_model(input_path, output_path, input_list, output_list)
-   #my_extract_model(input_path, output_path, input_list, output_list)
+   my_extract_model(input_path, output_path, input_list, output_list)
 
+   '''
    try:
       onnx.utils.extract_model(input_path, output_path, input_list, output_list)
    except BaseException as e:
@@ -809,6 +803,7 @@ def extract_sub_graph(input_path, output_path, input_names, output_names):
    else:
       print('Inference success---')
       return True
+   '''
 
 def add_value_info_for_constants(model : onnx.ModelProto):
    # All (top-level) constants will have ValueInfos before IRv4 as they are all inputs
