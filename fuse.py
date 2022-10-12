@@ -1,5 +1,6 @@
 import onnx
 import correct_batch
+import numpy as np
 
 def fuse_pad_to_pool(model, output):
     dict_pad = {}
