@@ -287,6 +287,16 @@ def get_resize_param(model):
 
     return resize_param_list                 
 
+def get_layernorm_param(model):
+    layernorm_input1_list = []
+
+    for n in model.graph.node:
+        if n.op_type == 'LayerNorm':
+            input_1 = n.input[1]
+            if input_1 not in layernorm_input1_list:
+                layernorm_input1_list.append(input_1)
+
+    return layernorm_input1_list    
 
 def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
                              keep_io_types=False, disable_shape_infer=False,
@@ -311,6 +321,8 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
     '''
 
     resize_param_list = get_resize_param(model)
+
+    ln_input1_list = get_layernorm_param(model)
 
     func_infer_shape = None
     if not disable_shape_infer and onnx.__version__ >= '1.2':
@@ -429,14 +441,14 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
             if isinstance(q, onnx_proto.GraphProto):
                 for n in q.initializer:  # TensorProto type
                     if n.name not in resize_param_list:
-                        if n.data_type == onnx_proto.TensorProto.FLOAT and n.name != 'const_std':
+                        if n.data_type == onnx_proto.TensorProto.FLOAT and n.name != 'const_std' and n.name not in ln_input1_list:
                             n = convert_tensor_float_to_float16(n, min_positive_val, max_finite_val)
                             value_info_list.append(make_value_info_from_tensor(n))
                 # for all ValueInfoProto with tensor(float) type in input, output and value_info, convert them to
                 # tensor(float16) except map and seq(map). And save them in value_info_list for further processing
                 for n in itertools.chain(q.input, q.output, q.value_info):
                     if n.type.tensor_type.elem_type == onnx_proto.TensorProto.FLOAT  and n.name != 'const_std':
-                        if n.name not in graph_io_to_skip and n.name not in resize_param_list:
+                        if n.name not in graph_io_to_skip and n.name not in resize_param_list and n.name not in ln_input1_list:
                             n.type.tensor_type.elem_type = onnx_proto.TensorProto.FLOAT16
                             value_info_list.append(n)
         queue = next_level
