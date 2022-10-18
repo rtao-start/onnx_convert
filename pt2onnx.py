@@ -43,13 +43,32 @@ def check_module(module_name):
         return module_spec
 
 def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_list,
-                           model_def_file, model_class_name, output_num, model_input_type, keep_batch):
+                           model_def_file, model_class_name, output_num, model_input_type, keep_batch, params_file):
     print('Begin converting pytorch to onnx...')
 
     if model_def_file != '':
         index = model_def_file.rindex('/')
         dir_path = model_def_file[:index]
         sys.path.append(dir_path)
+
+    params = {}
+    if params_file != '':
+        params_file_module = params_file.split('/')[-1]
+        params_file_module = params_file_module.split('.')[-2]
+
+        module_find = check_module(params_file_module)
+        if module_find != None:
+            print('+++ get module: ', module_find)
+            module = importlib.import_module(params_file_module)
+            obj = getattr(module, 'param_dict', None)
+            if obj != None:
+                params = obj
+            else:
+                print('Cannot get params from file:', params_file)
+                sys.exit(-1)       
+        else:
+            print('Cannot load params file:', params_file)
+            sys.exit(-1)    
 
     input_type_list = []
     if model_input_type != '':
@@ -146,7 +165,11 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
         module = importlib.import_module(target_module)
         cls = getattr(module, model_class_name, None)
         if cls != None:
-            model = cls()
+            if len(params) > 0:
+                model = cls(**params)
+            else:    
+                model = cls()
+
             m = torch.load(model_path, map_location=torch.device('cpu'))
             m = m.cpu() #cuda()
             
@@ -169,13 +192,31 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
     #sys.exit() 
 
 def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
-                           model_def_file, model_class_name, model_weights_file, output_num, model_input_type, keep_batch):
+                           model_def_file, model_class_name, model_weights_file, output_num, model_input_type, keep_batch, params_file):
     print('Begin converting pytorch state dict to onnx...')
 
     if model_def_file != '':
         index = model_def_file.rindex('/')
         dir_path = model_def_file[:index]
         sys.path.append(dir_path)
+
+    params = {}
+    if params_file != '':
+        params_file_module = params_file.split('/')[-1]
+        params_file_module = params_file_module.split('.')[-2]
+        module_find = check_module(params_file_module)
+        if module_find != None:
+            print('----get module: ', module_find)
+            module = importlib.import_module(params_file_module)
+            obj = getattr(module, 'param_dict', None)
+            if obj != None:
+                params = obj
+            else:
+                print('convert_pt_state_dict_2_onnx, Cannot get params from file:', params_file)
+                sys.exit(-1)       
+        else:
+            print('convert_pt_state_dict_2_onnx, Cannot load params file:', params_file)
+            sys.exit(-1)    
 
     input_type_list = []
     if model_input_type != '':
@@ -268,7 +309,11 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
         module = importlib.import_module(target_module)
         cls = getattr(module, model_class_name, None)
         if cls != None:
-            m = cls()
+            if len(params) > 0:
+                m = cls(**params)
+            else:    
+                m = cls()
+
             m.load_state_dict(torch.load(model_weights_file, map_location=torch.device('cpu')))
             m = m.cpu() #cuda()
             #x = torch.randn(int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3]))
@@ -283,16 +328,17 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
                 dynamic_axes=dynamic_axes_dict #{'input':{0:'-1'}, 'output':{0:'-1'}}
             )
         else:
-            print('There is no', model_class_name, ' in', model_def_file)   
+            print('There is no', model_class_name, ' in', 
+            )   
     else:
         print('Cound not find', model_def_file)
 
 def convert_pt2onnx(model_path, output, op_set, input_shape_list,
                            model_def_file, model_class_name, model_weights_file, output_num, 
-                           model_input_type, keep_batch):
+                           model_input_type, keep_batch, params_file):
     if model_weights_file == '':
         convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_list,
-                           model_def_file, model_class_name, output_num, model_input_type, keep_batch)
+                           model_def_file, model_class_name, output_num, model_input_type, keep_batch, params_file)
     else:
         convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
-                    model_def_file, model_class_name, model_weights_file, output_num, model_input_type, keep_batch)
+                    model_def_file, model_class_name, model_weights_file, output_num, model_input_type, keep_batch, params_file)

@@ -52,6 +52,12 @@
    或：
      python model_convert.py --model_path ./xxx   --model_type pytorch  --output ./torch.onnx  --model_def_file  ./pt_multi_input.py   --model_class_name nettest  --model_weights_file ./multi_input_state.pth  --input_shape [1,3,500,600]/[1,3,500,600] --output_num 2  
 
+   如类的定义中需要输入参数，参考以下方式(--params_file指定参数定义的文件位置)：
+     python model_convert.py --model_path ./mnist_model.pkl  --model_type pytorch  --output ./torch.onnx  --model_def_file  ./cnn_test.py  --model_class_name CNN --input_shape [1,1,28,28] --params_file  ./cnn_params.py
+   或
+     python model_convert.py --model_path ./mnist_model.pkl  --model_type pytorch  --output ./unet.onnx  --model_def_file  ./unet_test.py   --model_class_name Net  --model_weights_file ./9_epoch_iou_0.9743422508239746.pth  --input_shape [64,3,32,32] --params_file ./unet_params.py 
+   (参数定义文件中，需以字典形式存储，且字典名称固定为param_dict, 字典键值必须与类中需要的初始化变量名称一致，可从sample_models中下载样例)      
+
 7 darknet转onnx
    命令：python model_convert.py --model_path ./dn_models --model_type darknet  --output ./output.onnx
    参数说明：model_path：darknet模型所在的文件夹，文件夹里需要有对应的.cfg文件和.weights文件
