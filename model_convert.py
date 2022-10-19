@@ -82,7 +82,7 @@ def parse_args():
                         type=str, 
                         required=False,
                         default='',
-                        help="simplify h/w(when h/w is -1)")                                                  
+                        help="simplify h/w(when h/w is -1)")  
 
    #for pytorch/dynamic_paddle
    parser.add_argument("--input_shape",
@@ -581,11 +581,11 @@ def model_simplify(model_path, simplify_model, simplify_hw):
    if simplify_model == 2:
       if dynamic_input_shape_ == True:
          model_simp, check = simplify(onnx_model, input_shapes=input_shapes_)
-         correct_batch_for_opset_convert(model_simp)
+         if simplify_hw == '':
+            correct_batch_for_opset_convert(model_simp)
       else:   
          model_simp, check = simplify(onnx_model, dynamic_input_shape=False)
    else:
-      print('HHHH dynamic_input_shape_:', dynamic_input_shape_)
       model_simp, check = simplify(onnx_model, dynamic_input_shape=dynamic_input_shape_)
 
    onnx.save(model_simp, model_path)
@@ -893,10 +893,12 @@ def eliminate_unused_input_initializer(model, output):
    #print('==================================++++++++++++++++++')
 
    real_input_init = []
+   '''
    node = model.graph.node[0]    
    for n in node.input:
       if n in init_list:
          real_input_init.append(n)
+   '''      
 
    #for n in real_input_init:
    #   print("real_input_init:", n)
@@ -919,6 +921,9 @@ def eliminate_unused_input_initializer(model, output):
       del model.graph.input[:]
 
       model.graph.input.extend(vip)
+
+      for input in model.graph.input:
+         print('last input:', input.name)
 
       #for input in model.graph.input:
       #   print("xxx got  input name:", input.name)
