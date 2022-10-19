@@ -70,7 +70,10 @@
                 
 9 关闭simplify功能(默认打开)
    命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx  --simplify 0
-   参数说明：如果模型为动态shape，经优化后的模型欲修改为静态shape，可指定参数--simplify 2.
+   参数说明：
+            如果模型为动态batch，经优化后的模型欲修改为静态batch(默认batch为1)，可指定参数 --simplify 2.
+            如果模型为动态shape，需通过参数--simplify 2 --simplify_hw 256,256指定维度生成模型。
+            目前对动态shape的支持不够完善，部分模型转换出来的模型会有异常，可使用--simplify 0禁用simplify功能。
 
 10 启用fp32-->fp16转换(默认关闭)
    命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx  --fp32_to_fp16 1

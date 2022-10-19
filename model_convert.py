@@ -76,7 +76,13 @@ def parse_args():
                         type=int, required=False,
                         choices=[0, 1, 2],
                         default=1,
-                        help="simplify the model")                              
+                        help="simplify the model")     
+
+   parser.add_argument("--simplify_hw",
+                        type=str, 
+                        required=False,
+                        default='',
+                        help="simplify h/w(when h/w is -1)")                                                  
 
    #for pytorch/dynamic_paddle
    parser.add_argument("--input_shape",
@@ -168,6 +174,12 @@ def parse_args():
                         default='',
                         help="paddle/pytorch input type")
 
+   parser.add_argument("--params_file",
+                        type=str, 
+                        required=False,
+                        default='',
+                        help="paddle/pytorch params declaration file location")
+
    #for tensorflow 
    parser.add_argument("--inputs_as_nchw",
                         type=str, 
@@ -220,7 +232,9 @@ def parse_args():
                         choices=[0, 1],
                         required=False,
                         default=0,
-                        help="whether keep model batch size(if 0, set it to dynamic(-1))")       
+                        help="whether keep model batch size(if 0, set it to dynamic(-1))") 
+
+
 
    args = parser.parse_args()
 
@@ -447,7 +461,8 @@ def convert(model_path, model_type, output, op_set, input_shape_list, inputs, ou
                model_input_type,
                model_weights_file,
                output_num,
-               keep_batch):
+               keep_batch,
+               params_file):
 
    if model_type == 'caffe':
       convert_caffe2onnx(model_path, output, op_set)
@@ -470,7 +485,7 @@ def convert(model_path, model_type, output, op_set, input_shape_list, inputs, ou
    if model_type == 'pytorch':
       #convert_pt2onnx(model_path, output, op_set, input_shape)
       convert_pt2onnx(model_path, output, op_set, input_shape_list,
-                           model_def_file, model_class_name, model_weights_file, output_num, model_input_type, keep_batch)
+                           model_def_file, model_class_name, model_weights_file, output_num, model_input_type, keep_batch, params_file)
 
    if model_type == 'paddle':
       convert_pd2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, model_input_type, model_weights_file)              
@@ -523,7 +538,7 @@ def optimization_op(onnxfile):
 
    return delete, export_onnx
 
-def model_simplify(model_path, simplify_model):
+def model_simplify(model_path, simplify_model, simplify_hw):
    onnx_model = onnx.load(model_path)
    dynamic_input_shape_ = False
 
@@ -533,20 +548,35 @@ def model_simplify(model_path, simplify_model):
    for init in onnx_model.graph.initializer:
       init_list.append(init.name)
 
-   for idx in range(len(onnx_model.graph.input)):
-      #print('graph_input_name:', onnx_model.graph.input[idx].name)
-      if onnx_model.graph.input[idx].name not in init_list:
-         if len(onnx_model.graph.input[idx].type.tensor_type.shape.dim) > 0:
-            input_shape = onnx_model.graph.input[idx].type.tensor_type.shape.dim
+   for input_ in onnx_model.graph.input:
+      #print('graph_input_name:', input_.name)
+      if input_.name not in init_list:
+         if len(input_.type.tensor_type.shape.dim) > 0:
+            input_shape = input_.type.tensor_type.shape.dim
             input_shape = [x.dim_value for x in input_shape]
 
-            dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
+            dynamic_input_shape_ = any(d==-1 or d==0 for d in input_shape)
+            if dynamic_input_shape_ == True:
+               print('The model input is dynamic---')
+               input_shape[0] = 1
+               if simplify_hw != '':
+                  hw_list = simplify_hw.split(',')
+                  input_shape[-1] = int(hw_list[1])
+                  input_shape[-2] = int(hw_list[0])
+                  print('input_shape',input_shape)
+
+               input_shapes_[input_.name] = input_shape
+               break
+
+            '''
+            dim_proto_input = input_.type.tensor_type.shape.dim[0]
             if dim_proto_input.dim_value == -1 or dim_proto_input.dim_value == 0:
                print('The model input is dynamic~~~~~~')
                dynamic_input_shape_ = True
                input_shape[0] = 1
-               input_shapes_[onnx_model.graph.input[idx].name] = input_shape
+               input_shapes_[input_.name] = input_shape
                break
+            '''
 
    if simplify_model == 2:
       if dynamic_input_shape_ == True:
@@ -555,6 +585,7 @@ def model_simplify(model_path, simplify_model):
       else:   
          model_simp, check = simplify(onnx_model, dynamic_input_shape=False)
    else:
+      print('HHHH dynamic_input_shape_:', dynamic_input_shape_)
       model_simp, check = simplify(onnx_model, dynamic_input_shape=dynamic_input_shape_)
 
    onnx.save(model_simp, model_path)
@@ -1013,6 +1044,8 @@ def process(args):
    bn_to_conv = args.bn_to_conv
    output_num = args.output_num
    keep_batch = args.keep_batch
+   params_file = args.params_file
+   simplify_hw = args.simplify_hw
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -1093,7 +1126,8 @@ def process(args):
                model_input_type,
                model_weights_file,
                output_num,
-               keep_batch)
+               keep_batch,
+               params_file)
 
    end_time1 = time.time()
   
@@ -1151,7 +1185,7 @@ def process(args):
 
    if simplify_model == 1 or simplify_model == 2:
       print('begin doing simplify...')
-      new_model = model_simplify(output, simplify_model)
+      new_model = model_simplify(output, simplify_model, simplify_hw)
 
    if fuse_pad_pool == 1:
       print('begin doing fuse_pad_to_pool...')
