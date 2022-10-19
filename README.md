@@ -6,7 +6,7 @@
    参数说明：model_path：caffe模型所在的文件夹，文件夹里需要有对应的.caffemodel文件和.prototxt文件
                    model_type：模型类型，此处固定为caffe
                    output：输出onnx模型的文件路径
-
+   
 2 tensorflow(h5)转onnx
    命令：python model_convert.py --model_path ./test.h5 --model_type tf-h5  --output ./output.onnx
    参数说明：model_path：h5模型所在的路径(非文件夹)
@@ -72,8 +72,7 @@
    命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx  --simplify 0
    参数说明：
             如果模型为动态batch，经优化后的模型欲修改为静态batch(默认batch为1)，可指定参数 --simplify 2.
-            如果模型为动态shape，需通过参数--simplify 2 --simplify_hw 256,256指定维度生成模型。
-            目前对动态shape的支持不够完善，部分模型转换出来的模型会有异常，可使用--simplify 0禁用simplify功能。
+            如果模型为动态shape，需通过参数--simplify 2 --simplify_hw 256,256 指定维度生成模型。
 
 10 启用fp32-->fp16转换(默认关闭)
    命令：python model_convert.py --model_path ./caffe_model --model_type caffe --output ./output.onnx  --fp32_to_fp16 1
