@@ -548,12 +548,18 @@ def model_simplify(model_path, simplify_model, simplify_hw):
    for init in onnx_model.graph.initializer:
       init_list.append(init.name)
 
+   h = -1
+   w = -1   
+
    for input_ in onnx_model.graph.input:
       #print('graph_input_name:', input_.name)
       if input_.name not in init_list:
          if len(input_.type.tensor_type.shape.dim) > 0:
             input_shape = input_.type.tensor_type.shape.dim
             input_shape = [x.dim_value for x in input_shape]
+
+            h = input_shape[-2]
+            w = input_shape[-1]
 
             dynamic_input_shape_ = any(d==-1 or d==0 for d in input_shape)
             if dynamic_input_shape_ == True:
@@ -577,16 +583,19 @@ def model_simplify(model_path, simplify_model, simplify_hw):
                input_shapes_[input_.name] = input_shape
                break
             '''
+   skip_constant_folding_ = False
+   if h <= 0 or w <= 0:
+      skip_constant_folding_ = True
 
    if simplify_model == 2:
       if dynamic_input_shape_ == True:
-         model_simp, check = simplify(onnx_model, input_shapes=input_shapes_)
+         model_simp, check = simplify(onnx_model, input_shapes=input_shapes_, skip_constant_folding=skip_constant_folding_)
          if simplify_hw == '':
             correct_batch_for_opset_convert(model_simp)
       else:   
          model_simp, check = simplify(onnx_model, dynamic_input_shape=False)
    else:
-      model_simp, check = simplify(onnx_model, dynamic_input_shape=dynamic_input_shape_)
+      model_simp, check = simplify(onnx_model, dynamic_input_shape=dynamic_input_shape_, skip_constant_folding=skip_constant_folding_)
 
    onnx.save(model_simp, model_path)
 

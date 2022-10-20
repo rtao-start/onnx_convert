@@ -532,6 +532,7 @@ def simplify(model: Union[str, onnx.ModelProto],
              dynamic_input_shape: bool = False,
              custom_lib: Optional[str] = None,
              include_subgraph: bool = False,
+             skip_constant_folding: bool = False,
              unused_output: Optional[Sequence[str]] = None) -> Tuple[onnx.ModelProto, bool]:
     """
     :param model: onnx ModelProto object or file path
@@ -612,6 +613,10 @@ def simplify(model: Union[str, onnx.ModelProto],
         return fixed_point(model, infer_shapes_if_applicable, optimize_if_applicable)
 
     def constant_folding(model: onnx.ModelProto) -> onnx.ModelProto:
+        #qiuzy add for some dynamic shape model
+        if skip_constant_folding == True:
+            return model
+
         const_nodes = get_constant_nodes(
             model, dynamic_input_shape=dynamic_input_shape)
         res = forward_for_node_outputs(model,
