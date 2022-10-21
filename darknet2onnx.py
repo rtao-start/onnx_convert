@@ -1127,7 +1127,10 @@ class GraphBuilderONNX(object):
         self._nodes.append(transpose_node)
         inputs = [transpose_name]
         output_name = layer_name + '_reshape_2'
-        shape = np.array([layer_dict['output_dims'][0], -1, self.classes + 5]).astype(np.int64)
+        print('Got Reshape shape:', layer_dict['output_dims'])
+        #qiuzy modify for dynamic batch
+        #shape = np.array([layer_dict['output_dims'][0], -1, self.classes + 5]).astype(np.int64)
+        shape = np.array([layer_dict['output_dims'][0], 3*layer_dict['output_dims'][2]*layer_dict['output_dims'][3], self.classes + 5]).astype(np.int64)
         reshape_params = ReshapeParams(transpose_name, shape)
         self.param_dict[output_name] = reshape_params
         param_name = reshape_params.generate_param_name()
