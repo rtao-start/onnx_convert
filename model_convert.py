@@ -597,7 +597,7 @@ def model_simplify(model_path, simplify_model, simplify_hw):
    else:
       model_simp, check = simplify(onnx_model, dynamic_input_shape=dynamic_input_shape_, skip_constant_folding=skip_constant_folding_)
 
-   onnx.save(model_simp, model_path)
+   #onnx.save(model_simp, model_path)
 
    return model_simp
 
@@ -676,7 +676,7 @@ def modify_onnx2dynamic(onnx_model, model_path):
    else:
       print('*** The model is modified!')
 
-   onnx.save(onnx_model, model_path)
+   #onnx.save(onnx_model, model_path)
     
 def convert_gap_2_ap(onnxfile):
    model = onnx.load(onnxfile)
@@ -755,10 +755,6 @@ def post_process(onnxfile, inference_success, gap_to_ap):
    while delete == True:
       debug_print = True
       delete, post_process_file = optimization_op(post_process_file)
-
-   delete, post_process_file = eliminate_redundant_reshape(post_process_file)
-   while delete == True:
-      delete, post_process_file = eliminate_redundant_reshape(post_process_file)   
 
    end_time1 = time.time()
 
@@ -934,14 +930,7 @@ def eliminate_unused_input_initializer(model, output):
       for input in model.graph.input:
          print('last input:', input.name)
 
-      #for input in model.graph.input:
-      #   print("xxx got  input name:", input.name)
-
-      #onnx.checker.check_model(model)
-      onnx.save(model, output)
-
-def eliminate_redundant_reshape(onnxfile):
-   model = onnx.load(onnxfile)
+def eliminate_redundant_reshape(model):
    reshape_input = []
    reshape_output = []
 
@@ -1004,12 +993,14 @@ def eliminate_redundant_reshape(onnxfile):
       last_node = True
 
       for node_id, node in enumerate(model.graph.node):
-         if node.input[0] == reshape_output[0]:
-               print('got reshape next node:', node.name)
-               next_node = model.graph.node[node_id]
-               next_node.input[0] = delete_node.input[0]
-               last_node = False
-               break
+         if len(node.input) > 0 and node.input[0] == reshape_output[0]:
+            print('got reshape next node:', node.name)
+            next_node = model.graph.node[node_id]
+            next_node.input[0] = delete_node.input[0]
+            last_node = False
+            break
+         #elif len(node.input) == 0:
+         #   print('Got a constant node:', node.name, ',', node.input, ', ', node.output)   
 
       model.graph.node.remove(delete_node)
 
@@ -1024,10 +1015,9 @@ def eliminate_redundant_reshape(onnxfile):
                   break
 
       ###################
-      #onnx.checker.check_model(model)
-      onnx.save(model, onnxfile)
+      #onnx.save(model, onnxfile)
 
-   return delete, onnxfile
+   return delete
 
 def process(args):
    global support_mish
@@ -1184,7 +1174,7 @@ def process(args):
    else:
       print('### Begin saving model...')
 
-   onnx.save(new_model, output)
+   #onnx.save(new_model, output)
 
    if dynamic_batch == 1:
       print('modify model to dynamic batch...')
@@ -1208,7 +1198,7 @@ def process(args):
    if fp32_to_fp16 == 1:
       print('begin doing fp32-->fp16...')
       new_model = convert_float_to_float16(new_model, keep_io_types=True)
-      onnx.save(new_model, output)
+      #onnx.save(new_model, output)
 
    if model_type == 'onnx' and support_mish == 1:
       new_model = merge_mish(model_path, output)
@@ -1231,14 +1221,19 @@ def process(args):
    if bn_to_conv == 1:
       new_model = bn2conv.bn2conv(new_model, output)      
 
-   eliminate_unused_input_initializer(new_model, output)                 
+   delete = eliminate_redundant_reshape(new_model)
+   while delete == True:
+      delete = eliminate_redundant_reshape(new_model)   
+
+   eliminate_unused_input_initializer(new_model, output)
+
+   onnx.save(new_model, output)                 
 
    end_time3 = time.time()
 
    print('The whole progress cost', end_time3 - begin_time, ' seconds')
 
    logger.info('Convert Success!')
-
 
 def usage():
     print('python model_convert.py --model_path ./my_model --model_type caffe --output ./c2o.onnx')
