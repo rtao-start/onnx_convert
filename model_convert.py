@@ -76,7 +76,7 @@ def parse_args():
 
    parser.add_argument("--model_path",
                         type=str,  required=True,
-                        help="input model folder")
+                        help="input path(model file or folder)")
 
    parser.add_argument("--model_type",
                         type=str,
@@ -86,7 +86,7 @@ def parse_args():
    parser.add_argument("--output",
                         type=str,
                         required=True,
-                        help="output .onnx(ex: output.onnx)")
+                        help="output path(ex: ./output.onnx)")
 
    parser.add_argument("--op_set",
                         type=int, required=False,
@@ -97,33 +97,33 @@ def parse_args():
                         type=int, required=False,
                         choices=[0, 1, 2],
                         default=1,
-                        help="simplify the model")     
+                        help="simplify the model(0:no simplify;1: do simplify; 2:for dynamic model)")     
 
    parser.add_argument("--simplify_hw",
                         type=str, 
                         required=False,
                         default='',
-                        help="simplify h/w(when h/w is -1)")  
+                        help="when h/w is -1, you can simplify h/w as you expected(with --simplify 2)")  
 
    #for pytorch/dynamic_paddle
    parser.add_argument("--input_shape",
                         type=str, 
                         required=False,
                         default='',
-                        help="input shape")
+                        help="input shape(ex: [1,3,224,224] or [1,3,224,224]/[1,3,56,56])")
 
    #######
    parser.add_argument("--inputs",
                         type=str, 
                         required=False,
                         default='',
-                        help="checkpoint/graph/onnx_sub_graph input")
+                        help="when do checkpoint2ONNX/graph2ONNX/onnx_sub_graph input, you should specify inputs(ex: --inputs image:0)")
 
    parser.add_argument("--outputs",
                         type=str, 
                         required=False,
                         default='',
-                        help="checkpoint/graph/onnx_sub_graph output")
+                        help="when do checkpoint2ONNX/graph2ONNX/onnx_sub_graph input, you should specify outputs(ex: --outputs predict:0)")
 
    #for extract sub graph
    parser.add_argument("--extract_sub",
@@ -139,7 +139,7 @@ def parse_args():
                         required=False,
                         default=0,
                         choices=[0, 1],
-                        help="dynamic batch size")
+                        help="you can use \'--dynamic 1\' to convert batch size to -1")
 
    #for fp32-->fp16
    parser.add_argument("--fp32_to_fp16",
@@ -147,66 +147,66 @@ def parse_args():
                         required=False,
                         default=0,
                         choices=[0, 1],
-                        help="fp32-->fp16")
+                        help="convert fp32 to fp16 in the model")
 
    parser.add_argument("--support_mish",
                         type=int, 
                         required=False,
                         default=0,
                         choices=[0, 1],
-                        help="hardware support mish") 
+                        help="if 1, the tool will fuse softplus+Tanh+Mul to MIsh") 
 
    #insert preproc node
    parser.add_argument("--preproc_yaml",
                         type=str, 
                         required=False,
                         default='',
-                        help="preprocess yaml file")
+                        help="if specify preprocess yaml file, the tool will insert preproc node in the beginning of the model")
 
    parser.add_argument("--postproc_yaml",
                         type=str, 
                         required=False,
                         default='',
-                        help="postprocess yaml file")                     
+                        help="if specify postprocess yaml file, the tool will insert preproc node in the endding of the model")                     
 
    #for paddle dynamic model or pytorch
    parser.add_argument("--model_def_file",
                         type=str, 
                         required=False,
                         default='',
-                        help="paddle/pytorch model definition file location")
+                        help="paddle/pytorch model definition file location(ex: --model_def_file ./cnn.py)")
 
    parser.add_argument("--model_weights_file",
                         type=str, 
                         required=False,
                         default='',
-                        help="paddle/pytorch model weights file")                     
+                        help="paddle/pytorch model weights file(ex: --model_weights_file ./0.99667.pth)")                     
 
    parser.add_argument("--model_class_name",
                         type=str, 
                         required=False,
                         default='',
-                        help="paddle/pytorch model calss name")
+                        help="paddle/pytorch model calss name(ex: --model_class_name CNN)")
 
    parser.add_argument("--model_input_type",
                         type=str, 
                         required=False,
                         #choices=['float', 'float32', 'float16', 'uint8', 'int8', 'uint16', 'int16', 'uint32', 'int32', 'uint64', 'int64', 'bool'],
                         default='',
-                        help="paddle/pytorch input type")
+                        help="paddle/pytorch input type(default float, choice is ['float', 'float32', 'float16', 'uint8', 'int8', 'uint16', 'int16', 'uint32', 'int32', 'uint64', 'int64', 'bool'])")
 
    parser.add_argument("--params_file",
                         type=str, 
                         required=False,
                         default='',
-                        help="paddle/pytorch params declaration file location")
+                        help="paddle/pytorch params declaration file location(ex: --params_file ./params.py)")
 
    #for tensorflow 
    parser.add_argument("--inputs_as_nchw",
                         type=str, 
                         required=False,
                         default='',
-                        help="tensorflow nchw")
+                        help="when some input of tensorflow model is nchw, you can use --inputs_as_nchw image:0 to convert to nchw")
 
    #for gap-->ap 
    parser.add_argument("--gap_to_ap",
@@ -214,7 +214,7 @@ def parse_args():
                         required=False,
                         choices=[0, 1],
                         default=0,
-                        help="GlobalAveragePool-->AveragePool") 
+                        help="Convert GlobalAveragePool to AveragePool for hardware acceleration") 
 
    #for pad+pool fuse
    parser.add_argument("--fuse_pad_pool",
@@ -222,7 +222,7 @@ def parse_args():
                         required=False,
                         default=0,
                         choices=[0, 1],
-                        help="fuse pad+pool") 
+                        help="fuse pad into pool") 
 
    #for merge swish
    parser.add_argument("--support_swish",
@@ -230,7 +230,7 @@ def parse_args():
                         required=False,
                         choices=[0, 1],
                         default=0,
-                        help="Sigmoid+Mul-->swish; HardSigmoid+Mul-->HardSwish")   
+                        help="if 1, convert Sigmoid+Mul to swish; HardSigmoid+Mul to HardSwish")   
 
    #for convert BN to GroupConv(1x1)
    parser.add_argument("--bn_to_conv",
@@ -245,7 +245,7 @@ def parse_args():
                         type=int, 
                         required=False,
                         default=1,
-                        help="")                                                                                                               
+                        help="if output num of pytorch/pdaale model > 1, you can specify it by --output_num")                                                                                                               
 
    #for pytorch
    parser.add_argument("--keep_batch",
@@ -254,8 +254,6 @@ def parse_args():
                         required=False,
                         default=0,
                         help="whether keep model batch size(if 0, set it to dynamic(-1))") 
-
-
 
    args = parser.parse_args()
 
