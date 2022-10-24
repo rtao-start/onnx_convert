@@ -1174,7 +1174,7 @@ def process(args):
    else:
       print('### Begin saving model...')
 
-   #onnx.save(new_model, output)
+   onnx.save(new_model, output)
 
    if dynamic_batch == 1:
       print('modify model to dynamic batch...')
