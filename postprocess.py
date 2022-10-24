@@ -79,7 +79,7 @@ def parse_postproc_yaml(yaml_file):
 
     return postproc_dict    
 
-def insert_postproc_node(model, postproc_dict, output):
+def insert_postproc_node(model, postproc_dict):
     graph = model.graph
     output_name = graph.output[0].name
     #input_name = ''
@@ -172,9 +172,9 @@ def insert_postproc_node(model, postproc_dict, output):
     op_set.version = 1
 
     #onnx.checker.check_model(onnx_model)
-    onnx.save(model, output)
+    #onnx.save(model, output)
   
-def postproc(model, output, postproc_yaml):
+def postproc(model, postproc_yaml):
     post_dict = parse_postproc_yaml(postproc_yaml) 
 
     print('---------------------------------')
@@ -183,7 +183,7 @@ def postproc(model, output, postproc_yaml):
         print(k, ':', v)   
 
     if len(post_dict) > 0:
-        insert_postproc_node(model, post_dict, output) 
+        insert_postproc_node(model, post_dict) 
 
     return model       
 '''

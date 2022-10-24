@@ -1,7 +1,7 @@
 import onnx
 import sys
 
-def merge_swish(model, output):
+def merge_swish(model):
     dict_sm = {}
     dict_mul = {}
 
@@ -54,9 +54,9 @@ def merge_swish(model, output):
         op_set.domain = 'com.metax-tech'
         op_set.version = 1
         
-        onnx.save(model, output)
+        #onnx.save(model, output)
 
-def merge_hard_swish(model, output):
+def merge_hard_swish(model):
     dict_sm = {}
     dict_mul = {}
 
@@ -109,11 +109,11 @@ def merge_hard_swish(model, output):
         op_set.domain = 'com.metax-tech'
         op_set.version = 1
         
-        onnx.save(model, output)
+        #onnx.save(model, output)
 
-def merge_swish_and_hard_swish(model, output):
-    merge_swish(model, output)
-    merge_hard_swish(model, output)
+def merge_swish_and_hard_swish(model):
+    merge_swish(model)
+    merge_hard_swish(model)
 
     return model
 

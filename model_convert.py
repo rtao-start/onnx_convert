@@ -490,12 +490,12 @@ def convert(model_path, model_type, output, op_set, input_shape_list, inputs, ou
    if model_type == 'paddle':
       convert_pd2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, model_input_type, model_weights_file)              
 
-def optimization_op(onnxfile):
-   model = onnx.load(onnxfile)
+def optimization_op(model):
+   #model = onnx.load(onnxfile)
 
    delete_node_id = 0
    delete = False
-   export_onnx = onnxfile
+   #export_onnx = onnxfile
 
    for node_id, node in enumerate(model.graph.node):
       #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
@@ -534,12 +534,12 @@ def optimization_op(onnxfile):
 
       ###################
       #onnx.checker.check_model(model)
-      onnx.save(model, export_onnx)
+      #onnx.save(model, export_onnx)
 
-   return delete, export_onnx
+   return delete
 
-def model_simplify(model_path, simplify_model, simplify_hw):
-   onnx_model = onnx.load(model_path)
+def model_simplify(onnx_model, simplify_model, simplify_hw):
+   #onnx_model = onnx.load(model_path)
    dynamic_input_shape_ = False
 
    init_list = []
@@ -601,7 +601,7 @@ def model_simplify(model_path, simplify_model, simplify_hw):
 
    return model_simp
 
-def modify_onnx2dynamic(onnx_model, model_path):
+def modify_onnx2dynamic(onnx_model):
    for idx in range(len(onnx_model.graph.input)):
       if len(onnx_model.graph.input[idx].type.tensor_type.shape.dim) > 0:
          dim_proto_input = onnx_model.graph.input[idx].type.tensor_type.shape.dim[0]
@@ -678,8 +678,8 @@ def modify_onnx2dynamic(onnx_model, model_path):
 
    #onnx.save(onnx_model, model_path)
     
-def convert_gap_2_ap(onnxfile):
-   model = onnx.load(onnxfile)
+def convert_gap_2_ap(model):
+   #model = onnx.load(onnxfile)
 
    node_list = []
 
@@ -742,19 +742,19 @@ def convert_gap_2_ap(onnxfile):
          else:
             print('+++ Begin saving model...')
 
-         onnx.save(model, onnxfile)
+         #onnx.save(model, onnxfile)
 
    return need_convert      
 
-def post_process(onnxfile, inference_success, gap_to_ap):
+def post_process(new_model, inference_success, gap_to_ap):
    start_time = time.time()
 
    debug_print = False
 
-   delete, post_process_file = optimization_op(onnxfile)
+   delete = optimization_op(new_model)
    while delete == True:
       debug_print = True
-      delete, post_process_file = optimization_op(post_process_file)
+      delete = optimization_op(new_model)
 
    end_time1 = time.time()
 
@@ -765,7 +765,7 @@ def post_process(onnxfile, inference_success, gap_to_ap):
 
    if gap_to_ap == 1:
       if inference_success == True:
-         debug_print = convert_gap_2_ap(post_process_file)
+         debug_print = convert_gap_2_ap(new_model)
       else:
          print('Cannot do inference, so skip global_average_pool-->average_pool')    
 
@@ -889,7 +889,7 @@ def add_value_info_for_constants(model : onnx.ModelProto):
 
    return add_const_value_infos_to_graph(model.graph)
 
-def eliminate_unused_input_initializer(model, output):
+def eliminate_unused_input_initializer(model):
    init_list = []
    for init in model.graph.initializer:
       #print("init name:", init.name)
@@ -1174,26 +1174,26 @@ def process(args):
    else:
       print('### Begin saving model...')
 
-   onnx.save(new_model, output)
+   #onnx.save(new_model, output)
 
    if dynamic_batch == 1:
       print('modify model to dynamic batch...')
-      modify_onnx2dynamic(new_model, output)
+      modify_onnx2dynamic(new_model)
 
    end_time2 = time.time()
 
    print('generate inference shape model, it cost', end_time2 - end_time1, ' seconds')
 
-   post_process(output, inference_success, gap_to_ap)
-   new_model = onnx.load(output)
+   post_process(new_model, inference_success, gap_to_ap)
+   #new_model = onnx.load(output)
 
    if simplify_model == 1 or simplify_model == 2:
       print('begin doing simplify...')
-      new_model = model_simplify(output, simplify_model, simplify_hw)
+      new_model = model_simplify(new_model, simplify_model, simplify_hw)
 
    if fuse_pad_pool == 1:
       print('begin doing fuse_pad_to_pool...')
-      new_model = fuse.fuse_pad_to_pool(new_model, output)   
+      new_model = fuse.fuse_pad_to_pool(new_model)   
 
    if fp32_to_fp16 == 1:
       print('begin doing fp32-->fp16...')
@@ -1201,31 +1201,31 @@ def process(args):
       #onnx.save(new_model, output)
 
    if model_type == 'onnx' and support_mish == 1:
-      new_model = merge_mish(model_path, output)
+      new_model = merge_mish(model_path)
 
    if model_type == 'onnx' and support_swish == 1:
-      new_model = merge_swish_and_hard_swish(new_model, output)   
+      new_model = merge_swish_and_hard_swish(new_model)   
 
    if model_type == 'onnx' and preproc_yaml != '':
       if os.path.exists(preproc_yaml):
-         new_model = preproc(new_model, output, preproc_yaml)
+         new_model = preproc(new_model, preproc_yaml)
       else:
          print(preproc_yaml, 'is not exist')    
 
    if model_type == 'onnx' and postproc_yaml != '':
       if os.path.exists(postproc_yaml):
-         new_model = postproc(new_model, output, postproc_yaml)
+         new_model = postproc(new_model, postproc_yaml)
       else:
          print(postproc_yaml, 'is not exist')
 
    if bn_to_conv == 1:
-      new_model = bn2conv.bn2conv(new_model, output)      
+      new_model = bn2conv.bn2conv(new_model)      
 
    delete = eliminate_redundant_reshape(new_model)
    while delete == True:
       delete = eliminate_redundant_reshape(new_model)   
 
-   eliminate_unused_input_initializer(new_model, output)
+   eliminate_unused_input_initializer(new_model)
 
    onnx.save(new_model, output)                 
 

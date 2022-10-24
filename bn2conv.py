@@ -2,7 +2,7 @@ import onnx
 import values
 import numpy as np
 
-def bn2conv(model, output):
+def bn2conv(model):
     for node in model.graph.node:
         if node.op_type == 'BatchNormalization':
             input_type = onnx.TensorProto.FLOAT
@@ -122,7 +122,7 @@ def bn2conv(model, output):
             node.input.append(w_var_name) 
             node.input.append(b_var_name) 
 
-    onnx.save(model, output)  
+    #onnx.save(model)  
 
     return model
 

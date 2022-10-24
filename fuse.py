@@ -2,7 +2,7 @@ import onnx
 import correct_batch
 import numpy as np
 
-def fuse_pad_to_pool(model, output):
+def fuse_pad_to_pool(model):
     dict_pad = {}
     dict_pool = {}
     dict_mul = {}
@@ -67,6 +67,6 @@ def fuse_pad_to_pool(model, output):
 
     if got_pad_pool == True:
         print('got pad+pool node------------')
-        onnx.save(model, output)
+        #onnx.save(model, output)
 
     return model    

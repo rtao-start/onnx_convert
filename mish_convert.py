@@ -80,7 +80,7 @@ def merge_mish_old(onnxfile, export_onnx):
 
     return got_mish
         
-def merge_mish(onnxfile, export_onnx):
+def merge_mish(onnxfile):
     model = onnx.load(onnxfile)
 
     dict_sp = {}
@@ -164,7 +164,7 @@ def merge_mish(onnxfile, export_onnx):
         op_set.domain = 'com.metax-tech'
         op_set.version = 1
         
-        onnx.save(model, export_onnx)
+        #onnx.save(model, export_onnx)
 
     return model
 

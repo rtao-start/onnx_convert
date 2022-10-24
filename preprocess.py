@@ -111,7 +111,7 @@ def parse_yaml(yaml_file):
 
     return preproc_dict    
 
-def insert_preproc_node(model, preproc_dict, output):
+def insert_preproc_node(model, preproc_dict):
     graph = model.graph
     input_name = graph.input[0].name
 
@@ -212,9 +212,9 @@ def insert_preproc_node(model, preproc_dict, output):
     op_set.version = 1
 
     #onnx.checker.check_model(onnx_model)
-    onnx.save(model, output)
+    #onnx.save(model, output)
   
-def preproc(model, output, preproc_yaml):
+def preproc(model, preproc_yaml):
     preproc_dict = parse_yaml(preproc_yaml) 
 
     print('---------------------------------')
@@ -223,6 +223,6 @@ def preproc(model, output, preproc_yaml):
         print(k, ':', v)   
 
     if len(preproc_dict) > 0:
-        insert_preproc_node(model, preproc_dict, output)
+        insert_preproc_node(model, preproc_dict)
 
     return model        
