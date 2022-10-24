@@ -46,6 +46,27 @@ valid_model_type = ['caffe', 'pytorch', 'tf-h5', 'tf-ckpt', 'tf-sm', 'tf-graph',
 
 optimization_op_list = ['Max', 'Min', 'Sum', 'Mean']
 
+############ Error Code Define #################
+exit_code_normal = 0
+exit_code_no_caffe_cfg_file = -1
+exit_code_sm2onnx = -2
+exit_code_h52onnx = -3
+exit_code_ckpt2onnx = -4
+exit_code_pb2onnx = -5
+exit_code_no_darknet_cfg_or_weights = -6
+exit_code_convert_darknet2onnx = -7
+exit_code_fuse_mish = -8
+exit_code_check_optimization_op = -9
+exit_code_check_modify_onnx2dynamic = -10
+exit_code_check_convert_gap_2_ap = -11
+exit_code_model_not_exist = -12
+exit_code_invalid_model_type = -13
+exit_code_pytorch_no_input_shape = -14
+exit_code_tensorflow_no_inputs_or_outputs = -15
+exit_code_extract_sub_no_inputs_or_outputs = -16
+exit_code_model_type_not_onnx = -17
+#########################################################
+
 def set_using_wheel():
    global using_wheel
    using_wheel = True
@@ -279,7 +300,8 @@ def convert_caffe2onnx(model_path, output, op_set):
       prototxt_file, caffemodel_file = get_caffe_files(model_path)
 
       if prototxt_file == '' or caffemodel_file == '':
-         sys.exit()
+         print('ERROR: cannot convert caffe to onnx, because no .prototxt or .caffemodel file')
+         sys.exit(exit_code_no_caffe_cfg_file)
 
       onnxmodel_path = output
 
@@ -302,8 +324,8 @@ def convert_sm2onnx(model_path, output, op_set):
       print('convert_tfsm2onnx: ', cmd)
       r = os.system(cmd)
       if r != 0:
-         print('convert_sm2onnx failed')
-         sys.exit()
+         print('ERROR: convert_sm2onnx failed')
+         sys.exit(exit_code_sm2onnx)
 
 def convert_h52onnx(model_path, output, op_set):
       print('Begin converting tf-savemodel to onnx...')
@@ -318,8 +340,8 @@ def convert_h52onnx(model_path, output, op_set):
       print('convert_tfh52onnx: ', cmd)
       r = os.system(cmd)
       if r != 0:
-         print('convert_h52onnx failed')
-         sys.exit()     
+         print('ERROR: convert_h52onnx failed')
+         sys.exit(exit_code_h52onnx)     
 
 def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
       print('Begin converting tf-ckpt to onnx...')
@@ -337,8 +359,8 @@ def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
 
       r = os.system(cmd)
       if r != 0:
-         print('convert_ckpt2onnx failed')
-         sys.exit()   
+         print('ERROR: convert_ckpt2onnx failed')
+         sys.exit(exit_code_ckpt2onnx)   
 
 def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
       print('Begin converting tf-graph to onnx...')
@@ -356,8 +378,8 @@ def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
       
       r = os.system(cmd)
       if r != 0:
-         print('convert_graph2onnx failed')
-         sys.exit()         
+         print('ERROR: convert_graph2onnx failed')
+         sys.exit(exit_code_pb2onnx)         
 
 def get_darknet_files(model_path):
    items = os.listdir(model_path)
@@ -416,7 +438,8 @@ def convert_dn2onnx(model_path, output, op_set):
    print('Begin converting darknet to onnx...... support_mish:', support_mish)
    cfg_file, weights_file = get_darknet_files(model_path)
    if cfg_file == '' or weights_file == '':
-      sys.exit()
+      print('ERROR: no .cfg or .wiights file')
+      sys.exit(exit_code_no_darknet_cfg_or_weights)
 
    if using_wheel == False:
       cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --output_file ' + output + ' --support_mish ' + str(support_mish)
@@ -437,8 +460,8 @@ def convert_dn2onnx(model_path, output, op_set):
 
    r = os.system(cmd)
    if r != 0:
-      print('convert_dn2onnx failed')
-      sys.exit() 
+      print('ERROR: convert_dn2onnx failed')
+      sys.exit(exit_code_convert_darknet2onnx) 
 
 def convert_mish(model_path, output, op_set):
    global support_mish
@@ -452,8 +475,8 @@ def convert_mish(model_path, output, op_set):
    print('convert_mish: ', cmd)
    r = os.system(cmd)
    if r != 0:
-      print('convert_mish failed')
-      sys.exit()      
+      print('ERROR: convert_mish failed')
+      sys.exit(exit_code_fuse_mish)      
 
 def convert(model_path, model_type, output, op_set, input_shape_list, inputs, outputs, 
                model_def_file,
@@ -528,7 +551,8 @@ def optimization_op(model):
          if 'No Op registered for Mish' in str(e):
                print('ignore mish warning, continue saving~')
          else:
-               sys.exit()    
+               print('ERROR: check model failed')
+               sys.exit(exit_code_check_optimization_op)    
       else:
          print('---Begin saving model...')
 
@@ -672,7 +696,8 @@ def modify_onnx2dynamic(onnx_model):
       if 'No Op registered for Mish' in str(e):
          print('ignore mish warning, continue saving~')
       else:
-         sys.exit()    
+         print('ERROR: check model failed in modify_onnx2dynamic')
+         sys.exit(exit_code_check_modify_onnx2dynamic)    
    else:
       print('*** The model is modified!')
 
@@ -738,7 +763,8 @@ def convert_gap_2_ap(model):
             if 'No Op registered for Mish' in str(e):
                   print('ignore mish warning, continue saving~')
             else:
-                  sys.exit()    
+                  print('ERROR: check model failed in convert_gap_2_ap')
+                  sys.exit(exit_code_check_convert_gap_2_ap)    
          else:
             print('+++ Begin saving model...')
 
@@ -1077,12 +1103,12 @@ def process(args):
 
    if dynamic_paddle == False and can_ignore_model_path == False and not os.path.exists(model_path):
       print('ERROR: {} is not exist'.format(model_path))
-      sys.exit()
+      sys.exit(exit_code_model_not_exist)
 
    if model_type not in valid_model_type:
+      print('Valid mode type is {}'.format(valid_model_type))
       print('ERROR: {} is not valid mode type'.format(model_type))
-      print('valid mode type is {}'.format(valid_model_type))
-      sys.exit()
+      sys.exit(exit_code_invalid_model_type)
 
    op_set_default = 11
 
@@ -1090,28 +1116,28 @@ def process(args):
       op_set_default = op_set
 
    if model_type == 'pytorch' and args.input_shape == '':
-      print('When converting pytorch model, you must tell the input shape(ex: --input_shape [1, 3, 32, 32])')
-      print('Also, you should provide model definition file')
-      sys.exit()
+      print('WARNNIG: when converting pytorch model, you must tell the input shape(ex: --input_shape [1, 3, 32, 32])')
+      print('WARNNIG: also, you should provide model definition file')
+      sys.exit(exit_code_pytorch_no_input_shape)
 
    if (model_type == 'tf-ckpt' or model_type == 'tf-graph') and (args.inputs == '' or args.outputs == ''):
-      print('When converting checkpoint/graph, you must tell the inputs(ex: --inputs input0:0,input1:0) and outputs(ex: --outputs output0:0)')
-      sys.exit()
+      print('WARNNIG: When converting checkpoint/graph, you must tell the inputs(ex: --inputs input0:0,input1:0) and outputs(ex: --outputs output0:0)')
+      sys.exit(exit_code_tensorflow_no_inputs_or_outputs)
 
    if extract_sub == 1:
       if args.inputs == '' or args.outputs == '':
-         print('When extract sub graph, you must tell the inputs(ex: --inputs input0:0,input1:0) and outputs(ex: --outputs output0:0)')
-         sys.exit()
+         print('WARNNIG: When extract sub graph, you must tell the inputs(ex: --inputs input0:0,input1:0) and outputs(ex: --outputs output0:0)')
+         sys.exit(exit_code_extract_sub_no_inputs_or_outputs)
 
       if model_type != 'onnx':
          print('WARNNING: only onnx model supports extracting...')
-         sys.exit()
+         sys.exit(exit_code_model_type_not_onnx)
 
       r = extract_sub_graph(model_path, output, inputs, outputs)
       if r == True:
          logger.info('Convert Success!')
          
-      sys.exit()                
+      sys.exit(exit_code_normal)                
 
    print('begin convert..')
 
