@@ -91,7 +91,8 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
     input_shape_list_int = []
 
     for input_shape in input_shape_list_:
-        shape = [int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3])]
+        #shape = [int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3])]
+        shape = [int(s) for s in input_shape]
         input_shape_list_int.append(shape)
 
     print('got input_shape_list_int:', input_shape_list_int)
@@ -237,7 +238,8 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
     input_shape_list_int = []
 
     for input_shape in input_shape_list_:
-        shape = [int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3])]
+        #shape = [int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3])]
+        shape = [int(s) for s in input_shape]
         input_shape_list_int.append(shape)
 
     print('convert_pt_state_dict_2_onnx, got input_shape_list_int:', input_shape_list_int)
@@ -278,7 +280,7 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
         for output_name in output_name_list:
             dynamic_axes_dict[output_name] = {0:'-1'}
 
-    in_shape=[int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3])]
+    #in_shape=[int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3])]
     out=output.split('.onnx')[-2]
     #print('out is ', out)
 

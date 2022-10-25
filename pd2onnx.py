@@ -80,7 +80,8 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
     input_shape_list_int = []
 
     for input_shape in input_shape_list_:
-        shape = [int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3])]
+        #shape = [int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3])]
+        shape = [int(s) for s in input_shape]
         input_shape_list_int.append(shape)
 
     print('convert_pddynamic2onnx, got input_shape_list_int:', input_shape_list_int)
