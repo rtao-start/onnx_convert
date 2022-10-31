@@ -66,6 +66,11 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
                            model_def_file, model_class_name, model_input_type, model_weights_file):
     print('Begin converting dynamin paddle to onnx...')
     
+    if model_def_file != '':
+        index = model_def_file.rindex('/')
+        dir_path = model_def_file[:index]
+        sys.path.append(dir_path)
+
     input_shape_list_ = []
     
     for input_shape in input_shape_list:
