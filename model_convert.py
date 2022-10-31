@@ -72,58 +72,58 @@ def set_using_wheel():
    using_wheel = True
 
 def parse_args():
-   parser = argparse.ArgumentParser(description='Convert xxx model to ONNX.')
+   parser = argparse.ArgumentParser(description='Convert caffe/tensorflow/torch/paddle/darknet model to ONNX.')
 
    parser.add_argument("--model_path",
                         type=str,  required=True,
-                        help="input path(model file or folder)")
+                        help="Input path(model file or folder)")
 
    parser.add_argument("--model_type",
                         type=str,
                         required=True,
-                        help="input model type(ex: caffe/pytorch/tf-h5)")
+                        help="Input model type(ex: caffe/pytorch/tf-h5/...)")
 
    parser.add_argument("--output",
                         type=str,
                         required=True,
-                        help="output path(ex: ./output.onnx)")
+                        help="Output path(ex: ./output.onnx)")
 
    parser.add_argument("--op_set",
                         type=int, required=False,
-                        help="op_set version(default: 11)")
+                        help="Set op_set version(default: 11)")
 
    #for simplify
    parser.add_argument("--simplify",
                         type=int, required=False,
                         choices=[0, 1, 2],
                         default=1,
-                        help="simplify the model(0:no simplify;1: do simplify; 2:for dynamic model)")     
+                        help="Simplify the model(0:no simplify;1: do simplify; 2:for dynamic model)")     
 
    parser.add_argument("--simplify_hw",
                         type=str, 
                         required=False,
                         default='',
-                        help="when h/w is -1, you can simplify h/w as you expected(with --simplify 2)")  
+                        help="When h/w is -1, you can specify h/w as you expected(with --simplify 2)")  
 
    #for pytorch/dynamic_paddle
    parser.add_argument("--input_shape",
                         type=str, 
                         required=False,
                         default='',
-                        help="input shape(ex: [1,3,224,224] or [1,3,224,224]/[1,3,56,56])")
+                        help="Input shape for pytorch/paddle(ex: [1,3,224,224] or [1,3,224,224]/[1,3,56,56])")
 
    #######
    parser.add_argument("--inputs",
                         type=str, 
                         required=False,
                         default='',
-                        help="when do checkpoint2ONNX/graph2ONNX/onnx_sub_graph input, you should specify inputs(ex: --inputs image:0)")
+                        help="When do checkpoint2ONNX/graph2ONNX/onnx_sub_graph input, you should specify inputs(ex: --inputs image:0)")
 
    parser.add_argument("--outputs",
                         type=str, 
                         required=False,
                         default='',
-                        help="when do checkpoint2ONNX/graph2ONNX/onnx_sub_graph input, you should specify outputs(ex: --outputs predict:0)")
+                        help="When do checkpoint2ONNX/graph2ONNX/onnx_sub_graph input, you should specify outputs(ex: --outputs predict:0)")
 
    #for extract sub graph
    parser.add_argument("--extract_sub",
@@ -131,7 +131,7 @@ def parse_args():
                         required=False,
                         choices=[0, 1],
                         default=0,
-                        help="extract sub graph") 
+                        help="If set 1, the tool will extract sub graph by specify inputs/outputs") 
 
    #for dynamic batch size
    parser.add_argument("--dynamic_batch",
@@ -139,7 +139,7 @@ def parse_args():
                         required=False,
                         default=0,
                         choices=[0, 1],
-                        help="you can use \'--dynamic 1\' to convert batch size to -1")
+                        help="If set 1, the tool will convert batch size to -1")
 
    #for fp32-->fp16
    parser.add_argument("--fp32_to_fp16",
@@ -147,14 +147,14 @@ def parse_args():
                         required=False,
                         default=0,
                         choices=[0, 1],
-                        help="convert fp32 to fp16 in the model")
+                        help="If set 1, the tool will convert fp32 to fp16 in the model")
 
    parser.add_argument("--support_mish",
                         type=int, 
                         required=False,
                         default=0,
                         choices=[0, 1],
-                        help="if 1, the tool will fuse softplus+Tanh+Mul to MIsh") 
+                        help="If set 1, the tool will fuse softplus+Tanh+Mul to MIsh") 
 
    #insert preproc node
    parser.add_argument("--preproc_yaml",
@@ -174,39 +174,39 @@ def parse_args():
                         type=str, 
                         required=False,
                         default='',
-                        help="paddle/pytorch model definition file location(ex: --model_def_file ./cnn.py)")
+                        help="Paddle/pytorch model definition file location(ex: --model_def_file ./cnn.py)")
 
    parser.add_argument("--model_weights_file",
                         type=str, 
                         required=False,
                         default='',
-                        help="paddle/pytorch model weights file(ex: --model_weights_file ./0.99667.pth)")                     
+                        help="Paddle/pytorch model weights file location(ex: --model_weights_file ./0.99667.pth)")                     
 
    parser.add_argument("--model_class_name",
                         type=str, 
                         required=False,
                         default='',
-                        help="paddle/pytorch model calss name(ex: --model_class_name CNN)")
+                        help="Paddle/pytorch model calss name(ex: --model_class_name CNN)")
 
    parser.add_argument("--model_input_type",
                         type=str, 
                         required=False,
                         #choices=['float', 'float32', 'float16', 'uint8', 'int8', 'uint16', 'int16', 'uint32', 'int32', 'uint64', 'int64', 'bool'],
                         default='',
-                        help="paddle/pytorch input type(default float, choice is ['float', 'float32', 'float16', 'uint8', 'int8', 'uint16', 'int16', 'uint32', 'int32', 'uint64', 'int64', 'bool'])")
+                        help="Paddle/pytorch input type(default float, choice is ['float', 'float32', 'float16', 'uint8', 'int8', 'uint16', 'int16', 'uint32', 'int32', 'uint64', 'int64', 'bool'])")
 
    parser.add_argument("--params_file",
                         type=str, 
                         required=False,
                         default='',
-                        help="paddle/pytorch params declaration file location(ex: --params_file ./params.py)")
+                        help="Paddle/pytorch params declaration file location(ex: --params_file ./params.py)")
 
    #for tensorflow 
    parser.add_argument("--inputs_as_nchw",
                         type=str, 
                         required=False,
                         default='',
-                        help="when some input of tensorflow model is nchw, you can use --inputs_as_nchw image:0 to convert to nchw")
+                        help="When some input of tensorflow model is nchw, you can use it(ex: --inputs_as_nchw image:0) to convert to nchw")
 
    #for gap-->ap 
    parser.add_argument("--gap_to_ap",
@@ -214,7 +214,7 @@ def parse_args():
                         required=False,
                         choices=[0, 1],
                         default=0,
-                        help="Convert GlobalAveragePool to AveragePool for hardware acceleration") 
+                        help="If set 1, the tool will convert GlobalAveragePool to AveragePool for hardware acceleration") 
 
    #for pad+pool fuse
    parser.add_argument("--fuse_pad_pool",
@@ -222,7 +222,7 @@ def parse_args():
                         required=False,
                         default=0,
                         choices=[0, 1],
-                        help="fuse pad into pool") 
+                        help="If set 1, the tool will fuse pad into pool") 
 
    #for merge swish
    parser.add_argument("--support_swish",
@@ -230,7 +230,7 @@ def parse_args():
                         required=False,
                         choices=[0, 1],
                         default=0,
-                        help="if 1, convert Sigmoid+Mul to swish; HardSigmoid+Mul to HardSwish")   
+                        help="If set 1, the tool will convert Sigmoid+Mul to swish; HardSigmoid+Mul to HardSwish")   
 
    #for convert BN to GroupConv(1x1)
    parser.add_argument("--bn_to_conv",
@@ -238,14 +238,14 @@ def parse_args():
                         required=False,
                         choices=[0, 1],
                         default=0,
-                        help="convert bn to group 1x1_conv")          
+                        help="If set 1, the tool will convert bn to group 1x1_conv")          
 
    #for pytorch/pdaale
    parser.add_argument("--output_num",
                         type=int, 
                         required=False,
                         default=1,
-                        help="if output num of pytorch/pdaale model > 1, you can specify it by --output_num")                                                                                                               
+                        help="If output num of pytorch/pdaale model > 1, you can specify it by --output_num")                                                                                                               
 
    #for pytorch
    parser.add_argument("--keep_batch",
@@ -253,7 +253,7 @@ def parse_args():
                         choices=[0, 1],
                         required=False,
                         default=0,
-                        help="whether keep model batch size(if 0, set it to dynamic(-1))") 
+                        help="For pytorch/paddle, if set 1, the tool will keep model batch size(if 0, set it to dynamic(-1))") 
 
    args = parser.parse_args()
 
