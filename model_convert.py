@@ -298,7 +298,6 @@ def convert_caffe2onnx(model_path, output, op_set):
       prototxt_file, caffemodel_file = get_caffe_files(model_path)
 
       if prototxt_file == '' or caffemodel_file == '':
-         print('ERROR: cannot convert caffe to onnx, because no .prototxt or .caffemodel file')
          sys.exit(exit_code_no_caffe_cfg_file)
 
       onnxmodel_path = output
@@ -436,7 +435,6 @@ def convert_dn2onnx(model_path, output, op_set):
    print('Begin converting darknet to onnx...... support_mish:', support_mish)
    cfg_file, weights_file = get_darknet_files(model_path)
    if cfg_file == '' or weights_file == '':
-      print('ERROR: no .cfg or .wiights file')
       sys.exit(exit_code_no_darknet_cfg_or_weights)
 
    if using_wheel == False:
