@@ -240,12 +240,12 @@ def parse_args():
                         default=0,
                         help="If set 1, the tool will convert bn to group 1x1_conv")          
 
-   #for pytorch/pdaale
+   #for pytorch/paddle
    parser.add_argument("--output_num",
                         type=int, 
                         required=False,
                         default=1,
-                        help="If output num of pytorch/pdaale model > 1, you can specify it by --output_num")                                                                                                               
+                        help="If output num of pytorch/paddle model > 1, you can specify it by --output_num")                                                                                                               
 
    #for pytorch
    parser.add_argument("--keep_batch",
