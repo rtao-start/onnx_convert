@@ -871,6 +871,7 @@ def add_value_info_for_constants(model : onnx.ModelProto):
    def add_const_value_infos_to_graph(graph : onnx.GraphProto):
       inputs = {i.name for i in graph.input}
       in_ = {i.name: i for i in graph.input}
+      
       for init in graph.initializer:
          # Check it really is a constant, not an input
          if init.name in inputs:

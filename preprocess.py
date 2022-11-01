@@ -127,12 +127,28 @@ def insert_preproc_node(model, preproc_dict):
     if w == -1:
         w = graph.input[0].type.tensor_type.shape.dim[3].dim_value    
 
-    const_mean = onnx.helper.make_tensor(name='const_mean',
-                            data_type=onnx.TensorProto.UINT8,
-                            dims=[len(preproc_dict['mean'])],
-                            vals=preproc_dict['mean'])
+    print('type(preproc_dict[mean])', type(preproc_dict['mean']))
 
-    graph.initializer.append(const_mean) 
+    const_mean_r = onnx.helper.make_tensor(name='const_mean_r',
+                            data_type=onnx.TensorProto.UINT8,
+                            dims=[1],
+                            vals=[preproc_dict['mean'][0]])
+
+    graph.initializer.append(const_mean_r) 
+
+    const_mean_g = onnx.helper.make_tensor(name='const_mean_g',
+                            data_type=onnx.TensorProto.UINT8,
+                            dims=[1],
+                            vals=[preproc_dict['mean'][1]])
+
+    graph.initializer.append(const_mean_g) 
+
+    const_mean_b = onnx.helper.make_tensor(name='const_mean_b',
+                            data_type=onnx.TensorProto.UINT8,
+                            dims=[1],
+                            vals=[preproc_dict['mean'][2]])
+
+    graph.initializer.append(const_mean_b) 
 
     print('preproc_dict[std]:', preproc_dict['std'])
     std_list = []
@@ -140,13 +156,29 @@ def insert_preproc_node(model, preproc_dict):
         print('std:', v)
         std_list.append(v)                        
 
-    const_std = onnx.helper.make_tensor(name='const_std',
+    const_std_r = onnx.helper.make_tensor(name='const_std_r',
                         data_type=onnx.TensorProto.FLOAT,
-                        dims=[len(preproc_dict['std'])],
-                        vals=std_list)
+                        dims=[1],
+                        vals=[std_list[0]])
                         #vals=preproc_dict['std'])
 
-    graph.initializer.append(const_std)   
+    graph.initializer.append(const_std_r)   
+
+    const_std_g = onnx.helper.make_tensor(name='const_std_g',
+                        data_type=onnx.TensorProto.FLOAT,
+                        dims=[1],
+                        vals=[std_list[1]])
+                        #vals=preproc_dict['std'])
+
+    graph.initializer.append(const_std_g)   
+
+    const_std_b = onnx.helper.make_tensor(name='const_std_b',
+                        data_type=onnx.TensorProto.FLOAT,
+                        dims=[1],
+                        vals=[std_list[2]])
+                        #vals=preproc_dict['std'])
+
+    graph.initializer.append(const_std_b)   
 
     const_resize = onnx.helper.make_tensor(name='const_resize',
                         data_type=onnx.TensorProto.INT32,
@@ -175,7 +207,7 @@ def insert_preproc_node(model, preproc_dict):
     pre_process_node = onnx.helper.make_node(
                     'PreProc',
                     name='preprocess',
-                    inputs=[input_name, 'const_std', 'const_mean', 'const_resize','const_crop', 'const_control'],
+                    inputs=[input_name, 'const_std_r', 'const_std_g', 'const_std_b', 'const_mean_r', 'const_mean_g','const_mean_b','const_resize','const_crop', 'const_control'],
                     outputs=['pre_process_output'],
                     domain='com.metax-tech')
 
