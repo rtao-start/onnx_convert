@@ -17,6 +17,7 @@ import fuse
 from swish_convert import merge_swish_and_hard_swish
 from mish_convert import merge_mish
 import bn2conv
+import values
 
 from caffe2onnx.src.load_save_model import loadcaffemodel, saveonnxmodel
 from caffe2onnx.src.caffe2onnx import Caffe2Onnx
@@ -161,13 +162,13 @@ def parse_args():
                         type=str, 
                         required=False,
                         default='',
-                        help="if specify preprocess yaml file, the tool will insert preproc node in the beginning of the model")
+                        help="If specify preprocess yaml file, the tool will insert preproc node in the beginning of the model")
 
    parser.add_argument("--postproc_yaml",
                         type=str, 
                         required=False,
                         default='',
-                        help="if specify postprocess yaml file, the tool will insert preproc node in the endding of the model")                     
+                        help="If specify postprocess yaml file, the tool will insert preproc node in the endding of the model")                     
 
    #for paddle dynamic model or pytorch
    parser.add_argument("--model_def_file",
@@ -628,10 +629,9 @@ def modify_onnx2dynamic(onnx_model):
          # dim_proto_input.dim_param = 'bs'
          dim_proto_input.dim_value = -1
 
-
    for idx in range(len(onnx_model.graph.value_info)):
-      print('ZZZZ name:', onnx_model.graph.value_info[idx].name)
       if len(onnx_model.graph.value_info[idx].type.tensor_type.shape.dim) > 0:
+         print('value info name:', onnx_model.graph.value_info[idx].name)
          dim_proto_input = onnx_model.graph.value_info[idx].type.tensor_type.shape.dim[0]
          # dim_proto_input.dim_param = 'bs'
          dim_proto_input.dim_value = -1   
@@ -654,6 +654,7 @@ def modify_onnx2dynamic(onnx_model):
 
    for n in reshape_param:
       for init in onnx_model.graph.initializer:
+         print('loop init.name:', init.name)
          if n == init.name:
             print('got it in initializer:', n, init.int64_data)
             #init.int64_data[0] = -1
@@ -684,6 +685,20 @@ def modify_onnx2dynamic(onnx_model):
                if len(data_list) > 0 and data_list[0] != -1:
                      data_list[0] = -1
 
+############# for constant node
+   for n in reshape_param:
+      for node in onnx_model.graph.node:
+         if node.op_type == 'Constant':
+            if node.output[0] == n:
+               print('got constant output:', node.output)
+               attributes = node.attribute
+               for attr in attributes:
+                     if attr.name == 'value':
+                        v = values.get_tensor_value(attr.t)
+                        v[0] = -1 
+                        values.set_tensor_value(attr.t, v)   
+########################
+
    #onnx_model = onnx.shape_inference.infer_shapes(onnx_model)                  
    try:
       onnx.checker.check_model(onnx_model)
@@ -697,7 +712,9 @@ def modify_onnx2dynamic(onnx_model):
    else:
       print('*** The model is modified!')
 
-   #onnx.save(onnx_model, model_path)
+   #onnx.save(onnx_model, './111.onnx')
+   #sys.exit()
+   return onnx_model
     
 def convert_gap_2_ap(model):
    #model = onnx.load(onnxfile)
@@ -1201,7 +1218,7 @@ def process(args):
 
    if dynamic_batch == 1:
       print('modify model to dynamic batch...')
-      modify_onnx2dynamic(new_model)
+      new_model = modify_onnx2dynamic(new_model)
 
    end_time2 = time.time()
 
