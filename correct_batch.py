@@ -83,8 +83,8 @@ def correct_batch_for_opset_convert(model):
         if model.graph.value_info[idx].name not in init_list:
             if len(model.graph.value_info[idx].type.tensor_type.shape.dim) > 0:
                 dim_proto_input = model.graph.value_info[idx].type.tensor_type.shape.dim[0]
-                if dim_proto_input.dim_value != input_batch and input_batch <= 0:
-                    print('$$$', dim_proto_input.dim_value, input_batch)
+                if dim_proto_input.dim_value != input_batch:
+                    #print('$$$', dim_proto_input.dim_value, input_batch)
                     dim_proto_input.dim_value = input_batch
                     #print('---name:', model.graph.value_info[idx].name)
 
@@ -103,7 +103,7 @@ def correct_batch_for_opset_convert(model):
                     np_dtype = convert_ort_type_2_np(dtype)
                     if init.raw_data:
                         params_list = np.fromstring(init.raw_data, dtype=np_dtype)
-                        if params_list[0] != input_batch and input_batch == -1:
+                        if params_list[0] != input_batch:
                             print('correct reshape batch:', params_list[0], input_batch)
                             params_list[0] = input_batch
                             init.raw_data = params_list.tostring()
@@ -113,7 +113,7 @@ def correct_batch_for_opset_convert(model):
                         #break
                         data_list = get_data_list(dtype, init)
                         #print('#####', data_list[0], input_batch)
-                        if len(data_list) > 0 and data_list[0] != input_batch and input_batch == -1:
+                        if len(data_list) > 0 and data_list[0] != input_batch:
                             print('--correct reshape batch:', data_list[0], input_batch)
                             data_list[0] = input_batch
                             
