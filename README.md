@@ -53,9 +53,9 @@
      python model_convert.py --model_path ./xxx   --model_type pytorch  --output ./torch.onnx  --model_def_file  ./pt_multi_input.py   --model_class_name nettest  --model_weights_file ./multi_input_state.pth  --input_shape [1,3,500,600]/[1,3,500,600] --output_num 2  
 
    如类的定义中需要输入参数，参考以下方式(--params_file指定参数定义的文件位置)：
-     python model_convert.py --model_path ./vggnet_params.pkl  --model_type pytorch  --output ./torch.onnx  --model_def_file  ./vggnet.py  --model_class_name VGGBase --input_shape [1,3,28,28] --params_file  ./vgg_params.py 
+     python model_convert.py --model_path ./vggnet_params.pkl  --model_type pytorch  --output ./torch.onnx  --model_def_file  ./vggnet.py  --model_class_name VGGbase --input_shape [1,3,28,28] --params_file  ./vgg_params.py 
    或
-     python model_convert.py --model_path ./xxxx   --model_type pytorch  --output ./torch.onnx  --model_def_file  ./vggnet.py   --model_class_name VGGBase  --model_weights_file ./vggnet_params.pth  --input_shape [1,3,28,28] --params_file ./vgg_params.py 
+     python model_convert.py --model_path ./xxxx   --model_type pytorch  --output ./torch.onnx  --model_def_file  ./vggnet.py   --model_class_name VGGbase  --model_weights_file ./vggnet_params.pth  --input_shape [1,3,28,28] --params_file ./vgg_params.py 
    (参数定义文件中，需以字典形式存储，且字典名称固定为param_dict, 字典键值必须与类中需要的初始化变量名称一致，可从sample_models中下载样例)      
 
 7 darknet转onnx

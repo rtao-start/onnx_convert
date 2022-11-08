@@ -168,7 +168,7 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
         if cls != None:
             if len(params) > 0:
                 model = cls(**params)
-                m = torch.load(model_path, map_location=torch.device('cpu'), **params)
+                m = torch.load(model_path, map_location=torch.device('cpu'))
             else:    
                 model = cls()
                 m = torch.load(model_path, map_location=torch.device('cpu'))
