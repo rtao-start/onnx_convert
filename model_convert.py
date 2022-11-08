@@ -104,7 +104,7 @@ def parse_args():
                         type=str, 
                         required=False,
                         default='',
-                        help="When h/w is -1, you can specify h/w as you expected(with --simplify 2)")  
+                        help="When h/w is -1, you can specify h/w as you expected(together with --simplify 2)")  
 
    #for pytorch/dynamic_paddle
    parser.add_argument("--input_shape",
@@ -168,7 +168,7 @@ def parse_args():
                         type=str, 
                         required=False,
                         default='',
-                        help="If specify postprocess yaml file, the tool will insert preproc node in the ending of the model")                     
+                        help="If specify postprocess yaml file, the tool will insert postproc node in the ending of the model")                     
 
    #for paddle dynamic model or pytorch
    parser.add_argument("--model_def_file",
@@ -246,7 +246,7 @@ def parse_args():
                         type=int, 
                         required=False,
                         default=1,
-                        help="If output num of pytorch/paddle model > 1, you can specify it by --output_num")                                                                                                               
+                        help="If output num of pytorch model > 1, you can specify it by --output_num")                                                                                                               
 
    #for pytorch
    parser.add_argument("--keep_batch",
