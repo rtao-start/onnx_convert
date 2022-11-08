@@ -98,7 +98,7 @@ def parse_args():
                         type=int, required=False,
                         choices=[0, 1, 2],
                         default=1,
-                        help="Simplify the model(0:no simplify;1: do simplify; 2:for dynamic model)")     
+                        help="Simplify the model(0:no simplify;1:do simplify; 2:for dynamic model)")     
 
    parser.add_argument("--simplify_hw",
                         type=str, 
@@ -118,13 +118,13 @@ def parse_args():
                         type=str, 
                         required=False,
                         default='',
-                        help="When do checkpoint2ONNX/graph2ONNX/onnx_sub_graph input, you should specify inputs(ex: --inputs image:0)")
+                        help="When do checkpoint2ONNX/graph2ONNX/onnx_sub_graph, you should specify inputs(ex: --inputs image:0)")
 
    parser.add_argument("--outputs",
                         type=str, 
                         required=False,
                         default='',
-                        help="When do checkpoint2ONNX/graph2ONNX/onnx_sub_graph input, you should specify outputs(ex: --outputs predict:0)")
+                        help="When do checkpoint2ONNX/graph2ONNX/onnx_sub_graph, you should specify outputs(ex: --outputs predict:0)")
 
    #for extract sub graph
    parser.add_argument("--extract_sub",
@@ -155,7 +155,7 @@ def parse_args():
                         required=False,
                         default=0,
                         choices=[0, 1],
-                        help="If set 1, the tool will fuse softplus+Tanh+Mul to MIsh") 
+                        help="If set 1, the tool will fuse Softplus+Tanh+Mul to Mish") 
 
    #insert preproc node
    parser.add_argument("--preproc_yaml",
@@ -168,7 +168,7 @@ def parse_args():
                         type=str, 
                         required=False,
                         default='',
-                        help="If specify postprocess yaml file, the tool will insert preproc node in the endding of the model")                     
+                        help="If specify postprocess yaml file, the tool will insert preproc node in the ending of the model")                     
 
    #for paddle dynamic model or pytorch
    parser.add_argument("--model_def_file",
@@ -207,7 +207,7 @@ def parse_args():
                         type=str, 
                         required=False,
                         default='',
-                        help="When some input of tensorflow model is nchw, you can use it(ex: --inputs_as_nchw image:0) to convert to nchw")
+                        help="When some input of tensorflow model is nhwc, you can use it(ex: --inputs_as_nchw image:0) to convert to nchw")
 
    #for gap-->ap 
    parser.add_argument("--gap_to_ap",
@@ -223,7 +223,7 @@ def parse_args():
                         required=False,
                         default=0,
                         choices=[0, 1],
-                        help="If set 1, the tool will fuse pad into pool") 
+                        help="If set 1, the tool will fuse Pad into Pool") 
 
    #for merge swish
    parser.add_argument("--support_swish",
@@ -231,7 +231,7 @@ def parse_args():
                         required=False,
                         choices=[0, 1],
                         default=0,
-                        help="If set 1, the tool will convert Sigmoid+Mul to swish; HardSigmoid+Mul to HardSwish")   
+                        help="If set 1, the tool will convert Sigmoid+Mul to Swish; HardSigmoid+Mul to HardSwish")   
 
    #for convert BN to GroupConv(1x1)
    parser.add_argument("--bn_to_conv",
@@ -239,7 +239,7 @@ def parse_args():
                         required=False,
                         choices=[0, 1],
                         default=0,
-                        help="If set 1, the tool will convert bn to group 1x1_conv")          
+                        help="If set 1, the tool will convert BN to group 1x1_Conv")          
 
    #for pytorch/paddle
    parser.add_argument("--output_num",
@@ -254,7 +254,7 @@ def parse_args():
                         choices=[0, 1],
                         required=False,
                         default=0,
-                        help="For pytorch/paddle, if set 1, the tool will keep model batch size(if 0, set it to dynamic(-1))") 
+                        help="For pytorch, if set 1, the tool will keep model batch size(if 0, set it to dynamic(-1))") 
 
    args = parser.parse_args()
 
