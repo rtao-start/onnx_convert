@@ -608,12 +608,12 @@ class Caffe2Onnx():
                 output_name = self.GetCurrentLayerOutName(Layers[i])  # Get a list of output names 
                 node_name = Layers[i].name
 
-                # 2.Build relu_node
-                sigmoid_node = op.createSigmoid(Layers[i], node_name, input_name, output_name, input_shape)
-
                 #qiuzy
                 if output_name == input_name:
-                    output_name[0] = output_name + '_'
+                    output_name[0] = output_name[0] + '_'
+
+                # 2.Build relu_node
+                sigmoid_node = op.createSigmoid(Layers[i], node_name, input_name, output_name, input_shape)
 
                 # 3.Add node to node list 
                 self.onnxNodeList.append(sigmoid_node)

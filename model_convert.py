@@ -695,25 +695,20 @@ def modify_onnx2dynamic(onnx_model):
                for attr in attributes:
                      if attr.name == 'value':
                         v = values.get_tensor_value(attr.t)
-                        v[0] = -1 
-                        values.set_tensor_value(attr.t, v)   
+                        v[0] = -1
+                        vv = [v_ for v_ in v]
+                        print('-----new v:', vv, type(vv))
+                        values.set_tensor_value(attr.t, vv)   
 ########################
 
    #onnx_model = onnx.shape_inference.infer_shapes(onnx_model)                  
    try:
       onnx.checker.check_model(onnx_model)
    except onnx.checker.ValidationError as e:
-      print('*** The model cannot be modified for: %s' % e)
-      if 'No Op registered for Mish' in str(e):
-         print('ignore mish warning, continue saving~')
-      else:
-         print('ERROR: check model failed in modify_onnx2dynamic')
-         sys.exit(exit_code_check_modify_onnx2dynamic)    
+      print('check model err: %s' % e)
    else:
       print('*** The model is modified!')
 
-   #onnx.save(onnx_model, './111.onnx')
-   #sys.exit()
    return onnx_model
     
 def convert_gap_2_ap(model):
