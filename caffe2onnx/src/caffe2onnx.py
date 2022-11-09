@@ -233,7 +233,6 @@ class Caffe2Onnx():
         if self.onnxNodeList == []:
             output_name += self.model_input_name
             outshape += self.model_input_shape
-
         else:
             for i in range(len(layer.bottom)):
 
@@ -277,12 +276,21 @@ class Caffe2Onnx():
             return [layer.name]
         return [out for out in layer.top]
 
+    #qiuzy add
+    def IsScaleCanBeFused(self, layer):
+        input_ = [in_ for in_ in layer.bottom]
+        output_ = [out_ for out_ in layer.top]
+        if input_ == output_:
+            print('IsScaleCanBeFused, can be fused:', layer.name)
+            return True
+
+        return False        
 
     def GenerateOnnxNodeList(self, Layers):
         for i in range(len(Layers)):
-            print("convert layer: " + Layers[i].name)
+            print("convert layer: " + Layers[i].name, Layers[i].type)
             # Convolution
-            if Layers[i].type == "Convolution" or Layers[i].  type == Layer_CONVOLUTION:
+            if Layers[i].type == "Convolution" or Layers[i].type == Layer_CONVOLUTION:
                 # 1.Get node input name, input dimension, output name, node name 
                 input_name, input_shape = self.GetLastLayerOutNameAndShape(Layers[i])
                 output_name = self.GetCurrentLayerOutName(Layers[i])
@@ -322,7 +330,14 @@ class Caffe2Onnx():
                 node_name = Layers[i].name
 
                 # 2.Generate node parameter tensor value info, get the node parameter name, and add the parameter name to the node input name list 
+                #qiuzy add
+                need_fuse = False
                 if i < len(Layers) - 1 and Layers[i + 1].type == "Scale":
+                    need_fuse = self.IsScaleCanBeFused(Layers[i+1])
+                
+                #if i < len(Layers) - 1 and Layers[i + 1].type == "Scale":
+                #qiuzy
+                if need_fuse == True:
                     scale_pname, scale_pshape = self.AddInputsTVIFromParams(Layers[i + 1], op_pname["Scale"],
                                                                             op_ptype["Scale"])
                     bn_pname, bn_pshape = self.AddInputsTVIFromParams(Layers[i], op_pname["BatchNorm"],
@@ -349,8 +364,16 @@ class Caffe2Onnx():
 
             elif Layers[i].type == "Scale":
                 if i > 0 and (Layers[i - 1].type == "BatchNorm" or Layers[i - 1].type == "BN"):
+                    #qiuzy add
+                    #out = [out for out in Layers[i].top]
+                    skip = self.IsScaleCanBeFused(Layers[i])
+                    #############################
+
                     # bn + scale
-                    continue
+                    if skip == True:  #qiuzy add
+                        print('skip BN+Scale')
+                        continue
+
                 # signal scale
                 input_name, input_shape = self.GetLastLayerOutNameAndShape(Layers[i])  # Get a list of input names and input shapes 
                 output_name = self.GetCurrentLayerOutName(Layers[i])  # Get a list of output names 
@@ -534,7 +557,6 @@ class Caffe2Onnx():
                 # for i in range(len(output_name)):
                 #     output_name[i] = output_name[i] + random.choice('1234567890abcdef')
                 #print(output_name)
-
 
                 # 2.Build relu_node
                 relu_node = op.createRelu(Layers[i], node_name, input_name, output_name, input_shape)
@@ -1084,6 +1106,24 @@ class Caffe2Onnx():
                                                 MVN_name, output_name,
                                                 input_shape)
                 self.onnxNodeList.append(MVN_node)
+
+            #qiuzy add for yolov2 reorg    
+            elif Layers[i].type == "Reorg":
+                print('Process reorg...')
+                # 1.Get node input name, input dimension, output name, node name 
+                input_name, input_shape = self.GetLastLayerOutNameAndShape(Layers[i])
+                output_name = self.GetCurrentLayerOutName(Layers[i])
+                node_name = Layers[i].name
+                print('reorg input_shape:', input_shape, input_name, output_name)
+
+                # 2.Generate node parameter tensor value info, get the node parameter name, and add the parameter name to the node input name list 
+                # add roi input
+
+                # 3.Build Upsample_node
+                Reorg_node = op.create_reorg_node(Layers[i], node_name, input_name, output_name, input_shape)
+
+                # 4.Add node to node list 
+                self.onnxNodeList.append(Reorg_node)
             else:
                 print("Failed type not support: " + Layers[i].type)
                 exit(-1)

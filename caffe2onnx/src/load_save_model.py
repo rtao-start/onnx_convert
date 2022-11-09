@@ -11,7 +11,7 @@ def loadcaffemodel(net_path, model_path):
     f = open(model_path, 'rb')
     model.ParseFromString(f.read())
     f.close()
-    print("caffe model has been successfully loaded")
+    print("caffe model has been successfully loaded", net_path, model_path)
     return net, model
 
 def loadonnxmodel(onnx_path):

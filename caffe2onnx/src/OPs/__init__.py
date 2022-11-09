@@ -32,4 +32,4 @@ from caffe2onnx.src.OPs.LpNormalization import create_Lp_Normalization
 from caffe2onnx.src.OPs.Power import get_power_param, create_power_node
 from caffe2onnx.src.OPs.Add import create_add_node
 from caffe2onnx.src.OPs.Tanh import createTanh
-
+from caffe2onnx.src.OPs.Reorg import create_reorg_node  #qiuzy add

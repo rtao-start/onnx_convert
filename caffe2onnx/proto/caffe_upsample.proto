@@ -418,6 +418,7 @@ message LayerParameter {
   optional SPPParameter spp_param = 132;
   optional SliceParameter slice_param = 126;
   optional SwishParameter swish_param = 147;
+  optional ReorgParameter reorg_param = 150;
   optional TanHParameter tanh_param = 127;
   optional ThresholdParameter threshold_param = 128;
   optional TileParameter tile_param = 138;
@@ -431,6 +432,11 @@ message LayerParameter {
   optional NormalizeParameter norm_param = 206;
   optional AxpyParameter axpy_param = 151;
   optional ReLU6Parameter relu6_param = 100000;
+}
+
+message ReorgParameter {
+  optional uint32 stride = 1;
+  optional bool reverse = 2 [default = false];
 }
 
 
@@ -1499,19 +1505,16 @@ message PriorBoxParameter {
     CORNER_SIZE = 3;
   }
   // Minimum box size (in pixels). Required!
-  repeated float min_size = 1;//对应论文2.2节中公式（4）中的sk×网络输入层输入图像[data层的输入]大小
+  repeated float min_size = 1;//对应论文2.2节中公式�?）中的sk×网络输入层输入图像[data层的输入]大小
   // Maximum box size (in pixels). Required!
   repeated float max_size = 2;
   // Various of aspect ratios. Duplicate ratios will be ignored.
   // If none is provided, we use default ratio 1.
-  repeated float aspect_ratio = 3; //  等宽比
-  // If true, will flip each aspect ratio.
+  repeated float aspect_ratio = 3; //  等宽�?  // If true, will flip each aspect ratio.
   // For example, if there is aspect ratio "r",
   // we will generate aspect ratio "1.0/r" as well.
-  optional bool flip = 4 [default = true]; // 是否反转等宽比
-  // If true, will clip the prior so that it is within [0, 1]
-  optional bool clip = 5 [default = false]; // 是否进行裁剪,是否保证默认框整个在网络输入层输入图像内）
-  // Variance for adjusting the prior bboxes.
+  optional bool flip = 4 [default = true]; // 是否反转等宽�?  // If true, will clip the prior so that it is within [0, 1]
+  optional bool clip = 5 [default = false]; // 是否进行裁剪,是否保证默认框整个在网络输入层输入图像内�?  // Variance for adjusting the prior bboxes.
   repeated float variance = 6;
   // By default, we calculate img_height, img_width, step_x, step_y based on
   // bottom[0] (feat) and bottom[1] (img). Unless these values are explicitely
@@ -1519,9 +1522,7 @@ message PriorBoxParameter {
   // Explicitly provide the img_size.
   optional uint32 img_size = 7;
   // Either img_size or img_h/img_w should be specified; not both.
-  optional uint32 img_h = 8;//网络输入层输入图像的高（或自行设置的高度）
-  optional uint32 img_w = 9;//网络输入层输入图像的宽（或自行设置的高度）
-
+  optional uint32 img_h = 8;//网络输入层输入图像的高（或自行设置的高度�?  optional uint32 img_w = 9;//网络输入层输入图像的宽（或自行设置的高度�?
   // Explicitly provide the step size.
   optional float step = 10;
   // Either step or step_h/step_w should be specified; not both.
