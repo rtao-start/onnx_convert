@@ -695,10 +695,14 @@ def modify_onnx2dynamic(onnx_model):
                for attr in attributes:
                      if attr.name == 'value':
                         v = values.get_tensor_value(attr.t)
+                        #print('got type v:', type(v))
                         v[0] = -1 
                         vv = [v_ for v_ in v]
-                        print('-----new v:', vv, type(vv))
-                        values.set_tensor_value(attr.t, vv)   
+                        #print('-----new vv:', vv, type(vv))
+                        if isinstance(v, np.ndarray) == True:
+                           values.set_tensor_value(attr.t, v)
+                        else:     
+                           values.set_tensor_value(attr.t, vv)   
 ########################
 
    #onnx_model = onnx.shape_inference.infer_shapes(onnx_model)                  
