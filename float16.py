@@ -77,7 +77,7 @@ DEFAULT_OP_BLOCK_LIST = ['ArrayFeatureExtractor', 'Binarizer', 'CastMap', 'Categ
                          'FeatureVectorizer', 'Imputer', 'LabelEncoder', 'LinearClassifier', 'LinearRegressor',
                          'Normalizer', 'OneHotEncoder', 'SVMClassifier', 'SVMRegressor', 'Scaler',
                          'TreeEnsembleClassifier', 'TreeEnsembleRegressor', 'ZipMap', 'NonMaxSuppression', 'TopK',
-                         'RoiAlign', 'ResizeTest', 'Range', 'CumSum', 'Min', 'Max', 'Upsample', 'DequantizeLinear', 'QuantizeLinear']
+                         'RoiAlign', 'ResizeTest', 'Range', 'CumSum', 'Upsample', 'DequantizeLinear', 'QuantizeLinear']
 
 
 def convert_float_to_float16_old(model, min_positive_val=1e-7, max_finite_val=1e4,
