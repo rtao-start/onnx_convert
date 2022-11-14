@@ -348,9 +348,9 @@ def proc_gemm_ttc_ttt_fc(model, node_id, node, attr):
     input_type = onnx.TensorProto.FLOAT
 
     for vi in model.graph.value_info:
-        if vi.name == input_0:
+        if vi.name == node.input[0]:
             input_type = vi.type.tensor_type.elem_type
-            print('XXX get type', input_type, input_0)
+            print('XXX get type', input_type, node.input[0])
 
     if alpha != 1.0:
         mul_node_name = node.input[0] + '_mul_'
