@@ -8,15 +8,13 @@ from onnx import TensorProto
 sys.path.append(os.path.abspath('..'))
 import values
 
-
 def proc_gemm_tcc(model, node_id, node, attr):
     in_shape, _ = utils.got_input_shape(model, node.input[0])
 
     print('proc_gemm_tcc, got input shape:', in_shape)
 
-    #if in_shape > 32:
-    if in_shape < 32:
-        print('goto proc_gemm_tcc_matmul')
+    if in_shape > 32:
+        print('in_shape > 32, goto proc_gemm_tcc_matmul')
         return proc_gemm_tcc_matmul(model, node_id, node, attr)
 
     alpha = attr['alpha']
@@ -29,26 +27,9 @@ def proc_gemm_tcc(model, node_id, node, attr):
     skip = 0
 
     if transA != 0:
-        print('proc_gemm_case_3, Do TransA', node_id)
-        skip = skip + 1
-        output = node.input[0] + '_transpose_'
-        transpose_output = onnx.helper.make_tensor_value_info(output, TensorProto.UNDEFINED, ['a', 'b'])      
-
-        transpose_node = onnx.helper.make_node(
-                    'Transpose',
-                    name=output,
-                    inputs=[node.input[0]],
-                    outputs=[output])
-
-        node.input[0] = output
-        #model.graph.node.append(transpose_node)
-        model.graph.node.insert(node_id, transpose_node)
-
-        attributes = node.attribute
-        for attr in attributes:
-            if attr.name == 'transA':
-                attr.i = 0
-
+        print('transA != 0, goto proc_gemm_tcc_matmul')
+        return proc_gemm_tcc_matmul(model, node_id, node, attr)
+        
     if transB != 1 and alpha != 1.0:
         alpha_proc = False
         for init in model.graph.initializer:
@@ -96,7 +77,11 @@ def proc_gemm_tcc(model, node_id, node, attr):
                 
                 if found == False:
                     attr = onnx.helper.make_attribute('transB', 1)
-                    node.attribute.append(attr)    
+                    node.attribute.append(attr)  
+
+                for attr in attributes:
+                    if attr.name == 'alpha':
+                        attr.i = 1    
 
                 break
                 #print('B:', B)
@@ -129,6 +114,11 @@ def proc_gemm_tcc(model, node_id, node, attr):
                     node.input[1] = node.input[1] + '__'
                 else:
                     values.set_tensor_value(init, B)
+
+                attributes = node.attribute
+                for attr in attributes:
+                    if attr.name == 'alpha':
+                        attr.f = 1      
 
                 break
                 #print('B:', B)
@@ -195,6 +185,11 @@ def proc_gemm_tcc(model, node_id, node, attr):
     if beta != 1.0:
         beta_proc = False 
         if length == 3:
+            attributes = node.attribute
+            for attr in attributes:
+                if attr.name == 'beta':
+                    attr.f = 888  
+
             for init in model.graph.initializer:
                 if node.input[2] == init.name:
                     beta_proc = True
