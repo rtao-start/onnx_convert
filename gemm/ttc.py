@@ -108,7 +108,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
     for vi in model.graph.value_info:
         if vi.name == input_0:
             input_type = vi.type.tensor_type.elem_type
-            print('XXX get type', type, input_0)
+            print('XXX get type', input_type, input_0)
 
     if alpha != 1.0:
         mul_node_name = matmul_output_name + '_mul_'
