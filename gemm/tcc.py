@@ -45,7 +45,7 @@ def proc_gemm_tcc(model, node_id, node, attr):
                     B = B.transpose()
                     print('+++B.shape:', B.shape)
                     B = B.flatten()
-                    B = v * alpha
+                    B = B * alpha
                 else:    
                     B = np.array(v).reshape(init.dims[0], init.dims[1])
                     B = B.transpose()
@@ -188,7 +188,7 @@ def proc_gemm_tcc(model, node_id, node, attr):
             attributes = node.attribute
             for attr in attributes:
                 if attr.name == 'beta':
-                    attr.f = 888  
+                    attr.f = 1  
 
             for init in model.graph.initializer:
                 if node.input[2] == init.name:
@@ -307,14 +307,14 @@ def proc_gemm_tcc_matmul(model, node_id, node, attr):
                     B = B.transpose()
                     print('+++B.shape:', B.shape)
                     B = B.flatten()
-                    B = v * alpha
+                    B = B * alpha
                 else:    
                     B = np.array(v).reshape(init.dims[0], init.dims[1])
                     B = B.transpose()
                     print('---B.shape:', B.shape)
                     B = B.flatten()
                     B = B * alpha
-                    B = B.tolist()
+                    #B = B.tolist()
 
                 dims_= [init.dims[1], init.dims[0]]
 
@@ -322,7 +322,7 @@ def proc_gemm_tcc_matmul(model, node_id, node, attr):
                     B_ = onnx.helper.make_tensor(name=node.input[1] + '__',
                                         data_type=init.data_type,
                                         dims=dims_,
-                                        vals=B)
+                                        vals=B.tolist())
 
                     model.graph.initializer.append(B_) 
 
@@ -436,7 +436,7 @@ def proc_gemm_tcc_matmul(model, node_id, node, attr):
         add_element = matmul_output_name
         add_name_c = matmul_output_name + '_add_c_'
 
-        if beta == 1.0:
+        if beta != 1.0:
             beta_proc = False 
             for init in model.graph.initializer:
                 if c_name == init.name:
