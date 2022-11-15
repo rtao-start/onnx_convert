@@ -137,7 +137,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
             add_name_c = mul_node_output + '_add_c_'
 
         if beta != 1.0:
-            if beta > 0.0:  
+            if True: #beta > 0.0:  
                 beta_proc = False 
                 for init in model.graph.initializer:
                     if c_name == init.name: # C is initializer
@@ -188,7 +188,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
                             attributes = n.attribute
                             for attr in attributes:
                                 if attr.name == 'value':
-                                    if utils.is_shared_constant(model, node.input[2]):
+                                    if utils.is_shared_constant(model, c_name):
                                         new_node = copy.deepcopy(n)
                                         new_name = n.name + '__'
                                         new_node.name = new_name
@@ -332,6 +332,8 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
     return skip
 
 def proc_gemm_ttc_ttt_fc(model, node_id, node, attr):
+    print('######## proc_gemm_ttc_ttt_fc, node.name:', node.name)
+
     alpha = attr['alpha']
     beta = attr['beta']
     transA = attr['transA']
