@@ -162,6 +162,25 @@ def mk_tct(model):
     for idx, node in enumerate(model.graph.node): 
         if node.name == 'Gemm_224':
             attributes = node.attribute
+            found = False
+            for attr in attributes:
+                if attr.name == 'alpha':
+                    found = True
+                    attr.f = 3
+            
+            if found == False:
+                attr = onnx.helper.make_attribute('alpha', 3)
+                node.attribute.append(attr)  
+
+            found = False
+            for attr in attributes:
+                if attr.name == 'beta':
+                    found = True
+                    attr.f = 2
+            
+            if found == False:
+                attr = onnx.helper.make_attribute('beta', 2)
+                node.attribute.append(attr)      
 
             output_shape = [1000]
             Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, output_shape)

@@ -139,7 +139,7 @@ def gemm_convert(model, output):
                         skip = proc_gemm['case_' + str(ii)](model, node_id, node, gemm_attr)
                         onnx.save(model, output)
 
-model = onnx.load('./gemm_alpha.onnx')
+model = onnx.load('./gemm_tct.onnx')
 #model = onnx.load('../gemm3.onnx')
 model = onnx.shape_inference.infer_shapes(model) 
 
