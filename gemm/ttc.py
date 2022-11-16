@@ -86,7 +86,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
         node.input[1] = outputB
 
     matmul_output_name = node.output[0] + '_matmul_'
-    node.output[0] = matmul_output_name
+    #node.output[0] = matmul_output_name
 
     mul_node_name = ''
     mul_node_output = ''
@@ -99,13 +99,21 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
             print('XXX get type', input_type, input_0)
 
     if alpha != 1.0:
+        node.output[0] = matmul_output_name
         mul_node_name = matmul_output_name + '_mul_'
         mul_node_output = mul_node_name + 'output_'
+        if beta == 0:
+            mul_node_output = output_0
+
         alpha_name = matmul_output_name + 'const_alpha'
+        vals_=[alpha]
+        if input_type == 10:
+            vals_=[int(alpha)]
+
         const_alpha = onnx.helper.make_tensor(name=alpha_name,
                             data_type=input_type,
                             dims=(),
-                            vals=[alpha])
+                            vals=vals_)
 
         model.graph.initializer.append(const_alpha)                     
 
@@ -137,7 +145,8 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
             add_name_c = mul_node_output + '_add_c_'
 
         if beta != 1.0:
-            if True: #beta > 0.0:  
+            if beta > 0.0:
+                node.output[0] = matmul_output_name  
                 beta_proc = False 
                 for init in model.graph.initializer:
                     if c_name == init.name: # C is initializer
@@ -283,6 +292,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
 
                             break                                            
         else:
+            node.output[0] = matmul_output_name
             C_proc = False
             for init in model.graph.initializer:
                 if c_name == init.name:

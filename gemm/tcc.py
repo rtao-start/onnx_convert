@@ -81,7 +81,7 @@ def proc_gemm_tcc(model, node_id, node, attr):
 
                 for attr in attributes:
                     if attr.name == 'alpha':
-                        attr.i = 1    
+                        attr.f = 1    
 
                 break
                 #print('B:', B)
@@ -431,12 +431,12 @@ def proc_gemm_tcc_matmul(model, node_id, node, attr):
 
     #############
     if length == 3:
-        node.output[0] = matmul_output_name
         add_name = matmul_output_name + '_add_'
         add_element = matmul_output_name
         add_name_c = matmul_output_name + '_add_c_'
 
-        if beta != 1.0:
+        if beta > 1.0:
+            node.output[0] = matmul_output_name
             beta_proc = False 
             for init in model.graph.initializer:
                 if c_name == init.name:
@@ -533,7 +533,8 @@ def proc_gemm_tcc_matmul(model, node_id, node, attr):
 
                                 break         
                         break
-        else:
+        elif beta == 1.0:
+            node.output[0] = matmul_output_name
             print('proc_gemm_tcc_matmul, beta is 1.0')
             beta_proc = False 
             for init in model.graph.initializer:

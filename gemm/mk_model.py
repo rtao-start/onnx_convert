@@ -1,6 +1,8 @@
 import onnx
 import sys,os
 import numpy as np
+from onnx import helper
+from onnx import TensorProto
 
 sys.path.append(os.path.abspath('..'))
 from correct_batch import convert_ort_type_2_np, get_data_list
@@ -133,6 +135,70 @@ def mk_alpha(model):
     onnx.save(model, './gemm_alpha.onnx')
 
 
-mk_alpha(model)    
+def mk_tct(model):
+    for init in model.graph.initializer:
+        if '662' == init.name:
+            print('got it in initializer:', init.int64_data)
+            #init.int64_data[0] = -1
+            dtype = init.data_type
+            np_dtype = convert_ort_type_2_np(dtype)
+            if init.raw_data:
+                params_list = np.fromstring(init.raw_data, dtype=np_dtype)
+                print('len(params_list):', len(params_list))
+                params_list[0] = 1
+                params_list[1] = 2048
+                init.raw_data = params_list.tostring()
+            else:
+                data_list = get_data_list(dtype, init)
+                adjust = True
+                print('len(data_list):', len(data_list))
+
+                if len(data_list) > 0:
+                        data_list[0] = 1
+                        data_list[1] = 2048
+
+            break
+
+    for idx, node in enumerate(model.graph.node): 
+        if node.name == 'Gemm_224':
+            attributes = node.attribute
+
+            output_shape = [1000]
+            Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, output_shape)
+
+            const_starts = onnx.helper.make_tensor(name='const_starts',
+                        data_type=onnx.TensorProto.INT64,
+                        dims=[1],
+                        vals=[0])
+
+            const_ends = onnx.helper.make_tensor(name='const_ends',
+                        data_type=onnx.TensorProto.INT64,
+                        dims=[1],
+                        vals=[1000])
+
+            const_axis = onnx.helper.make_tensor(name='const_axis',
+                        data_type=onnx.TensorProto.INT64,
+                        dims=[1],
+                        vals=[1])            
+
+            slice_node = helper.make_node(
+                            'Slice', # node name
+                            ['663', 'const_starts', 'const_ends', 'const_axis'],
+                            ['Y'], # outputs
+                            )  
+
+            model.graph.node.insert(idx, slice_node)
+            model.graph.initializer.append(const_starts)
+            model.graph.initializer.append(const_ends)
+            model.graph.initializer.append(const_axis)
+
+            node.input[2] = 'Y'
+
+            break
+
+    model = onnx.shape_inference.infer_shapes(model)
+    onnx.save(model, './gemm_tct.onnx')
+
+mk_tct(model)    
 
 
