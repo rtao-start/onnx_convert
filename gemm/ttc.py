@@ -192,7 +192,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
 
                 if beta_proc == False:
                     for n in model.graph.node:
-                        if c_name == n.output[0]: #C is Constant
+                        if c_name == n.output[0] and node.op_type == 'Constant': #C is Constant
                             beta_proc = True
                             attributes = n.attribute
                             for attr in attributes:
@@ -253,7 +253,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
                 if beta_proc == False:
                     for vi in model.graph.value_info:
                         if vi.name == c_name:
-                            type_ = vi.elem_type
+                            type_ = vi.type.tensor_type.elem_type
 
                             if len(vi.type.tensor_type.shape.dim) > 0:
                                 shape_ = [s.dim_value for s in vi.type.tensor_type.shape.dim]
@@ -266,15 +266,15 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
                                                     dims=(),
                                                     vals=[beta])
 
-                                model.graph.initializer.append(const_beta)                    
+                                model.graph.initializer.append(const_beta) 
+
+                                mul_c = onnx.helper.make_tensor_value_info(mul_c_output, type_, shape_)                   
 
                                 mul_node_c = onnx.helper.make_node(
                                             'Mul',
                                             name=mul_name_c,
                                             inputs=[beta_name, c_name],
-                                            outputs=[onnx.helper.make_tensor_value_info(mul_c_output,
-                                                                        type_,
-                                                                        shape_)])
+                                            outputs=[mul_c_output])
 
                                 model.graph.node.insert(node_index, mul_node_c)
                                 node_index = node_index + 1
@@ -430,7 +430,7 @@ def proc_gemm_ttc_ttt_fc(model, node_id, node, attr):
 
             if beta_proc == False:
                 for n in model.graph.node:
-                    if c_name == n.output[0]: #C is Constant
+                    if c_name == n.output[0] and node.op_type == 'Constant': #C is Constant
                         beta_proc = True
                         attributes = n.attribute
                         for attr in attributes:
@@ -477,7 +477,7 @@ def proc_gemm_ttc_ttt_fc(model, node_id, node, attr):
 
                 for vi in model.graph.value_info:
                     if vi.name == c_name:
-                        type_ = vi.elem_type
+                        type_ = vi.type.tensor_type.elem_type
 
                         if len(vi.type.tensor_type.shape.dim) > 0:
                             shape_ = [s.dim_value for s in vi.type.tensor_type.shape.dim]
@@ -488,15 +488,17 @@ def proc_gemm_ttc_ttt_fc(model, node_id, node, attr):
                                                 dims=(),
                                                 vals=[beta])
 
-                            model.graph.initializer.append(const_beta)                    
+                            model.graph.initializer.append(const_beta) 
+
+                            mul_c = onnx.helper.make_tensor_value_info(mul_c_output, type_, shape_)                   
 
                             mul_node_c = onnx.helper.make_node(
                                         'Mul',
                                         name=mul_name_c,
                                         inputs=[c_name, beta_name],
-                                        outputs=[onnx.helper.make_tensor_value_info(mul_c_output,
-                                                                    type_,
-                                                                    shape_)])
+                                        outputs=[mul_c_output])
+
+                            node.input[2] = mul_c_output             
 
                             model.graph.node.insert(node_index, mul_node_c)
                             node_index = node_index + 1

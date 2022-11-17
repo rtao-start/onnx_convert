@@ -7,8 +7,6 @@ from onnx import TensorProto
 sys.path.append(os.path.abspath('..'))
 from correct_batch import convert_ort_type_2_np, get_data_list
 
-model = onnx.load('../gemm3.onnx')
-
 def mk_transA_alpha_beta(model):
     for init in model.graph.initializer:
         if '662' == init.name:
@@ -218,6 +216,34 @@ def mk_tct(model):
     model = onnx.shape_inference.infer_shapes(model)
     onnx.save(model, './gemm_tct.onnx')
 
-mk_tct(model)    
+def mk_ttt(model):
+    for idx, node in enumerate(model.graph.node): 
+        if node.name == 'Gemm_224':
+            output_shape = [1000, 2048]
+            Z = helper.make_tensor_value_info('Z', TensorProto.FLOAT, output_shape)
+
+            const_repeats = onnx.helper.make_tensor(name='const_repeats',
+                        data_type=onnx.TensorProto.INT64,
+                        dims=[2],
+                        vals=[1000, 1])
+
+            tile_node = helper.make_node(
+                            'Tile', # node name
+                            ['663', 'const_repeats'],
+                            ['Z'], # outputs
+                            )  
+
+            model.graph.node.insert(idx+1, tile_node)
+            model.graph.initializer.append(const_repeats)
+
+            node.input[1] = 'Z'
+
+            break
+
+    model = onnx.shape_inference.infer_shapes(model)
+    onnx.save(model, './gemm_ttt.onnx')
+
+model = onnx.load('./gemm_tct.onnx')
+mk_ttt(model)    
 
 
