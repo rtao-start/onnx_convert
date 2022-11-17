@@ -68,7 +68,7 @@ def gemm_convert(model):
         if node.op_type == 'Constant': 
             const_list.append(node.output[0])
 
-    skip = False            
+    skip = 0            
 
     for node_id, node in enumerate(model.graph.node):
         print('loop model', node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
@@ -135,12 +135,3 @@ def gemm_convert(model):
                         skip = proc_gemm['case_' + str(ii)](model, node_id, node, gemm_attr)
                         #onnx.save(model, output)
     return model
-
-if __name__ == "__main__":
-    #model = onnx.load('./gemm_test/gcn_alpha.onnx')
-    #model = onnx.load('./gemm_test/graphsage_zjm_fp16_maca.onnx')
-    #model = onnx.load('./gemm_test/pygcn_fp16_maca.onnx')
-    model = onnx.load('./gemm_ctt.onnx')
-    model = onnx.shape_inference.infer_shapes(model) 
-    model = gemm_convert(model)
-    onnx.save(model, './tmp.onnx')
