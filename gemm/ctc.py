@@ -2,7 +2,7 @@ import onnx
 import sys, os
 import numpy as np
 import copy
-import utils
+from .utils import got_input_shape, is_shared_init, is_shared_constant
 from onnx import TensorProto
 
 sys.path.append(os.path.abspath('..'))
@@ -14,7 +14,7 @@ def handle_constant_node(model, node, transpose, alpha):
             attributes = n.attribute
             for attr in attributes:
                 if attr.name == 'value':
-                    if utils.is_shared_constant(model, node.input[0]):
+                    if is_shared_constant(model, node.input[0]):
                         new_node = copy.deepcopy(n)
                         new_name = n.name + '__'
                         new_node.name = new_name
@@ -103,7 +103,7 @@ def handle_common(model, node, attr, replace=True):
 
                 dims_= [init.dims[1], init.dims[0]]
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     A_ = onnx.helper.make_tensor(name=A_name,
                                         data_type=init.data_type,
                                         dims=dims_,
@@ -130,7 +130,11 @@ def handle_common(model, node, attr, replace=True):
             
             if found == False:
                 attr = onnx.helper.make_attribute('transA', 0)
-                node.attribute.append(attr)        
+                node.attribute.append(attr)
+
+            for attr in attributes:
+                if attr.name == 'alpha':
+                    attr.f = 1           
     elif alpha != 1.0:
         alpha_proc = False
         for init in model.graph.initializer:
@@ -151,7 +155,7 @@ def handle_common(model, node, attr, replace=True):
 
                 A_name = node.input[0] + '__'
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     A_ = onnx.helper.make_tensor(name=A_name,
                                         data_type=init.data_type,
                                         dims=[init.dims[0], init.dims[1]],
@@ -165,7 +169,13 @@ def handle_common(model, node, attr, replace=True):
                 break
 
         if alpha_proc == False:
-            handle_constant_node(model, node, False, alpha)   
+            handle_constant_node(model, node, False, alpha)  
+
+        if replace == True:    
+            attributes = node.attribute
+            for attr in attributes:
+                if attr.name == 'alpha':
+                    attr.f = 1      
     elif transA != 0:
         alpha_proc = False
         for init in model.graph.initializer:
@@ -190,7 +200,7 @@ def handle_common(model, node, attr, replace=True):
 
                 dims_= [init.dims[1], init.dims[0]]
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     A_ = onnx.helper.make_tensor(name=A_name,
                                         data_type=init.data_type,
                                         dims=dims_,
@@ -219,7 +229,7 @@ def handle_common(model, node, attr, replace=True):
                 node.attribute.append(attr)    
 
 def proc_gemm_ctc(model, node_id, node, attr):
-    in_shape, _ = utils.got_input_shape(model, node.input[0])
+    in_shape, _ = got_input_shape(model, node.input[0])
 
     print('proc_gemm_ctc, got input shape:', in_shape)
 
@@ -264,7 +274,7 @@ def proc_gemm_ctc(model, node_id, node, attr):
                         print('C.shape:', C.shape)
                         #C = C.tolist()
 
-                    if utils.is_shared_init(model, init.name, node.name) == True:    
+                    if is_shared_init(model, init.name, node.name) == True:    
                         C_ = onnx.helper.make_tensor(name=node.input[2] + '__',
                                             data_type=init.data_type,
                                             dims=[init.dims[0]],
@@ -284,7 +294,7 @@ def proc_gemm_ctc(model, node_id, node, attr):
                         attributes = n.attribute
                         for attr in attributes:
                             if attr.name == 'value':
-                                if utils.is_shared_constant(model, node.input[2]):
+                                if is_shared_constant(model, node.input[2]):
                                     new_node = copy.deepcopy(n)
                                     new_name = n.name + '__'
                                     new_node.name = new_name
@@ -392,7 +402,7 @@ def proc_gemm_ctc_matmul(model, node_id, node, attr):
                         C = np.array(v) * beta
                         print('C.shape:', C.shape)
 
-                    if utils.is_shared_init(model, init.name, node.name) == True: 
+                    if is_shared_init(model, init.name, node.name) == True: 
                         new_name = c_name + '__'   
                         C_ = onnx.helper.make_tensor(name=new_name,
                                             data_type=init.data_type,
@@ -427,7 +437,7 @@ def proc_gemm_ctc_matmul(model, node_id, node, attr):
                         attributes = n.attribute
                         for attr in attributes:
                             if attr.name == 'value':
-                                if utils.is_shared_constant(model, c_name):
+                                if is_shared_constant(model, c_name):
                                     new_node = copy.deepcopy(n)
                                     new_name = n.name + '__'
                                     new_node.name = new_name

@@ -4,11 +4,13 @@ import numpy as np
 import copy
 from onnx import TensorProto
 
-from ttc import proc_gemm_ttc_ttt
-from tcc import proc_gemm_tcc
-from tct import proc_gemm_tct
-from ctt import proc_gemm_ctt
-from ctc import proc_gemm_ctc
+
+from .ttc import proc_gemm_ttc_ttt
+from .tcc import proc_gemm_tcc
+from .tct import proc_gemm_tct
+from .ctt import proc_gemm_ctt
+from .ctc import proc_gemm_ctc
+
 
 sys.path.append(os.path.abspath('..'))
 
@@ -41,12 +43,6 @@ transpose_combination_case_B = [0, 1]
 transpose_combination_case_C = [1, 0]
 transpose_combination_case_D = [1, 1]
 
-def proc_gemm_case_4(model, node_id, node, attr):
-    pass        
-
-def proc_gemm_case_5(model, node_id, node, attr):
-    pass
-
 proc_gemm = {
     "case_1": proc_gemm_ttc_ttt,
     "case_2": proc_gemm_tct,
@@ -55,7 +51,7 @@ proc_gemm = {
     "case_5": proc_gemm_ctc
 }
 
-def gemm_convert(model, output):
+def gemm_convert(model):
     dict_sm = {}
     dict_mul = {}
 
@@ -137,12 +133,14 @@ def gemm_convert(model, output):
                         print('index = ', index)
                         ii = index + 1
                         skip = proc_gemm['case_' + str(ii)](model, node_id, node, gemm_attr)
-                        onnx.save(model, output)
+                        #onnx.save(model, output)
+    return model
 
-#model = onnx.load('./gemm_test/gcn_alpha.onnx')
-#model = onnx.load('./gemm_test/graphsage_zjm_fp16_maca.onnx')
-#model = onnx.load('./gemm_test/pygcn_fp16_maca.onnx')
-model = onnx.load('./gemm_ctt.onnx')
-model = onnx.shape_inference.infer_shapes(model) 
-
-gemm_convert(model, './tmp.onnx')
+if __name__ == "__main__":
+    #model = onnx.load('./gemm_test/gcn_alpha.onnx')
+    #model = onnx.load('./gemm_test/graphsage_zjm_fp16_maca.onnx')
+    #model = onnx.load('./gemm_test/pygcn_fp16_maca.onnx')
+    model = onnx.load('./gemm_ctt.onnx')
+    model = onnx.shape_inference.infer_shapes(model) 
+    model = gemm_convert(model)
+    onnx.save(model, './tmp.onnx')

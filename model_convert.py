@@ -28,6 +28,7 @@ from postprocess import postproc
 from correct_batch import correct_batch_for_opset_convert, convert_ort_type_2_np, get_data_list
 from pd2onnx import convert_pd2onnx, is_dynamic_paddle
 from pt2onnx import convert_pt2onnx
+from gemm.gemm_cvt import gemm_convert
 
 using_wheel = False
 
@@ -255,6 +256,14 @@ def parse_args():
                         required=False,
                         default=0,
                         help="For pytorch, if set 1, the tool will keep model batch size(if 0, set it to dynamic(-1))") 
+
+   #for convert gemm
+   parser.add_argument("--gemm_optimization",
+                        type=int, 
+                        required=False,
+                        choices=[0, 1],
+                        default=0,
+                        help="If set 1, the tool will convert gemm to fc or matmul+add+mul")     
 
    args = parser.parse_args()
 
@@ -1094,6 +1103,7 @@ def process(args):
    keep_batch = args.keep_batch
    params_file = args.params_file
    simplify_hw = args.simplify_hw
+   gemm_optimization = args.gemm_optimization
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -1249,6 +1259,9 @@ def process(args):
 
    if model_type == 'onnx' and support_swish == 1:
       new_model = merge_swish_and_hard_swish(new_model)   
+
+   if model_type == 'onnx' and gemm_optimization == 1:
+      new_model = gemm_convert(new_model)  
 
    if model_type == 'onnx' and preproc_yaml != '':
       if os.path.exists(preproc_yaml):

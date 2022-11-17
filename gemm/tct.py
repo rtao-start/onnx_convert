@@ -2,7 +2,7 @@ import onnx
 import sys, os
 import numpy as np
 import copy
-import utils
+from .utils import got_input_shape, is_shared_init, is_shared_constant
 from onnx import TensorProto
 
 sys.path.append(os.path.abspath('..'))
@@ -11,7 +11,7 @@ import values
 def proc_gemm_tct(model, node_id, node, attr):
     print('proc_gemm_tct-----------', node.name)
 
-    in_shape, _ = utils.got_input_shape(model, node.input[0])
+    in_shape, _ = got_input_shape(model, node.input[0])
 
     print('proc_gemm_tct, got input shape:', in_shape)
 
@@ -62,7 +62,7 @@ def proc_gemm_tct(model, node_id, node, attr):
 
                 dims_= [init.dims[1], init.dims[0]]
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     B_ = onnx.helper.make_tensor(name=node.input[1] + '__',
                                         data_type=init.data_type,
                                         dims=dims_,
@@ -108,7 +108,7 @@ def proc_gemm_tct(model, node_id, node, attr):
                     print('B.shape:', B.shape)
                     B = B.tolist()
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     B_ = onnx.helper.make_tensor(name=node.input[1] + '__',
                                         data_type=init.data_type,
                                         dims=[init.dims[0], init.dims[1]],
@@ -160,7 +160,7 @@ def proc_gemm_tct(model, node_id, node, attr):
 
                 dims_= [init.dims[1], init.dims[0]]
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     B_ = onnx.helper.make_tensor(name=node.input[1] + '__',
                                         data_type=init.data_type,
                                         dims=dims_,

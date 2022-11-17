@@ -2,14 +2,15 @@ import onnx
 import sys, os
 import numpy as np
 import copy
-import utils
+from .utils import got_input_shape, is_shared_init, is_shared_constant
+
 from onnx import TensorProto
 
 sys.path.append(os.path.abspath('..'))
 import values
 
 def proc_gemm_tcc(model, node_id, node, attr):
-    in_shape, _ = utils.got_input_shape(model, node.input[0])
+    in_shape, _ = got_input_shape(model, node.input[0])
 
     print('proc_gemm_tcc, got input shape:', in_shape)
 
@@ -56,7 +57,7 @@ def proc_gemm_tcc(model, node_id, node, attr):
 
                 dims_= [init.dims[1], init.dims[0]]
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     B_ = onnx.helper.make_tensor(name=node.input[1] + '__',
                                         data_type=init.data_type,
                                         dims=dims_,
@@ -103,7 +104,7 @@ def proc_gemm_tcc(model, node_id, node, attr):
                     print('B.shape:', B.shape)
                     B = B.tolist()
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     B_ = onnx.helper.make_tensor(name=node.input[1] + '__',
                                         data_type=init.data_type,
                                         dims=[init.dims[0], init.dims[1]],
@@ -157,7 +158,7 @@ def proc_gemm_tcc(model, node_id, node, attr):
 
                 dims_= [init.dims[1], init.dims[0]]
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     B_ = onnx.helper.make_tensor(name=node.input[1] + '__',
                                         data_type=init.data_type,
                                         dims=dims_,
@@ -204,7 +205,7 @@ def proc_gemm_tcc(model, node_id, node, attr):
                         print('C.shape:', C.shape)
                         C = C.tolist()
 
-                    if utils.is_shared_init(model, init.name, node.name) == True:    
+                    if is_shared_init(model, init.name, node.name) == True:    
                         C_ = onnx.helper.make_tensor(name=node.input[2] + '__',
                                             data_type=init.data_type,
                                             dims=[init.dims[0]],
@@ -224,7 +225,7 @@ def proc_gemm_tcc(model, node_id, node, attr):
                         attributes = n.attribute
                         for attr in attributes:
                             if attr.name == 'value':
-                                if utils.is_shared_constant(model, node.input[2]):
+                                if is_shared_constant(model, node.input[2]):
                                     new_node = copy.deepcopy(n)
                                     new_name = n.name + '__'
                                     new_node.name = new_name
@@ -318,7 +319,7 @@ def proc_gemm_tcc_matmul(model, node_id, node, attr):
 
                 dims_= [init.dims[1], init.dims[0]]
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     B_ = onnx.helper.make_tensor(name=node.input[1] + '__',
                                         data_type=init.data_type,
                                         dims=dims_,
@@ -350,7 +351,7 @@ def proc_gemm_tcc_matmul(model, node_id, node, attr):
                     print('B.shape:', B.shape)
                     B = B.tolist()
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     B_ = onnx.helper.make_tensor(name=node.input[1] + '__',
                                         data_type=init.data_type,
                                         dims=[init.dims[0], init.dims[1]],
@@ -398,7 +399,7 @@ def proc_gemm_tcc_matmul(model, node_id, node, attr):
 
                 dims_= [init.dims[1], init.dims[0]]
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     B_ = onnx.helper.make_tensor(name=node.input[1] + '__',
                                         data_type=init.data_type,
                                         dims=dims_,
@@ -451,7 +452,7 @@ def proc_gemm_tcc_matmul(model, node_id, node, attr):
                         C = np.array(v) * beta
                         print('C.shape:', C.shape)
 
-                    if utils.is_shared_init(model, init.name, node.name) == True: 
+                    if is_shared_init(model, init.name, node.name) == True: 
                         new_name = c_name + '__'   
                         C_ = onnx.helper.make_tensor(name=new_name,
                                             data_type=init.data_type,
@@ -485,7 +486,7 @@ def proc_gemm_tcc_matmul(model, node_id, node, attr):
                         attributes = n.attribute
                         for attr in attributes:
                             if attr.name == 'value':
-                                if utils.is_shared_constant(model, c_name):
+                                if is_shared_constant(model, c_name):
                                     new_node = copy.deepcopy(n)
                                     new_name = n.name + '__'
                                     new_node.name = new_name

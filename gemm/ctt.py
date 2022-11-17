@@ -2,7 +2,7 @@ import onnx
 import sys, os
 import numpy as np
 import copy
-import utils
+from .utils import got_input_shape, is_shared_init, is_shared_constant
 from onnx import TensorProto
 
 sys.path.append(os.path.abspath('..'))
@@ -128,10 +128,16 @@ def handle_common(model, node, attr, replace=True):
                 if attr.name == 'transA':
                     found = True
                     attr.i = 0
+                    break
             
             if found == False:
                 attr = onnx.helper.make_attribute('transA', 0)
-                node.attribute.append(attr)        
+                node.attribute.append(attr) 
+
+            for attr in attributes:
+                if attr.name == 'alpha':
+                    attr.f = 1
+                    break  
     elif alpha != 1.0:
         alpha_proc = False
         for init in model.graph.initializer:
@@ -152,7 +158,7 @@ def handle_common(model, node, attr, replace=True):
 
                 A_name = node.input[0] + '__'
 
-                if utils.is_shared_init(model, init.name, node.name) == True:
+                if is_shared_init(model, init.name, node.name) == True:
                     A_ = onnx.helper.make_tensor(name=A_name,
                                         data_type=init.data_type,
                                         dims=[init.dims[0], init.dims[1]],
@@ -168,7 +174,14 @@ def handle_common(model, node, attr, replace=True):
                 break
 
         if alpha_proc == False:
-            handle_constant_node(model, node, False, alpha)      
+            handle_constant_node(model, node, False, alpha) 
+
+        if replace == True: 
+            attributes = node.attribute
+            for attr in attributes:
+                if attr.name == 'alpha':
+                    attr.f = 1 
+                    break           
     elif transA != 0:
         alpha_proc = False
         for init in model.graph.initializer:
@@ -217,13 +230,14 @@ def handle_common(model, node, attr, replace=True):
                 if attr.name == 'transA':
                     found = True
                     attr.i = 0
+                    break
             
             if found == False:
                 attr = onnx.helper.make_attribute('transA', 0)
                 node.attribute.append(attr)    
 
 def proc_gemm_ctt(model, node_id, node, attr):
-    in_shape, _ = utils.got_input_shape(model, node.input[0])
+    in_shape, _ = got_input_shape(model, node.input[0])
 
     print('proc_gemm_ctt, got input shape:', in_shape)
 
@@ -257,11 +271,9 @@ def proc_gemm_ctt(model, node_id, node, attr):
     mul_name_c = node.name + '_mul_c_'
     beta_name = node.name + '_const_beta_'
     add_name_c = node.name + '_add_c_'
-    add_element_c = transpose_output
 
     if length == 3:
         if beta != 1.0:
-            beta_proc = False 
             for vi in model.graph.value_info:
                 if vi.name == c_name:
                     type_ = vi.type.tensor_type.elem_type
@@ -293,6 +305,11 @@ def proc_gemm_ctt(model, node_id, node, attr):
                         node_index = node_index + 1
                         skip = skip + 1 
 
+                        attributes = node.attribute
+                        for attr in attributes:
+                            if attr.name == 'beta':
+                                attr.f = 1
+                                break    
                     break       
 
     return skip
