@@ -107,8 +107,8 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
 
         alpha_name = matmul_output_name + 'const_alpha'
         vals_=[alpha]
-        if input_type == 10:
-            vals_=[int(alpha)]
+        #if input_type == 10:
+        #    vals_=[int(alpha)]
 
         const_alpha = onnx.helper.make_tensor(name=alpha_name,
                             data_type=input_type,

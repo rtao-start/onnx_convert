@@ -243,7 +243,40 @@ def mk_ttt(model):
     model = onnx.shape_inference.infer_shapes(model)
     onnx.save(model, './gemm_ttt.onnx')
 
-model = onnx.load('./gemm_tct.onnx')
-mk_ttt(model)    
+def mk_ctt(model):
+    for idx, node in enumerate(model.graph.node): 
+        if node.name == 'Gemm_3':
+            attributes = node.attribute
+            found = False
+            for attr in attributes:
+                if attr.name == 'beta':
+                    found = True
+                    attr.f = 2
+            
+            if found == False:
+                attr = onnx.helper.make_attribute('beta', 2)
+                node.attribute.append(attr)  
+
+            output_shape = [1, 1]
+            Z = helper.make_tensor_value_info('Z', TensorProto.FLOAT16, output_shape)
+
+            rm_node = helper.make_node(
+                            'ReduceMean', # node name
+                            ['6'],
+                            ['Z'], # outputs
+                            axes=[0,1],
+                            keepdims=1,
+                        )  
+
+            model.graph.node.insert(idx+1, rm_node)
+            node.input[2] = 'Z'
+
+            break
+
+    model = onnx.shape_inference.infer_shapes(model)
+    onnx.save(model, './gemm_ctt.onnx')
+
+model = onnx.load('./gemm_test/graphsage_zjm_fp16_maca.onnx')
+mk_ctt(model)    
 
 

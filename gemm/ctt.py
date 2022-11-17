@@ -2,29 +2,11 @@ import onnx
 import sys, os
 import numpy as np
 import copy
+import utils
 from onnx import TensorProto
 
 sys.path.append(os.path.abspath('..'))
 import values
-
-def is_shared_init(model, init, node_name):
-    for node in model.graph.node:
-        if node.name != node_name:
-            if init in node.input:
-                return True
-
-    return False            
-
-def is_shared_constant(model, constant):
-    count = 0
-    for node in model.graph.node:
-        if constant in node.input:
-            count = count + 1
-
-    if count > 1:
-        return True            
-
-    return False
 
 def handle_constant_node(model, node, transpose, alpha):
     for n in model.graph.node:
@@ -88,54 +70,11 @@ def handle_constant_node(model, node, transpose, alpha):
                     break         
             break     
 
-def proc_gemm_ctt(model, node_id, node, attr):
-    print('proc_gemm_ctt-----------')
+def handle_common(model, node, attr, replace=True):
     alpha = attr['alpha']
     beta = attr['beta']
     transA = attr['transA']
     transB = attr['transB']
-
-    length = len(node.input)
-    if length == 3: 
-        c_name = node.input[2]
-
-    skip = 0
-
-    node_index = node_id
-
-    input_0 = node.input[0]
-    input_1 = node.input[1]
-
-    if transB != 1:
-        print('proc_gemm_case_4, Do TransB', node_id)
-
-        output = node.input[1] + '_transpose_'
-        #transpose_output = onnx.helper.make_tensor_value_info(output, TensorProto.UNDEFINED, ['a', 'b'])      
-
-        transpose_node = onnx.helper.make_node(
-                    'Transpose',
-                    name=output,
-                    inputs=[node.input[1]],
-                    outputs=[onnx.helper.make_tensor_value_info(output, TensorProto.UNDEFINED, ['a', 'b'])])
-
-        #node.input[1] = output
-        node.input[0] = output
-
-        model.graph.node.insert(node_index, transpose_node)
-        node_index = node_index + 1
-        skip = skip + 1
-
-        attributes = node.attribute
-        for attr in attributes:
-            if attr.name == 'transA':
-                attr.i = 0              
-    else:
-        node.input[0] = input_1
-
-        attributes = node.attribute
-        for attr in attributes:
-            if attr.name == 'transA':
-                attr.i = 0  
 
     if transA != 0 and alpha != 1.0:
         A_name = node.input[0] + '__'
@@ -182,16 +121,17 @@ def proc_gemm_ctt(model, node_id, node, attr):
         if alpha_proc == False:
             handle_constant_node(model, node, True, alpha)
 
-        attributes = node.attribute
-        found = False
-        for attr in attributes:
-            if attr.name == 'transB':
-                found = True
-                attr.i = 1
-        
-        if found == False:
-            attr = onnx.helper.make_attribute('transB', 1)
-            node.attribute.append(attr)        
+        if replace == True: 
+            attributes = node.attribute
+            found = False
+            for attr in attributes:
+                if attr.name == 'transA':
+                    found = True
+                    attr.i = 0
+            
+            if found == False:
+                attr = onnx.helper.make_attribute('transA', 0)
+                node.attribute.append(attr)        
     elif alpha != 1.0:
         alpha_proc = False
         for init in model.graph.initializer:
@@ -212,7 +152,7 @@ def proc_gemm_ctt(model, node_id, node, attr):
 
                 A_name = node.input[0] + '__'
 
-                if is_shared_init(model, init.name, node.name) == True:
+                if utils.is_shared_init(model, init.name, node.name) == True:
                     A_ = onnx.helper.make_tensor(name=A_name,
                                         data_type=init.data_type,
                                         dims=[init.dims[0], init.dims[1]],
@@ -228,18 +168,7 @@ def proc_gemm_ctt(model, node_id, node, attr):
                 break
 
         if alpha_proc == False:
-            handle_constant_node(model, node, False, alpha)
-
-        attributes = node.attribute
-        found = False
-        for attr in attributes:
-            if attr.name == 'transB':
-                found = True
-                attr.i = 1
-        
-        if found == False:
-            attr = onnx.helper.make_attribute('transB', 1)
-            node.attribute.append(attr)        
+            handle_constant_node(model, node, False, alpha)      
     elif transA != 0:
         alpha_proc = False
         for init in model.graph.initializer:
@@ -281,36 +210,48 @@ def proc_gemm_ctt(model, node_id, node, attr):
         if alpha_proc == False:
             handle_constant_node(model, node, True, 1.0)
 
-        attributes = node.attribute
-        found = False
-        for attr in attributes:
-            if attr.name == 'transB':
-                found = True
-                attr.i = 1
-        
-        if found == False:
-            attr = onnx.helper.make_attribute('transB', 1)
-            node.attribute.append(attr)    
+        if replace == True: 
+            attributes = node.attribute
+            found = False
+            for attr in attributes:
+                if attr.name == 'transA':
+                    found = True
+                    attr.i = 0
+            
+            if found == False:
+                attr = onnx.helper.make_attribute('transA', 0)
+                node.attribute.append(attr)    
 
-    output_0 = node.output[0]
+def proc_gemm_ctt(model, node_id, node, attr):
+    in_shape, _ = utils.got_input_shape(model, node.input[0])
 
-    gemm_output = node.name + '_gemm_output_'
-    del node.output[:]
-    node.output.append(gemm_output)
+    print('proc_gemm_ctt, got input shape:', in_shape)
 
-    #######
-    transpose_name = gemm_output + '_transpose_'
-    transpose_output = transpose_name + '_output_'
+    if in_shape > 32:
+        print('in_shape > 32, goto proc_gemm_ctt_matmul')
+        return proc_gemm_ctt_matmul(model, node_id, node, attr)
 
-    transpose_node = onnx.helper.make_node(
-                'Transpose',
-                name=transpose_name,
-                inputs=[gemm_output],
-                outputs=[onnx.helper.make_tensor_value_info(transpose_output, TensorProto.UNDEFINED, ['a', 'b'])])
+    alpha = attr['alpha']
+    beta = attr['beta']
+    transA = attr['transA']
+    transB = attr['transB']
 
-    model.graph.node.insert(node_index, transpose_node)
-    node_index = node_index + 1
-    skip = skip + 1
+    length = len(node.input)
+    if length == 3: 
+        c_name = node.input[2]
+
+    skip = 0
+
+    node_index = node_id
+
+    input_0 = node.input[0]
+    input_1 = node.input[1]
+
+    if transB != 1:
+        print('transB != 1, goto proc_gemm_ctt_matmul')
+        return proc_gemm_ctt_matmul(model, node_id, node, attr)        
+
+    handle_common(model, node, attr)
     ############
 
     mul_name_c = node.name + '_mul_c_'
@@ -318,11 +259,12 @@ def proc_gemm_ctt(model, node_id, node, attr):
     add_name_c = node.name + '_add_c_'
     add_element_c = transpose_output
 
-    if beta != 1.0:
-        if length == 3:
+    if length == 3:
+        if beta != 1.0:
+            beta_proc = False 
             for vi in model.graph.value_info:
                 if vi.name == c_name:
-                    type_ = vi.elem_type
+                    type_ = vi.type.tensor_type.elem_type
 
                     if len(vi.type.tensor_type.shape.dim) > 0:
                         shape_ = [s.dim_value for s in vi.type.tensor_type.shape.dim]
@@ -335,40 +277,138 @@ def proc_gemm_ctt(model, node_id, node, attr):
                                             dims=(),
                                             vals=[beta])
 
-                        model.graph.initializer.append(const_beta)                    
+                        model.graph.initializer.append(const_beta)  
+
+                        mul_c = onnx.helper.make_tensor_value_info(mul_c_output, type_, shape_)                  
 
                         mul_node_c = onnx.helper.make_node(
                                     'Mul',
                                     name=mul_name_c,
                                     inputs=[beta_name, c_name],
-                                    outputs=[onnx.helper.make_tensor_value_info(mul_c_output,
-                                                                type_,
-                                                                shape_)])
+                                    outputs=[mul_c_output])
+
+                        node.input[2] = mul_c_output            
 
                         model.graph.node.insert(node_index, mul_node_c)
                         node_index = node_index + 1
                         skip = skip + 1 
 
-                        add_node = onnx.helper.make_node(
+                    break       
+
+    return skip
+
+def proc_gemm_ctt_matmul(model, node_id, node, attr): 
+    alpha = attr['alpha']
+    beta = attr['beta']
+    transA = attr['transA']
+    transB = attr['transB']
+
+    node_index = node_id
+
+    length = len(node.input)
+    c_name = ''
+    if length == 3: 
+        c_name = node.input[2]
+
+    outputB = ''
+
+    skip = 0
+
+    if transB != 0:
+        print('proc_gemm_ctt_matmul, Do TransB', node_id)
+        skip = skip + 1
+        outputB = node.input[1] + '_transpose_'
+        transpose_output = onnx.helper.make_tensor_value_info(outputB, TensorProto.UNDEFINED, ['a', 'b'])      
+
+        transpose_node = onnx.helper.make_node(
+                    'Transpose',
+                    name=outputB,
+                    inputs=[node.input[1]],
+                    outputs=[outputB])
+
+        model.graph.node.insert(node_index, transpose_node)
+        node_index = node_index + 1
+        skip = skip + 1
+
+    handle_common(model, node, attr, False)
+    ################
+    del node.attribute[:]
+
+    node.op_type = 'MatMul'
+    input_0 = node.input[0]
+    input_1 = node.input[1]
+
+    output_0 = node.output[0]
+
+    if length == 3:
+        del node.input[2:]
+
+    if outputB != '':
+        node.input[1] = outputB
+
+    matmul_output_name = node.output[0] + '_matmul_'
+
+    #############
+    if length == 3:
+        beta_name = matmul_output_name + 'const_beta'
+        add_name = matmul_output_name + '_add_'
+        add_element = matmul_output_name
+        add_name_c = matmul_output_name + '_add_c_'
+        mul_name_c = matmul_output_name + '_mul_c_'
+
+        if beta != 1.0 and beta > 0.0:
+            node.output[0] = matmul_output_name
+            for vi in model.graph.value_info:
+                if vi.name == c_name:
+                    type_ = vi.type.tensor_type.elem_type
+
+                    if len(vi.type.tensor_type.shape.dim) > 0:
+                        shape_ = [s.dim_value for s in vi.type.tensor_type.shape.dim]
+                        print('c_name: ', c_name, ', shape: ', shape_)
+
+                        mul_c_output = mul_name_c + '_output_'
+
+                        const_beta = onnx.helper.make_tensor(name=beta_name,
+                                            data_type=type_,
+                                            dims=(),
+                                            vals=[beta])
+
+                        model.graph.initializer.append(const_beta) 
+
+                        mul_c = onnx.helper.make_tensor_value_info(mul_c_output, type_, shape_)                   
+
+                        mul_node_c = onnx.helper.make_node(
+                                    'Mul',
+                                    name=mul_name_c,
+                                    inputs=[beta_name, c_name],
+                                    outputs=[mul_c_output])
+
+                        model.graph.node.insert(node_index, mul_node_c)
+                        node_index = node_index + 1
+                        skip = skip + 1 
+
+                        add_node_c = onnx.helper.make_node(
                             'Add',
                             name=add_name_c,
-                            inputs=[mul_c_output, add_element_c],
+                            inputs=[mul_c_output, add_element],
                             outputs=[output_0]) 
 
-                        model.graph.node.insert(node_index, add_node)
+                        model.graph.node.insert(node_index, add_node_c)
                         node_index = node_index + 1
                         skip = skip + 1  
 
                     break       
-    else:
-        add_node = onnx.helper.make_node(
-            'Add',
-            name=add_name_c,
-            inputs=[c_name, add_element_c],
-            outputs=[output_0]) 
+        elif beta == 1.0:
+            node.output[0] = matmul_output_name
+            add_node = onnx.helper.make_node(
+                'Add',
+                name=add_name,
+                inputs=[c_name, add_element],
+                outputs=[output_0]) 
 
-        model.graph.node.insert(node_index, add_node)
-        node_index = node_index + 1
-        skip = skip + 1  
+            model.graph.node.insert(node_index, add_node)
+            node_index = node_index + 1
+            skip = skip + 1  
 
     return skip
+   
