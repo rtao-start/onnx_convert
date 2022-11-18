@@ -276,7 +276,80 @@ def mk_ctt(model):
     model = onnx.shape_inference.infer_shapes(model)
     onnx.save(model, './gemm_ctt.onnx')
 
-model = onnx.load('./gemm_test/graphsage_zjm_fp16_maca.onnx')
-mk_ctt(model)    
+def mk_ttt_transA(model):
+    for idx, node in enumerate(model.graph.node): 
+        if node.name == 'Gemm_224':
+            output_shape = [2048, 1]
+            TP = helper.make_tensor_value_info('TP', TensorProto.FLOAT, output_shape)
+
+            tp_node = helper.make_node(
+                            'Transpose', # node name
+                            ['663'],
+                            ['TP'], # outputs
+                            )  
+
+            model.graph.node.insert(idx+1, tp_node)
+
+            node.input[0] = 'TP'
+
+            attributes = node.attribute
+            found = False
+            for attr in attributes:
+                if attr.name == 'transA':
+                    found = True
+                    attr.i = 1
+            
+            if found == False:
+                attr = onnx.helper.make_attribute('transA', 1)
+                node.attribute.append(attr)  
+
+            break
+
+    model = onnx.shape_inference.infer_shapes(model)
+    onnx.save(model, './gemm_ttt_transA.onnx')
+
+def mk_ttt_no_trans(model):
+    for idx, node in enumerate(model.graph.node): 
+        if node.name == 'Gemm_224':
+            output_shape = [2048, 1000]
+            TP = helper.make_tensor_value_info('TPB', TensorProto.FLOAT, output_shape)
+
+            tp_node = helper.make_node(
+                            'Transpose', # node name
+                            ['Z'],
+                            ['TPB'], # outputs
+                            )  
+
+            model.graph.node.insert(idx+1, tp_node)
+
+            node.input[1] = 'TPB'
+
+            attributes = node.attribute
+            found = False
+            for attr in attributes:
+                if attr.name == 'transB':
+                    found = True
+                    attr.i = 0
+            
+            if found == False:
+                attr = onnx.helper.make_attribute('transB', 0)
+                node.attribute.append(attr)  
+
+            for attr in attributes:
+                if attr.name == 'alpha':
+                    attr.f = 1
+                    break
+
+            for attr in attributes:
+                if attr.name == 'beta':
+                    attr.f = 1
+
+            break
+
+    model = onnx.shape_inference.infer_shapes(model)
+    onnx.save(model, './gemm_ttt_transA_only.onnx')
+
+model = onnx.load('./gemm_ttt_transA.onnx')
+mk_ttt_no_trans(model)    
 
 

@@ -310,7 +310,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
             
             if C_proc == False:
                 for n in model.graph.node:
-                    if c_name == n.output[0]:
+                    if c_name == n.output[0] and node.op_type == 'Constant':
                         C_proc = True
                         attributes = n.attribute
                         for attr in attributes:
