@@ -80,9 +80,7 @@ def merge_mish_old(onnxfile, export_onnx):
 
     return got_mish
         
-def merge_mish(onnxfile):
-    model = onnx.load(onnxfile)
-
+def merge_mish(model):
     dict_sp = {}
     dict_tanh = {}
     dict_mul = {}

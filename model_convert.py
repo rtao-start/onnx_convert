@@ -875,12 +875,14 @@ def my_extract_model(
    else:
       print('^^^^ Finish extracting model...')
 
+   return True   
+
 def extract_sub_graph(input_path, output_path, input_names, output_names):
    print('input_names:', input_names, ', output_names:', output_names)
    input_list = input_names.split(',')
    output_list = output_names.split(',')
    #onnx.utils.extract_model(input_path, output_path, input_list, output_list)
-   my_extract_model(input_path, output_path, input_list, output_list)
+   return my_extract_model(input_path, output_path, input_list, output_list)
 
    '''
    try:
@@ -1255,7 +1257,7 @@ def process(args):
       #onnx.save(new_model, output)
 
    if model_type == 'onnx' and support_mish == 1:
-      new_model = merge_mish(model_path)
+      new_model = merge_mish(new_model)
 
    if model_type == 'onnx' and support_swish == 1:
       new_model = merge_swish_and_hard_swish(new_model)   

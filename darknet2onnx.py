@@ -640,7 +640,7 @@ class GraphBuilderONNX(object):
         del weight_loader
         self.graph_def = helper.make_graph(
             nodes=self._nodes,
-            name='YOLOv4-608',
+            name='YOLO-Detect',
             inputs=inputs,
             outputs=outputs,
             initializer=initializer
