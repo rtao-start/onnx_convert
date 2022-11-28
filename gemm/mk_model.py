@@ -349,7 +349,20 @@ def mk_ttt_no_trans(model):
     model = onnx.shape_inference.infer_shapes(model)
     onnx.save(model, './gemm_ttt_transA_only.onnx')
 
-model = onnx.load('./gemm_ttt_transA.onnx')
-mk_ttt_no_trans(model)    
+def mk_ttc_beta(model):
+    for idx, node in enumerate(model.graph.node): 
+        if node.name == 'Gemm_2':
+            attributes = node.attribute
+            for attr in attributes:
+                if attr.name == 'beta':
+                    attr.f = 2
+
+            break
+
+    model = onnx.shape_inference.infer_shapes(model)
+    onnx.save(model, './gemm_ttc_beta.onnx')
+
+model = onnx.load('./gemm_test/pygcn_fp16_maca.onnx')
+mk_ttc_beta(model)    
 
 

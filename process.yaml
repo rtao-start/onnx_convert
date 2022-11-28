@@ -47,7 +47,7 @@
   postproc:
     #alpha通道值
     - alpha:
-      - 128
+      - 255
     - control:
       #数据输出类型是否需要转换为uint8
       - true

@@ -568,6 +568,23 @@ def optimization_op(model):
 
    return delete
 
+def correct_output_shape(model):
+   for output in model.graph.output:
+      if len(output.type.tensor_type.shape.dim) > 0:
+         output_shape = output.type.tensor_type.shape.dim
+         output_shape = [x.dim_value for x in output_shape]
+
+         dynamic_output_shape_ = any(d==-1 or d==0 for d in output_shape)
+         if dynamic_output_shape_ == True:
+            print('The model output is dynamic, output:', output.name, output_shape)
+            output.type.tensor_type.shape.dim[0].dim_value = 1
+
+   for output in model.graph.output:
+      if len(output.type.tensor_type.shape.dim) > 0:
+         output_shape = output.type.tensor_type.shape.dim
+         output_shape = [x.dim_value for x in output_shape]
+         print('The model output is dynamic, output_shape:', output_shape)
+       
 def model_simplify(onnx_model, simplify_model, simplify_hw):
    #onnx_model = onnx.load(model_path)
    dynamic_input_shape_ = False
@@ -593,7 +610,7 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
 
             dynamic_input_shape_ = any(d==-1 or d==0 for d in input_shape)
             if dynamic_input_shape_ == True:
-               print('The model input is dynamic---')
+               print('The model input is dynamic, input:', input_.name, input_shape)
                input_shape[0] = 1
                if simplify_hw != '':
                   hw_list = simplify_hw.split(',')
@@ -602,7 +619,7 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
                   print('input_shape',input_shape)
 
                input_shapes_[input_.name] = input_shape
-               break
+               #break
 
             '''
             dim_proto_input = input_.type.tensor_type.shape.dim[0]
@@ -621,7 +638,8 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
       if dynamic_input_shape_ == True:
          model_simp, check = simplify(onnx_model, input_shapes=input_shapes_, skip_constant_folding=skip_constant_folding_)
          if simplify_hw == '':
-            correct_batch_for_opset_convert(model_simp)
+            #correct_batch_for_opset_convert(model_simp)
+            correct_output_shape(model_simp)
       else:   
          model_simp, check = simplify(onnx_model, dynamic_input_shape=False)
    else:
