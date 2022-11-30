@@ -225,6 +225,12 @@ def insert_preproc_node(model, preproc_dict):
     graph.input[0].type.tensor_type.shape.dim[2].dim_value = preproc_dict['hw'][0]
     graph.input[0].type.tensor_type.shape.dim[3].dim_value = preproc_dict['hw'][1]
 
+    #rgb packet input shape must be [1,1,h,w*3]
+    if preproc_dict['control'][3] == 1:
+        graph.input[0].type.tensor_type.shape.dim[1].dim_value = 1
+        graph.input[0].type.tensor_type.shape.dim[2].dim_value = preproc_dict['hw'][0]
+        graph.input[0].type.tensor_type.shape.dim[3].dim_value = 3*preproc_dict['hw'][1]
+
     print('before make graph')
 
     new_graph = onnx.helper.make_graph(graph.node, graph.name, graph.input, graph.output, graph.initializer)

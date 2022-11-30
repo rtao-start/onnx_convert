@@ -1,7 +1,6 @@
 #hw: 输入图像的高度和宽度(可不写，或指定为-1、-1)
 #std: 均方差
 #mean: 均值
-#resize: 目标高度和宽度(原图像尺寸与模型目标尺寸相同时可不写)
 #crop:[height begin, width begin, height end, width end]
 ##### crop的处理，目前固定为center crop，所以实际配置时，该项可不写(配置的参数会被忽略)
 #control: 控制开关(可不写, 默认值为：false、true、false、false)
@@ -23,25 +22,25 @@
       - 576
       - 720   
     - resize:
-      #目标高度和宽度相同时，也可以只写一个数字
+      #该字段暂未生效，可填写任意值
       - 300
       - 300
     - crop:
-      #默认做中心裁剪，此处可不修改
-      - -1
-      - -1
-      - -1
-      - -1
+      #若不需要做crop, 可全部填-1
+      - 0
+      - 0
+      - 224
+      - 224
     - control:
-      #是否需要做rgb-->bgr转换
+      #是否需要做bgr-->rgb转换
       - false 
-      #是否先做crop再做resize  
+      #是否先做crop再做resize(暂不生效，无需配置)  
       - false
-      #是否先做归一化，再做resize+crop(或者crop+resize)  
+      #是否先做归一化，再做resize+crop(暂不生效，无需配置)  
       - false
-      #output type是否为float16(暂不支持)  
+      #输入是否为rgb packet格式(即rgbrgbrgbrgb...., 非rgb planar格式)  
       - false  
-      #是否需要做crop(如设为false，则只做norm+resize或resize+norm)?  
+      #是否需要做crop(如设为false，则只做norm+resize) 
       - false 
   #后处理参数      
   postproc:
