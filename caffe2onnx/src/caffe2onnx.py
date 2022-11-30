@@ -10,7 +10,10 @@ from typing import *
 import onnx
 
 class Caffe2Onnx():
-    def __init__(self, net, model, onnxname):
+    def __init__(self, net, model, onnxname, op_set=11):
+        #qiuzy add for op map
+        self.op_set = op_set
+
         # Initialize a c2oGraph object
         self.onnxmodel = c2oGraph(onnxname)
         # Network and parameters
@@ -660,6 +663,8 @@ class Caffe2Onnx():
                 output_name = self.GetCurrentLayerOutName(Layers[i])
                 node_name = Layers[i].name
 
+                print('Upsample, input_name:', input_name, input_shape)
+
                 # 2.Generate node parameter tensor value info, get the node parameter name, and add the parameter name to the node input name list 
                 # add roi input
 
@@ -669,13 +674,26 @@ class Caffe2Onnx():
                 paramdata = [[1, 1, 1, 1, 2, 2, 2, 2],
                              [1.0, 1.0, Layers[i].upsample_param.scale, Layers[i].upsample_param.scale]]
 
-                pname = self.AddInputsTVIMannul(Layers[i], op_pname["Upsample"], op_ptype["Upsample"], paramshape,
+                #qiuzy add for opset < 11
+                if self.op_set < 11:
+                    op_pname_ = {}
+                    op_pname_["Upsample"] = ["_Scale"]
+                    op_ptype_ = {}
+                    op_ptype_["Upsample"] = [TensorProto.FLOAT]
+                    paramshape_ = [[4, 1]]
+                    paramdata_ = [[1.0, 1.0, Layers[i].upsample_param.scale, Layers[i].upsample_param.scale]]
+
+                    pname = self.AddInputsTVIMannul(Layers[i], op_pname_["Upsample"], op_ptype_["Upsample"], paramshape_, paramdata_)
+                else:    
+                    pname = self.AddInputsTVIMannul(Layers[i], op_pname["Upsample"], op_ptype["Upsample"], paramshape,
                                                paramdata)
 
                 input_name.extend(pname)
 
+                print('XXX Upsample, input_name:', input_name, input_shape)
+
                 # 3.Build Upsample_node
-                Upsample_node = op.create_resize_node(Layers[i], node_name, input_name, output_name, input_shape)
+                Upsample_node = op.create_resize_node(Layers[i], node_name, input_name, output_name, input_shape, self.op_set)
 
                 # 4.Add node to node list 
                 self.onnxNodeList.append(Upsample_node)

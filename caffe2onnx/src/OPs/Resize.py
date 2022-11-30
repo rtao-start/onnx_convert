@@ -7,13 +7,14 @@ import caffe2onnx.src.c2oObject as Node
 import numpy as np
 
 
-def create_attributes(layer) -> Dict:
+def create_attributes(layer, op_set) -> Dict:
     coordinate_transformation_mode = 'half_pixel'
     cubic_coeff_a = -0.75
     exclude_outside = 0
     extrapolation_value = 0.0
     mode = 'nearest'
     nearest_mode = 'round_prefer_floor'
+
     attributes = {
         "coordinate_transformation_mode": coordinate_transformation_mode,
         "cubic_coeff_a": cubic_coeff_a,
@@ -22,8 +23,11 @@ def create_attributes(layer) -> Dict:
         "mode": mode,
         "nearest_mode" :nearest_mode
     }
-    return attributes
 
+    if op_set < 11:
+        attributes = {"mode": mode}
+
+    return attributes
 
 def caculate_output_shape(layer, input_shape) -> List:
     scale = layer.upsample_param.scale
@@ -37,8 +41,9 @@ def create_resize_node(layer,
                        node_name: str,
                        inputs_name: List[str],
                        outputs_name: List[str],
-                       inputs_shape: List, ) -> onnx.NodeProto:
-    attributes = create_attributes(layer)
+                       inputs_shape: List, 
+                       op_set=11,) -> onnx.NodeProto:
+    attributes = create_attributes(layer, op_set)
 
     outputs_shape = caculate_output_shape(layer, inputs_shape)
 

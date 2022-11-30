@@ -1,9 +1,8 @@
-#hw: 输入图像的高度和宽度(可不写，或指定为-1、-1)
-#std: 均方差
-#mean: 均值
-#crop:[height begin, width begin, height end, width end]
-##### crop的处理，目前固定为center crop，所以实际配置时，该项可不写(配置的参数会被忽略)
-#control: 控制开关(可不写, 默认值为：false、true、false、false)
+#std: 均方差(rgb)
+#mean: 均值(rgb)
+#hw: 输入图像的高度和宽度
+#crop:[left, top, width, height]
+#control: 控制开关(可不写, 默认值为：false、false、false、false、false)
 
 ---
   #归一化参数
@@ -29,8 +28,8 @@
       #若不需要做crop, 可全部填-1
       - 0
       - 0
-      - 224
-      - 224
+      - 720
+      - 576
     - control:
       #是否需要做bgr-->rgb转换
       - false 
@@ -39,9 +38,9 @@
       #是否先做归一化，再做resize+crop(暂不生效，无需配置)  
       - false
       #输入是否为rgb packet格式(即rgbrgbrgbrgb...., 非rgb planar格式)  
-      - false  
+      - true  
       #是否需要做crop(如设为false，则只做norm+resize) 
-      - false 
+      - true 
   #后处理参数      
   postproc:
     #alpha通道值

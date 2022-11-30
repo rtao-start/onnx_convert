@@ -313,7 +313,7 @@ def convert_caffe2onnx(model_path, output, op_set):
       onnxmodel_path = output
 
       graph, params = loadcaffemodel(prototxt_file, caffemodel_file)
-      c2o = Caffe2Onnx(graph, params, onnxmodel_path)
+      c2o = Caffe2Onnx(graph, params, onnxmodel_path, op_set)
       onnxmodel = c2o.createOnnxModel(op_set) #qiuzy debug
 
       saveonnxmodel(onnxmodel, onnxmodel_path)
