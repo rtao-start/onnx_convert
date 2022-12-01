@@ -33,13 +33,14 @@
     - control:
       #是否需要做bgr-->rgb转换
       - false 
-      #是否先做crop再做resize(暂不生效，无需配置)  
+      #预留字段，暂无实际意义  
       - false
-      #是否先做归一化，再做resize+crop(暂不生效，无需配置)  
+      #预留字段，暂无实际意义  
       - false
-      #输入是否为rgb packet格式(即rgbrgbrgbrgb...., 非rgb planar格式)  
+      #输入是否为rgb packet格式(即rgbrgbrgbrgb...., 非rgb planar格式)
+      #rgb packet格式下，输入shape为[N,1,H,W*3]  
       - true  
-      #是否需要做crop(如设为false，则只做norm+resize) 
+      #是否需要做crop(如设为false，则只做norm(+resize)) 
       - true 
   #后处理参数      
   postproc:
