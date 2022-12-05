@@ -663,8 +663,6 @@ class Caffe2Onnx():
                 output_name = self.GetCurrentLayerOutName(Layers[i])
                 node_name = Layers[i].name
 
-                print('Upsample, input_name:', input_name, input_shape)
-
                 # 2.Generate node parameter tensor value info, get the node parameter name, and add the parameter name to the node input name list 
                 # add roi input
 
@@ -689,8 +687,6 @@ class Caffe2Onnx():
                                                paramdata)
 
                 input_name.extend(pname)
-
-                print('XXX Upsample, input_name:', input_name, input_shape)
 
                 # 3.Build Upsample_node
                 Upsample_node = op.create_resize_node(Layers[i], node_name, input_name, output_name, input_shape, self.op_set)
