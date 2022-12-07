@@ -76,6 +76,9 @@ def handle_common(model, node, attr, replace=True):
     transA = attr['transA']
     transB = attr['transB']
 
+    input_0 = node.input[0]
+    input_1 = node.input[1]
+
     if transA != 0 and alpha != 1.0:
         A_name = node.input[0] + '__'
         alpha_proc = False
@@ -90,13 +93,13 @@ def handle_common(model, node, attr, replace=True):
                 if isinstance(v, np.ndarray) == True:
                     A = v.reshape(init.dims[0], init.dims[1])
                     A = A.transpose()
-                    print('+++A.shape:', A.shape)
+                    print('ctt +++A.shape:', A.shape)
                     A = A.flatten()
                     A = A * alpha
                 else:    
                     A = np.array(v).reshape(init.dims[0], init.dims[1])
                     A = A.transpose()
-                    print('---B.shape:', B.shape)
+                    print('ctt ---A.shape:', A.shape)
                     A = A.flatten()
                     A = A * alpha
                     A = A.tolist()
