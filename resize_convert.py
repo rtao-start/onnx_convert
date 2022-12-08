@@ -3,9 +3,18 @@ import values
 import sys
 import numpy as np
 
+def is_unused_init(model, init):
+    for node in model.graph.node:
+        if init.name in node.input:
+            return False
+
+    return True
+
 def remove_unused_initializer(model, unused_init_list):
     for init in unused_init_list:
-        model.graph.initializer.remove(init)
+        if is_unused_init(model, init):
+            print('remove unused init:', init.name)
+            model.graph.initializer.remove(init)
 
 def merge_resize(model):
     dict_reshape = {}
