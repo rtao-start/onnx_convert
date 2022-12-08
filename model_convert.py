@@ -29,6 +29,7 @@ from correct_batch import correct_batch_for_opset_convert, convert_ort_type_2_np
 from pd2onnx import convert_pd2onnx, is_dynamic_paddle
 from pt2onnx import convert_pt2onnx
 from gemm.gemm_cvt import gemm_convert
+from resize_convert import merge_resize
 
 using_wheel = False
 
@@ -264,6 +265,15 @@ def parse_args():
                         choices=[0, 1],
                         default=0,
                         help="If set 1, the tool will convert gemm to fc or matmul+add+mul")     
+   
+   #for convert Reshape+Expand+Reshape to Resize
+   parser.add_argument("--expand_to_resize",
+                        type=int, 
+                        required=False,
+                        choices=[0, 1],
+                        default=0,
+                        help="If set 1, the tool will convert Reshape+Expand+Reshape to Resize")    
+
 
    args = parser.parse_args()
 
@@ -1124,6 +1134,7 @@ def process(args):
    params_file = args.params_file
    simplify_hw = args.simplify_hw
    gemm_optimization = args.gemm_optimization
+   expand_to_resize = args.expand_to_resize
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -1296,7 +1307,10 @@ def process(args):
          print(postproc_yaml, 'is not exist')
 
    if bn_to_conv == 1:
-      new_model = bn2conv.bn2conv(new_model)      
+      new_model = bn2conv.bn2conv(new_model)
+
+   if model_type == 'onnx' and expand_to_resize == 1:
+      new_model = merge_resize(new_model)           
 
    delete = eliminate_redundant_reshape(new_model)
    while delete == True:
