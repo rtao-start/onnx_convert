@@ -360,6 +360,7 @@ def mk_tct_extend(model):
                             'Transpose', # node name
                             ['663'],
                             ['TP'], # outputs
+                            perm=[1,0],
                             )  
 
             model.graph.node.insert(idx+1, tp_node)
@@ -502,6 +503,41 @@ def mk_tcc_extend(model):
     model = onnx.shape_inference.infer_shapes(model)
     onnx.save(model, './gemm_tcc_transA.onnx')
 
+def mk_tcc_extend2(model):
+    v = values.get_init_value(model, 'last_linear.weight')
+    vv = v.reshape(1000, 2048)
+    vv = vv.transpose()
+    print('v:', type(vv), vv.shape)
+
+    for init in model.graph.initializer:
+        if init.name == 'last_linear.weight':
+            values.set_tensor_value(init, vv, [2048, 1000])
+
+    for idx, node in enumerate(model.graph.node): 
+        if node.name == 'Gemm_224':
+            attributes = node.attribute
+            for attr in attributes:
+                if attr.name == 'beta':
+                    attr.f = 2.5
+
+                if attr.name == 'alpha':
+                    attr.f = 1
+
+            found = False
+            for attr in attributes:
+                if attr.name == 'transB':
+                    found = True
+                    attr.i = 0
+
+            if found == False:
+                attr = onnx.helper.make_attribute('transB', 0)
+                node.attribute.append(attr)  
+
+            break
+
+    model = onnx.shape_inference.infer_shapes(model)
+    onnx.save(model, './gemm_tcc_beta.onnx')
+
 def mk_ctc_extend(model):
     v = values.get_init_value(model, 'weight')
     vv = v.reshape(7, 128)
@@ -515,14 +551,116 @@ def mk_ctc_extend(model):
     for idx, node in enumerate(model.graph.node): 
         if node.name == 'Gemm_6':
 
+            output_shape = [1000, 128]
+            TP = helper.make_tensor_value_info('TP', TensorProto.FLOAT, output_shape)
+
+            tp_node = helper.make_node(
+                            'Transpose', # node name
+                            ['9'],
+                            ['TP'], # outputs
+                            )  
+
+            model.graph.node.insert(idx+1, tp_node)
+
+            node.input[1] = 'TP'
+
             attributes = node.attribute
             for attr in attributes:
                 if attr.name == 'beta':
                     attr.f = 1
 
                 if attr.name == 'alpha':
-                    attr.f = 1
+                    attr.f = 2.5
 
+            found = False
+            for attr in attributes:
+                if attr.name == 'transA':
+                    found = True
+                    attr.i = 1
+
+            if found == False:
+                attr = onnx.helper.make_attribute('transA', 1)
+                node.attribute.append(attr)  
+
+
+            found = False
+            for attr in attributes:
+                if attr.name == 'transB':
+                    found = True
+                    attr.i = 1
+
+            if found == False:
+                attr = onnx.helper.make_attribute('transB', 1)
+                node.attribute.append(attr)      
+
+            break
+
+    model = onnx.shape_inference.infer_shapes(model)
+    onnx.save(model, './gemm_ctc_transA_transB_alpha.onnx')
+
+def mk_ctt_extend(model):
+    for idx, node in enumerate(model.graph.node): 
+        if node.name == 'Gemm_3':
+            attributes = node.attribute
+            for attr in attributes:
+                if attr.name == 'beta':
+                    attr.f = 1.0
+
+                if attr.name == 'alpha':
+                    attr.f = 2.5
+            break
+
+    model = onnx.shape_inference.infer_shapes(model)
+    onnx.save(model, './gemm_ctt_transB_alpha.onnx')
+
+def mk_ttc_extend(model):
+    for idx, node in enumerate(model.graph.node): 
+        if node.name == 'Gemm_6':
+            attributes = node.attribute
+            for attr in attributes:
+                if attr.name == 'beta':
+                    attr.f = 2.5
+
+                if attr.name == 'alpha':
+                    attr.f = 3.5
+            break
+
+    model = onnx.shape_inference.infer_shapes(model)
+    onnx.save(model, './gemm_ttc_alpha_beta.onnx')
+
+def mk_ctc_extend2(model):
+    for idx, node in enumerate(model.graph.node): 
+        if node.name == 'Gemm_6':
+            attributes = node.attribute
+            for attr in attributes:
+                if attr.name == 'beta':
+                    attr.f = 0.0
+
+                if attr.name == 'alpha':
+                    attr.f = 1.0
+
+            break
+
+    model = onnx.shape_inference.infer_shapes(model)
+    onnx.save(model, './gemm_ctc_beta_0.onnx')
+
+def mk_ctc_transA(model):
+    for idx, node in enumerate(model.graph.node): 
+        if node.name == 'Gemm_224':
+            output_shape = [2048, 1]
+            TP = helper.make_tensor_value_info('TP', TensorProto.FLOAT, output_shape)
+
+            tp_node = helper.make_node(
+                            'Transpose', # node name
+                            ['663'],
+                            ['TP'], # outputs
+                            perm=[1,0],
+                            )  
+
+            model.graph.node.insert(idx+1, tp_node)
+            node.input[0] = 'TP'
+
+            attributes = node.attribute
             found = False
             for attr in attributes:
                 if attr.name == 'transA':
@@ -536,9 +674,25 @@ def mk_ctc_extend(model):
             break
 
     model = onnx.shape_inference.infer_shapes(model)
-    onnx.save(model, './gemm_ctc_transA.onnx')
+    onnx.save(model, './gemm_tct_transA.onnx')
 
-model = onnx.load('./gemm_ctc.onnx')
-mk_ctc_extend(model)    
+def add_perm(model):
+    for node in model.graph.node:
+        if node.op_type == 'Transpose':
+            attributes = node.attribute
+            found = False
+            for attr in attributes:
+                if attr.name == 'perm':
+                    found = True
+
+            if found == False:
+                attr = onnx.helper.make_attribute('perm', [1,0])
+                node.attribute.append(attr)  
+
+    onnx.save(model, './gemm_ttt_transA.onnx')        
+
+
+model = onnx.load('./gemm_ttt_transA.onnx')
+add_perm(model)    
 
 

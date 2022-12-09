@@ -344,7 +344,8 @@ def proc_gemm_ctt_matmul(model, node_id, node, attr):
                     'Transpose',
                     name=outputB,
                     inputs=[node.input[1]],
-                    outputs=[outputB])
+                    outputs=[outputB],
+                    perm=[1,0])
 
         model.graph.node.insert(node_index, transpose_node)
         node_index = node_index + 1

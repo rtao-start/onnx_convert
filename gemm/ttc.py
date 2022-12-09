@@ -43,7 +43,8 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
                     'Transpose',
                     name=outputA,
                     inputs=[node.input[0]],
-                    outputs=[outputA])
+                    outputs=[outputA],
+                    perm=[1,0])
 
         #node.input[0] = output
         #model.graph.node.append(transpose_node)
@@ -61,7 +62,8 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
                     'Transpose',
                     name=outputB,
                     inputs=[node.input[1]],
-                    outputs=[outputB])
+                    outputs=[outputB],
+                    perm=[1,0])
 
         #node.input[1] = outputB
 
