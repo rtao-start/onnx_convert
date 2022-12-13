@@ -78,11 +78,9 @@ def get_init_value(model, init_name):
             print('init.name', init.name)
             dtype = init.data_type
             np_dtype = convert_ort_type_2_np(dtype)
+            print('np_dtype is ', np_dtype)
             if init.raw_data:
                 data_list = np.fromstring(init.raw_data, dtype=np_dtype)
-                if False: #data_list[0] != input_batch:
-                    data_list[0] = input_batch
-                    init.raw_data = data_list.tostring()
             else:
                 data_list = get_data_list(dtype, init)
 

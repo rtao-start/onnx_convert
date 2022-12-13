@@ -274,6 +274,13 @@ def parse_args():
                         default=0,
                         help="If set 1, the tool will convert Reshape+Expand+Reshape to Resize")    
 
+   #reset model value_info(some model(batch=-1) may have wrong value info for middle node)) 
+   parser.add_argument("--reset_value_info",
+                        type=int, 
+                        required=False,
+                        choices=[0, 1],
+                        default=0,
+                        help="If set 1, the tool will try correct wrong value info") 
 
    args = parser.parse_args()
 
@@ -594,7 +601,16 @@ def correct_output_shape(model):
          output_shape = output.type.tensor_type.shape.dim
          output_shape = [x.dim_value for x in output_shape]
          print('The model output is dynamic, output_shape:', output_shape)
-       
+
+def reset_model_value_info(model):
+   del model.graph.value_info[:]
+
+   new_model = onnx.shape_inference.infer_shapes(model)
+
+   new_model = onnx.shape_inference.infer_shapes(new_model)
+
+   return new_model
+
 def model_simplify(onnx_model, simplify_model, simplify_hw):
    #onnx_model = onnx.load(model_path)
    dynamic_input_shape_ = False
@@ -650,6 +666,7 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
          if simplify_hw == '':
             #correct_batch_for_opset_convert(model_simp)
             correct_output_shape(model_simp)
+            model_simp = reset_model_value_info(model_simp)
       else:   
          model_simp, check = simplify(onnx_model, dynamic_input_shape=False)
    else:
@@ -1135,6 +1152,7 @@ def process(args):
    simplify_hw = args.simplify_hw
    gemm_optimization = args.gemm_optimization
    expand_to_resize = args.expand_to_resize
+   reset_value_info = args.reset_value_info
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -1311,6 +1329,9 @@ def process(args):
 
    if model_type == 'onnx' and expand_to_resize == 1:
       new_model = merge_resize(new_model)           
+
+   if model_type == 'onnx' and reset_value_info == 1:
+      new_model = reset_model_value_info(new_model)  
 
    delete = eliminate_redundant_reshape(new_model)
    while delete == True:
