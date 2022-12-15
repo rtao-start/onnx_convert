@@ -2,7 +2,8 @@ import onnx
 import sys
 import argparse
 import values
-       
+import numpy as np       
+
 def merge_layernorm(model):
     got_ln = False
     search = True
@@ -18,9 +19,13 @@ def merge_layernorm(model):
         dict_mul = {}
         dict_add2 = {}
 
+        rm1_axes = -1
+        rm2_axes = -1
+
         search = False
         ready = False
         ready2 =  False
+
 
         for node_id, node in enumerate(model.graph.node):
             #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
@@ -32,6 +37,20 @@ def merge_layernorm(model):
                         dict_rm2['input'] = node.input
                         dict_rm2['output'] = node.output
                         dict_rm2['id'] = node_id
+
+                        attributes = node.attribute
+                        for attr in attributes:
+                            if attr.name == 'axes':
+                                rm2_axes = attr.ints
+                                print('rm2_axes: ', rm2_axes)
+                                if len(rm2_axes) != 1 or rm2_axes != rm1_axes:
+                                    print('--This ReduceMean IsNot we are looking for...')
+                                    dict_rm = {}
+                                    dict_sub = {}
+                                    dict_pow = {}
+                                    dict_rm2 = {}
+                                    ready = False
+                                    ready2 =  False
                     else: 
                         print('clear ReduceMean Sub Pow')
                         print('dict_rm:', dict_rm)
@@ -46,6 +65,17 @@ def merge_layernorm(model):
                     dict_rm['input'] = node.input
                     dict_rm['output'] = node.output
                     dict_rm['id'] = node_id
+
+                    attributes = node.attribute
+                    for attr in attributes:
+                        if attr.name == 'axes':
+                            rm1_axes = attr.ints
+                            print('rm1_axes: ', rm1_axes)
+                            if len(rm1_axes) != 1:
+                                print('This ReduceMean IsNot we are looking for...')
+                                dict_rm = {}
+
+                            break
 
             if node.op_type == 'Sub':
                 if dict_rm and node.input[0] == dict_rm['input'][0] and node.input[1] == dict_rm['output'][0]:
@@ -70,36 +100,6 @@ def merge_layernorm(model):
                         dict_pow['id'] = node_id
 
                         print('got second pair:', dict_pow['input'], dict_pow['output'])
-
-                        '''
-                        got_ln = True
-
-                        old_node = model.graph.node[dict_rm['id']] 
-                        model.graph.node.remove(old_node)
-
-                        mish_node = onnx.helper.make_node(
-                                                name = '',
-                                                op_type='Mish',
-                                                inputs=dict_rm['input'],
-                                                outputs=dict_pow['output'],
-                                                domain='com.metax-tech'
-                                                )
-
-                        model.graph.node.insert(dict_rm['id'], mish_node)
-
-                        old_node = model.graph.node[dict_pow['id']] 
-                        model.graph.node.remove(old_node)
-
-                        old_node = model.graph.node[dict_sub['id']] 
-                        model.graph.node.remove(old_node)
-
-                        dict_rm = {}
-                        dict_sub = {}
-                        dict_pow = {} 
-
-                        search = True
-                        break
-                        '''
                     else:
                         print('--clear ReduceMean and Sub')
                         print('--dict_rm:', dict_rm)
@@ -120,9 +120,48 @@ def merge_layernorm(model):
             if node.op_type == 'Add':
                 if ready == True and ready2 == True:
                     if node.input[0] == dict_mul['output'][0]:
+                        dict_add2['input'] = node.input
+                        dict_add2['output'] = node.output
+                        dict_add2['id'] = node_id
+
                         search = True
                         got_ln = True
                         print('Got a LayerNorm op')
+                        ###
+                        rm_node = model.graph.node[dict_rm['id']]
+                        sub_node = model.graph.node[dict_sub['id']]
+                        pow_node = model.graph.node[dict_pow['id']]
+                        rm2_node = model.graph.node[dict_rm2['id']]
+                        add_node = model.graph.node[dict_add['id']]
+                        sqrt_node = model.graph.node[dict_sqrt['id']]
+                        div_node = model.graph.node[dict_div['id']]
+                        mul_node = model.graph.node[dict_mul['id']]
+                        add2_node = model.graph.node[dict_add2['id']]
+
+                        model.graph.node.remove(rm_node)
+
+                        ln_node = onnx.helper.make_node(
+                                                name = '',
+                                                op_type='LayerNorm',
+                                                inputs=[dict_rm['input'][0], dict_mul['input'][1], dict_add2['input'][1]],
+                                                outputs=dict_add2['output'],
+                                                axis=rm1_axes[0],
+                                                epsilon=1e-5,
+                                                stash_type=0,
+                                                domain='com.metax-tech'
+                                                )
+
+                        model.graph.node.insert(dict_rm['id'], ln_node)
+
+                        model.graph.node.remove(sub_node)
+                        model.graph.node.remove(pow_node)
+                        model.graph.node.remove(rm2_node)
+                        model.graph.node.remove(add_node)
+                        model.graph.node.remove(sqrt_node)
+                        model.graph.node.remove(div_node)
+                        model.graph.node.remove(mul_node)
+                        model.graph.node.remove(add2_node)
+
                         break
                     else:
                         print('--clear ReduceMean Sub Pow ReduceMean2')
@@ -182,7 +221,7 @@ def merge_layernorm(model):
 
             if node.op_type == 'Div':
                 if dict_rm and dict_sub and dict_pow and dict_rm2 and  \
-                        dict_add and dict_sqrt and node.input[0] == dict_sub['output'][0] |
+                        dict_add and dict_sqrt and node.input[0] == dict_sub['output'][0] \
                         and node.input[1] == dict_sqrt['output'][0]:
                     dict_div['input'] = node.input
                     dict_div['output'] = node.output
@@ -213,7 +252,9 @@ def merge_layernorm(model):
                     dict_mul['output'] = node.output
                     dict_mul['id'] = node_id
                     ready2 = True
+
                     print('got sixth pair:', dict_mul['input'], dict_mul['output'])
+                    #print('got scale:', scale)
                 else:
                     print('clear ReduceMean Sub Pow ReduceMean2 Add Sqrt Div')
                     print('dict_rm:', dict_rm)
@@ -244,5 +285,6 @@ def merge_layernorm(model):
     return model
 
 model = onnx.load('./xxx.onnx')
-merge_layernorm(model)   
+m = merge_layernorm(model)
+onnx.save(m, 'ln.onnx')   
   
