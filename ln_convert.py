@@ -48,6 +48,7 @@ def remove_unused_initializer(model, unused_init_list):
 def merge_layernorm_pattern_1(model):
     got_ln = False
     search = True
+    unused_init_list = []
     loop = 0
 
     while search == True:
