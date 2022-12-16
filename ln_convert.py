@@ -722,8 +722,14 @@ def merge_layernorm_pattern_2(model):
 
     return model
 
+def merge_layernorm(model):
+    model = merge_layernorm_pattern_1(model)
+    model = merge_layernorm_pattern_2(model)
+
+    return model
+
 model = onnx.load('./bert_fp16_test.onnx')
 #model = onnx.load('./bert_sub.onnx')
-m = merge_layernorm_pattern_2(model)
+m = merge_layernorm(model)
 onnx.save(m, 'ln.onnx')   
   
