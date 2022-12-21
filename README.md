@@ -134,3 +134,7 @@
 20 Resize算子合成
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --expand_to_resize 1
    说明: 支持将Reshape+Expand+Reshape算子转换成Resize算子        
+
+21 LayerNorm
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --fuse_layernorm 1
+   说明: 支持将匹配的算子组合转换成LayerNorm算子 

@@ -30,6 +30,7 @@ from pd2onnx import convert_pd2onnx, is_dynamic_paddle
 from pt2onnx import convert_pt2onnx
 from gemm.gemm_cvt import gemm_convert
 from resize_convert import merge_resize
+from ln_convert import merge_layernorm
 
 using_wheel = False
 
@@ -281,6 +282,14 @@ def parse_args():
                         choices=[0, 1],
                         default=0,
                         help="If set 1, the tool will try correct wrong value info") 
+
+   #fuse match ops to LayerNorm 
+   parser.add_argument("--fuse_layernorm",
+                        type=int, 
+                        required=False,
+                        choices=[0, 1],
+                        default=0,
+                        help="If set 1, the tool will fuse match ops to LayerNorm")                      
 
    args = parser.parse_args()
 
@@ -1153,6 +1162,7 @@ def process(args):
    gemm_optimization = args.gemm_optimization
    expand_to_resize = args.expand_to_resize
    reset_value_info = args.reset_value_info
+   fuse_layernorm = args.fuse_layernorm
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -1331,7 +1341,10 @@ def process(args):
       new_model = merge_resize(new_model)           
 
    if model_type == 'onnx' and reset_value_info == 1:
-      new_model = reset_model_value_info(new_model)  
+      new_model = reset_model_value_info(new_model) 
+
+   if model_type == 'onnx' and fuse_layernorm == 1:
+      new_model = merge_layernorm(new_model)      
 
    delete = eliminate_redundant_reshape(new_model)
    while delete == True:

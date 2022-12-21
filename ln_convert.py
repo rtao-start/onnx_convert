@@ -673,8 +673,10 @@ def merge_layernorm(model):
 
     return model
 
+'''
 model = onnx.load('./bert_fp16_test.onnx')
 #model = onnx.load('./bert_sub.onnx')
 m = merge_layernorm(model)
-onnx.save(m, 'ln.onnx')   
+onnx.save(m, 'ln.onnx') 
+'''  
   
