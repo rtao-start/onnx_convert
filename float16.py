@@ -77,7 +77,7 @@ DEFAULT_OP_BLOCK_LIST = ['ArrayFeatureExtractor', 'Binarizer', 'CastMap', 'Categ
                          'FeatureVectorizer', 'Imputer', 'LabelEncoder', 'LinearClassifier', 'LinearRegressor',
                          'Normalizer', 'OneHotEncoder', 'SVMClassifier', 'SVMRegressor', 'Scaler',
                          'TreeEnsembleClassifier', 'TreeEnsembleRegressor', 'ZipMap', 'NonMaxSuppression', 'TopK',
-                         'RoiAlign', 'ResizeTest', 'Range', 'CumSum', 'Upsample', 'DequantizeLinear', 'QuantizeLinear']
+                         'RoiAlign', 'ResizeTest', 'Range', 'CumSum', 'Upsample', 'DequantizeLinear', 'QuantizeLinear', 'PreProc']
 
 
 def convert_float_to_float16_old(model, min_positive_val=1e-7, max_finite_val=1e4,
@@ -290,13 +290,20 @@ def get_resize_param(model):
 def get_layernorm_param(model):
     layernorm_input1_list = []
 
+    '''
     for n in model.graph.node:
         if n.op_type == 'LayerNorm':
             input_1 = n.input[1]
+            input_2 = n.input[2]
             if input_1 not in layernorm_input1_list:
                 layernorm_input1_list.append(input_1)
+            if input_2 not in layernorm_input1_list:
+                layernorm_input1_list.append(input_2)   
+    '''             
 
     return layernorm_input1_list    
+
+preproc_filter_list = ['const_std_r', 'const_std_g', 'const_std_b']
 
 def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
                              keep_io_types=False, disable_shape_infer=False,
@@ -325,6 +332,7 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
     ln_input1_list = get_layernorm_param(model)
 
     func_infer_shape = None
+
     if not disable_shape_infer and onnx.__version__ >= '1.2':
         try:
             from onnx.shape_inference import infer_shapes
@@ -349,13 +357,14 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
     # type inference on input model
     if func_infer_shape is not None:
         model = func_infer_shape(model)
+
     queue.append(model)
     name_mapping = {}
     graph_io_to_skip = set()
     io_casts = set()
 
     #qiuzy add
-    attributes_black_list = ['cubic_coeff_a ', 'extrapolation_value', 'extrapolation_value', ]
+    attributes_black_list = ['coordinate_transformation_mode', 'cubic_coeff_a', 'mode', 'nearest_mode']
     initializer = []
     for init in model.graph.initializer:
         initializer.append(init.name)
@@ -434,6 +443,7 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
                 next_level.append(q.g)
                 for n in q.graphs:
                     next_level.append(n)
+
                 q.t.CopyFrom(convert_tensor_float_to_float16(q.t, min_positive_val, max_finite_val))
                 for n in q.tensors:
                     n = convert_tensor_float_to_float16(n, min_positive_val, max_finite_val)
@@ -441,13 +451,13 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
             if isinstance(q, onnx_proto.GraphProto):
                 for n in q.initializer:  # TensorProto type
                     if n.name not in resize_param_list:
-                        if n.data_type == onnx_proto.TensorProto.FLOAT and n.name != 'const_std' and n.name not in ln_input1_list:
+                        if n.data_type == onnx_proto.TensorProto.FLOAT and n.name not in preproc_filter_list and n.name not in ln_input1_list:
                             n = convert_tensor_float_to_float16(n, min_positive_val, max_finite_val)
                             value_info_list.append(make_value_info_from_tensor(n))
                 # for all ValueInfoProto with tensor(float) type in input, output and value_info, convert them to
                 # tensor(float16) except map and seq(map). And save them in value_info_list for further processing
                 for n in itertools.chain(q.input, q.output, q.value_info):
-                    if n.type.tensor_type.elem_type == onnx_proto.TensorProto.FLOAT  and n.name != 'const_std':
+                    if n.type.tensor_type.elem_type == onnx_proto.TensorProto.FLOAT  and n.name not in preproc_filter_list:
                         if n.name not in graph_io_to_skip and n.name not in resize_param_list and n.name not in ln_input1_list:
                             n.type.tensor_type.elem_type = onnx_proto.TensorProto.FLOAT16
                             value_info_list.append(n)
@@ -554,6 +564,7 @@ def convert_float_to_float16(model, min_positive_val=1e-7, max_finite_val=1e4,
             for id, name in enumerate(n.input):
                 if "Cast_out_32_" in name:
                     n.input[id] = name.replace('out','in')
+
     return model                         
 
 def convert_float_to_float16_model_path(model_path, min_positive_val=1e-7, max_finite_val=1e4, keep_io_types=False):

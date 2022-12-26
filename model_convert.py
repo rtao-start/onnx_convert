@@ -1311,7 +1311,6 @@ def process(args):
    if fp32_to_fp16 == 1:
       print('begin doing fp32-->fp16...')
       new_model = convert_float_to_float16(new_model, keep_io_types=True)
-      #onnx.save(new_model, output)
 
    if model_type == 'onnx' and support_mish == 1:
       new_model = merge_mish(new_model)

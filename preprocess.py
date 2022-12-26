@@ -202,7 +202,9 @@ def insert_preproc_node(model, preproc_dict):
     graph.initializer.append(const_control)                                  
 
     #x = helper.make_tensor_value_info('x', TensorProto.UINT8, [1, 3, 576, 720])
-    pre_process_output = helper.make_tensor_value_info('pre_process_output', TensorProto.FLOAT, [-1, graph.input[0].type.tensor_type.shape.dim[1].dim_value, h, w])      
+    pre_process_output = helper.make_tensor_value_info('pre_process_output', TensorProto.FLOAT, [1, graph.input[0].type.tensor_type.shape.dim[1].dim_value, h, w])      
+
+    model.graph.value_info.append(pre_process_output)
 
     pre_process_node = onnx.helper.make_node(
                     'PreProc',
