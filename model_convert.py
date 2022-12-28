@@ -31,6 +31,7 @@ from pt2onnx import convert_pt2onnx
 from gemm.gemm_cvt import gemm_convert
 from resize_convert import merge_resize
 from ln_convert import merge_layernorm
+from matmul2gemm import matmul_2_gemm
 
 using_wheel = False
 
@@ -290,6 +291,14 @@ def parse_args():
                         choices=[0, 1],
                         default=0,
                         help="If set 1, the tool will fuse match ops to LayerNorm")                      
+
+   #convert matmul to gemm()
+   parser.add_argument("--matmul_to_gemm",
+                        type=int, 
+                        required=False,
+                        choices=[0, 1],
+                        default=0,
+                        help="If set 1, the tool will convert Matmul to Gemm(when A shape[0] < 32 and B is Constant)")   
 
    args = parser.parse_args()
 
@@ -1163,6 +1172,7 @@ def process(args):
    expand_to_resize = args.expand_to_resize
    reset_value_info = args.reset_value_info
    fuse_layernorm = args.fuse_layernorm
+   matmul_to_gemm = args.matmul_to_gemm
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -1343,8 +1353,11 @@ def process(args):
       new_model = reset_model_value_info(new_model) 
 
    if model_type == 'onnx' and fuse_layernorm == 1:
-      new_model = merge_layernorm(new_model)      
+      new_model = merge_layernorm(new_model) 
 
+   if model_type == 'onnx' and matmul_to_gemm == 1:
+      new_model = matmul_2_gemm(new_model)
+           
    delete = eliminate_redundant_reshape(new_model)
    while delete == True:
       delete = eliminate_redundant_reshape(new_model)   

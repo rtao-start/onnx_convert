@@ -135,6 +135,10 @@
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --expand_to_resize 1
    说明: 支持将Reshape+Expand+Reshape算子转换成Resize算子        
 
-21 LayerNorm
+21 LayerNorm转换
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --fuse_layernorm 1
-   说明: 支持将匹配的算子组合转换成LayerNorm算子 
+   说明: 支持将匹配的算子组合转换成LayerNorm算子
+
+22 MayMul转Gemm
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --matmul_to_gemm 1
+   说明: 支持将Matmul算子转换为Gemm算子(需满足: 1.A的shape[0]小于32. 2.B为常量)     

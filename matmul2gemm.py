@@ -14,7 +14,7 @@ def got_input_shape(model, tensor):
     for vi in model.graph.value_info:
         if vi.name == tensor:
             dim_proto_input = vi.type.tensor_type.shape.dim[0]
-            print('got input shape: ', dim_proto_input.dim_value)
+            print('------got input shape: ', dim_proto_input.dim_value)
             return dim_proto_input.dim_value, True
 
     return -777, False      
@@ -29,9 +29,8 @@ def is_shared_init(model, init, node_name):
 
 def matmul_2_gemm(model):
     index = 0
-    
-    for node_id, node in enumerate(model.graph.node):
-        found = False
+
+    for node in model.graph.node:
         if node.op_type == 'MatMul':
             in_shape, ret = got_input_shape(model, node.input[0])
             if ret == True and in_shape < 32:
@@ -40,7 +39,7 @@ def matmul_2_gemm(model):
                         node.op_type = 'Gemm'
 
                         C_val = np.array([0])
-                        C_name = node.name + '_matmul_c_' + str(index)
+                        C_name = node.name + '_gemm_c_' + str(index)
                         index = index + 1
 
                         CC = onnx.helper.make_tensor(name=C_name,
@@ -88,12 +87,5 @@ def matmul_2_gemm(model):
                             values.set_tensor_value(init, B, dims_)            
 
     return model
-
-model = onnx.load('./matmul1.onnx')
-model = onnx.shape_inference.infer_shapes(model)
-
-matmul_2_gemm(model)
-
-onnx.save(model, './g1.onnx')
 
 
