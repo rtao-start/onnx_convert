@@ -56,7 +56,7 @@ def matmul_2_gemm(model):
                         attr = onnx.helper.make_attribute('alpha', 1.0)
                         node.attribute.append(attr) 
 
-                        attr = onnx.helper.make_attribute('beta', 0.0)
+                        attr = onnx.helper.make_attribute('beta', 1.0)
                         node.attribute.append(attr)   
 
                         v = values.get_init_value(model, init.name)
