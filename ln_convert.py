@@ -195,6 +195,7 @@ class MergeLNPattern1():
 
                             scale_name = self.dict_mul['input'][1]
                             beta_name = self.dict_add2['input'][1]
+                            '''
                             for init in self.model.graph.initializer:
                                 if init.name == self.dict_mul['input'][1]:
                                     if init.data_type == onnx_proto.TensorProto.FLOAT16:
@@ -213,6 +214,7 @@ class MergeLNPattern1():
 
                                         if init not in self.unused_init_list:
                                             self.unused_init_list.append(init)            
+                            '''
 
                             ln_node = onnx.helper.make_node(
                                                     name = node.name + '_to_layernorm_' + str(self.loop),
@@ -554,6 +556,7 @@ class MergeLNPattern2():
 
                             scale_name = self.dict_mul2['input'][1]
                             beta_name = self.dict_sub2['input'][0]
+                            '''
                             for init in self.model.graph.initializer:
                                 if init.name == self.dict_mul2['input'][1]:
                                     if init.data_type == onnx_proto.TensorProto.FLOAT16:
@@ -571,7 +574,8 @@ class MergeLNPattern2():
 
                                         if init not in self.unused_init_list:
                                             self.unused_init_list.append(init)               
-
+                            '''
+                            
                             ln_node = onnx.helper.make_node(
                                                     name = node.name + '_to_layernorm_' + str(self.loop),
                                                     op_type='LayerNorm',
