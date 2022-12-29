@@ -95,10 +95,19 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
 
     input_type = onnx.TensorProto.FLOAT
 
+    got_type = False
     for vi in model.graph.value_info:
         if vi.name == input_0:
             input_type = vi.type.tensor_type.elem_type
-            print('XXX get type', input_type, input_0)
+            got_type = True
+            print('+++ get type', input_type, input_0)
+
+    if got_type == False:
+        for vi in model.graph.input:
+            if vi.name == input_0:
+                input_type = vi.type.tensor_type.elem_type
+                got_type = True
+                print('--- get type', input_type, input_0)        
 
     if alpha != 1.0:
         node.output[0] = matmul_output_name
@@ -361,10 +370,19 @@ def proc_gemm_ttc_ttt_fc(model, node_id, node, attr):
 
     input_type = onnx.TensorProto.FLOAT
 
+    got_type = False
     for vi in model.graph.value_info:
         if vi.name == node.input[0]:
             input_type = vi.type.tensor_type.elem_type
             print('XXX get type', input_type, node.input[0])
+            got_type = True
+
+    if got_type == False:
+        for vi in model.graph.input:
+            if vi.name == input_0:
+                input_type = vi.type.tensor_type.elem_type
+                got_type = True
+                print('--- get type', input_type, input_0)      
 
     if alpha != 1.0:
         mul_node_name = node.input[0] + '_mul_'
