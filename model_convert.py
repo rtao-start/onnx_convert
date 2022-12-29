@@ -741,7 +741,7 @@ def modify_onnx2dynamic(onnx_model):
                   if val == -1:
                      adjust = False
 
-               if params_list[0] != -1:
+               if adjust == True and params_list[0] != -1:
                      params_list[0] = -1
                      init.raw_data = params_list.tostring()
             else:
@@ -754,7 +754,7 @@ def modify_onnx2dynamic(onnx_model):
                   if val == -1:
                      adjust = False
 
-               if len(data_list) > 0 and data_list[0] != -1:
+               if adjust == True and len(data_list) > 0 and data_list[0] != -1:
                      data_list[0] = -1
 
 ############# for constant node
