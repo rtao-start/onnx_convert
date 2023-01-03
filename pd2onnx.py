@@ -7,8 +7,8 @@ try:
 except Exception as e:
     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
     print(e)
-    print('Please install paddle(pip install paddlepaddle==2.3.1)')
-    print('and paddle2onnx(pip install paddle2onnx==1.0.3)')
+    print('Please install paddle(pip install paddlepaddle==2.3.2)')
+    print('and paddle2onnx(pip install paddle2onnx==1.0.1)')
     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
     sys.exit(-1)
 

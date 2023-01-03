@@ -8,7 +8,7 @@ try:
 except Exception as e:
     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
     print(e)
-    print('Please install torch(pip install torch==1.10.1)')
+    print('Please install torch(pip install torch==1.12.1)')
     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
     sys.exit(-1)
 
@@ -17,7 +17,7 @@ try:
 except Exception as e:
     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
     print(e)
-    print('Please install torchvision(pip install torchvision==0.11.2)')
+    print('Please install torchvision(pip install torchvision==0.13.1)')
     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
     sys.exit(-1)
 
