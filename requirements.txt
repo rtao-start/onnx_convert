@@ -5,4 +5,4 @@ onnxoptimizer==0.3.0
 rich==12.0.0
 packaging==21.3
 pyyaml==6.0
-h5py==3.1.0
+h5py==2.10.0
