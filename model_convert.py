@@ -11,7 +11,7 @@ import sys, getopt
 import json
 import argparse
 import h5py
-import tensorflow as tf
+#import tensorflow as tf
 import time
 import fuse
 from swish_convert import merge_swish_and_hard_swish
@@ -26,8 +26,8 @@ from float16 import convert_float_to_float16
 from preprocess import preproc
 from postprocess import postproc
 from correct_batch import correct_batch_for_opset_convert, convert_ort_type_2_np, get_data_list
-from pd2onnx import convert_pd2onnx, is_dynamic_paddle
-from pt2onnx import convert_pt2onnx
+#from pd2onnx import convert_pd2onnx, is_dynamic_paddle
+#from pt2onnx import convert_pt2onnx
 from gemm.gemm_cvt import gemm_convert
 from resize_convert import merge_resize
 from ln_convert import merge_layernorm
@@ -356,6 +356,15 @@ def convert_caffe2onnx(model_path, output, op_set):
 def convert_sm2onnx(model_path, output, op_set):
       print('Begin converting tf-savemodel to onnx...')
 
+      try:
+         import tensorflow
+      except Exception as e:
+         print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+         print(e)
+         print('Please install tensorflow(pip install tensorflow==2.4.0)')
+         print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+         sys.exit(exit_code_sm2onnx)
+
       if using_wheel == False:
          cmd = 'python -m tf2onnx.convert --saved-model ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output
       else:
@@ -372,6 +381,15 @@ def convert_sm2onnx(model_path, output, op_set):
 def convert_h52onnx(model_path, output, op_set):
       print('Begin converting tf-savemodel to onnx...')
 
+      try:
+         import tensorflow
+      except Exception as e:
+         print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+         print(e)
+         print('Please install tensorflow(pip install tensorflow==2.4.0)')
+         print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+         sys.exit(exit_code_h52onnx)
+
       if using_wheel == False:
          cmd = 'python -m tf2onnx.convert --keras ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output
       else:
@@ -387,6 +405,15 @@ def convert_h52onnx(model_path, output, op_set):
 
 def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
       print('Begin converting tf-ckpt to onnx...')
+
+      try:
+         import tensorflow
+      except Exception as e:
+         print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+         print(e)
+         print('Please install tensorflow(pip install tensorflow==2.4.0)')
+         print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+         sys.exit(exit_code_ckpt2onnx)
 
       if using_wheel == False:
          cmd = 'python -m tf2onnx.convert --checkpoint ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
@@ -406,6 +433,16 @@ def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
 
 def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
       print('Begin converting tf-graph to onnx...')
+
+      try:
+         import tensorflow
+      except Exception as e:
+         print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+         print(e)
+         print('Please install tensorflow(pip install tensorflow==2.4.0)')
+         print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+         sys.exit(exit_code_pb2onnx)
+
       if using_wheel == False:
          cmd = 'python -m tf2onnx.convert --graphdef ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
               + ' --inputs '  + inputs + ' --outputs ' + outputs
@@ -548,10 +585,12 @@ def convert(model_path, model_type, output, op_set, input_shape_list, inputs, ou
 
    if model_type == 'pytorch':
       #convert_pt2onnx(model_path, output, op_set, input_shape)
+      from pt2onnx import convert_pt2onnx
       convert_pt2onnx(model_path, output, op_set, input_shape_list,
                            model_def_file, model_class_name, model_weights_file, output_num, model_input_type, keep_batch, params_file)
 
    if model_type == 'paddle':
+      from pd2onnx import convert_pd2onnx
       convert_pd2onnx(model_path, output, op_set, input_shape_list, model_def_file, model_class_name, model_input_type, model_weights_file)              
 
 def optimization_op(model):
@@ -1188,6 +1227,7 @@ def process(args):
 
    dynamic_paddle = False
    if model_type == 'paddle':
+         from pd2onnx import is_dynamic_paddle
          dynamic_paddle = is_dynamic_paddle(input_shape_list, model_def_file, model_class_name, model_weights_file)
          #if dynamic_paddle == True and model_input_type == '':
          #   model_input_type = 'float32' 

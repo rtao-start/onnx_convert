@@ -1,9 +1,25 @@
-import torch
 import sys
 import importlib
 import importlib.util
-import torchvision
 import numpy as np
+
+try:
+    import torch
+except Exception as e:
+    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+    print(e)
+    print('Please install torch(pip install torch==1.10.1)')
+    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+    sys.exit(-1)
+
+try:
+    import torchvision
+except Exception as e:
+    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+    print(e)
+    print('Please install torchvision(pip install torchvision==0.11.2)')
+    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+    sys.exit(-1)
 
 def convert_to_np_type(data_type):
     types = {

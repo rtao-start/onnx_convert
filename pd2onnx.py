@@ -1,7 +1,16 @@
-import paddle
 import importlib
 import importlib.util
 import sys, os
+
+try:
+    import paddle
+except Exception as e:
+    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+    print(e)
+    print('Please install paddle(pip install paddlepaddle==2.3.1)')
+    print('and paddle2onnx(pip install paddle2onnx==1.0.3)')
+    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+    sys.exit(-1)
 
 paddle.disable_signal_handler()
 
