@@ -723,7 +723,11 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
          if simplify_hw == '':
             #correct_batch_for_opset_convert(model_simp)
             correct_output_shape(model_simp)
-            model_simp = reset_model_value_info(model_simp)
+            try:
+               model_simp = reset_model_value_info(model_simp)
+            except Exception as e:
+               print(e)
+               print('Cannot do reset_value operation~')
       else:   
          model_simp, check = simplify(onnx_model, dynamic_input_shape=False)
    else:
