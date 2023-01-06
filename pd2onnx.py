@@ -1,6 +1,8 @@
 import importlib
 import importlib.util
 import sys, os
+import version_check
+import subprocess
 
 try:
     import paddle
@@ -8,9 +10,27 @@ except Exception as e:
     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
     print(e)
     print('Please install paddle(pip install paddlepaddle==2.3.2)')
-    print('and paddle2onnx(pip install paddle2onnx==1.0.1)')
     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
     sys.exit(-1)
+else:
+    version_check.check('paddlepaddle', paddle.__version__, '2.3.2')
+
+try:
+    result = subprocess.check_output(["paddle2onnx", "-v"])
+except Exception as e:
+    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+    print(e)
+    print('Please install paddle2onnx(pip install paddle2onnx==1.0.3)')
+    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+    sys.exit(-1)
+else:
+    paddle2onnx_version = str(result).split(' ')[2].split('-')[1]
+    print('paddle2onnx_version:', paddle2onnx_version)
+    if paddle2onnx_version != '1.0.3':
+        print('####################################################')
+        print('WARNING: your paddle2onnx version is', paddle2onnx_version)
+        print('suggested version is 1.0.3')
+        print('####################################################')
 
 paddle.disable_signal_handler()
 

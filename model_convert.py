@@ -18,6 +18,7 @@ from swish_convert import merge_swish_and_hard_swish
 from mish_convert import merge_mish
 import bn2conv
 import values
+import version_check
 
 from caffe2onnx.src.load_save_model import loadcaffemodel, saveonnxmodel
 from caffe2onnx.src.caffe2onnx import Caffe2Onnx
@@ -365,6 +366,8 @@ def convert_sm2onnx(model_path, output, op_set):
          print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
          sys.exit(exit_code_sm2onnx)
 
+      version_check.check('tensorflow', tensorflow.__version__)
+
       if using_wheel == False:
          cmd = 'python -m tf2onnx.convert --saved-model ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output
       else:
@@ -390,6 +393,8 @@ def convert_h52onnx(model_path, output, op_set):
          print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
          sys.exit(exit_code_h52onnx)
 
+      version_check.check('tensorflow', tensorflow.__version__)   
+
       if using_wheel == False:
          cmd = 'python -m tf2onnx.convert --keras ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output
       else:
@@ -414,6 +419,8 @@ def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
          print('Please install tensorflow(pip install tensorflow==2.4.0)')
          print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
          sys.exit(exit_code_ckpt2onnx)
+
+      version_check.check('tensorflow', tensorflow.__version__)
 
       if using_wheel == False:
          cmd = 'python -m tf2onnx.convert --checkpoint ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
@@ -442,6 +449,8 @@ def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
          print('Please install tensorflow(pip install tensorflow==2.4.0)')
          print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
          sys.exit(exit_code_pb2onnx)
+
+      version_check.check('tensorflow', tensorflow.__version__)
 
       if using_wheel == False:
          cmd = 'python -m tf2onnx.convert --graphdef ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
@@ -718,6 +727,12 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
       skip_constant_folding_ = True
 
    if simplify_model == 2:
+      try:
+         onnx_model = reset_model_value_info(onnx_model)
+      except Exception as e:
+         print(e)
+         print('!! Cannot do reset_value operation~')
+
       if dynamic_input_shape_ == True:
          model_simp, check = simplify(onnx_model, input_shapes=input_shapes_, skip_constant_folding=skip_constant_folding_)
          if simplify_hw == '':
