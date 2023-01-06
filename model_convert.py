@@ -451,7 +451,7 @@ def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
          sys.exit(exit_code_pb2onnx)
 
       version_check.check('tensorflow', tensorflow.__version__)
-
+      
       if using_wheel == False:
          cmd = 'python -m tf2onnx.convert --graphdef ' + model_path + ' --opset ' + str(op_set) + ' --output ' + output \
               + ' --inputs '  + inputs + ' --outputs ' + outputs
@@ -727,12 +727,6 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
       skip_constant_folding_ = True
 
    if simplify_model == 2:
-      try:
-         onnx_model = reset_model_value_info(onnx_model)
-      except Exception as e:
-         print(e)
-         print('!! Cannot do reset_value operation~')
-
       if dynamic_input_shape_ == True:
          model_simp, check = simplify(onnx_model, input_shapes=input_shapes_, skip_constant_folding=skip_constant_folding_)
          if simplify_hw == '':
