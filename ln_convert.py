@@ -668,12 +668,211 @@ class MergeLNPattern2():
 
         return self.model
 
+# rms layernorm
+
+class MergeRMSLn():
+    def __init__(self, model):
+        print('MergeRMSLn Init--------------------------')
+        self.model = model
+        self.got_ln = False
+        self.search = True
+        self.unused_init_list = []
+        self.loop = 0
+
+        self.dict_rm = {}
+        self.dict_pow = {}
+        self.dict_add = {}
+        self.dict_sqrt = {}
+        self.dict_div = {}
+        self.dict_mul = {}
+
+        self.input_type = onnx.TensorProto.FLOAT
+        self.input_shape = [1]
+
+        self.rm1_axes = [-1]
+
+    def clear(self):
+        self.dict_rm = {}
+        self.dict_pow = {}
+        self.dict_add = {}
+        self.dict_sqrt = {}
+        self.dict_div = {}
+        self.dict_mul = {}
+
+        self.rm1_axes = [-1]
+        self.search = False
+
+    def merge(self):
+        while self.search == True:
+            self.clear()
+
+            self.loop = self.loop + 1
+
+            for node_id, node in enumerate(self.model.graph.node):
+                self.loop = self.loop + 1
+                #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
+                #        ", op:", node.op_type, ', len(input):', len(node.input))
+
+                if node.op_type == 'Pow':
+                    self.dict_pow['input'] = node.input
+                    self.dict_pow['output'] = node.output
+                    self.dict_pow['id'] = node_id
+
+                    for vi in self.model.graph.value_info:
+                        if vi.name == node.input[0]:
+                            self.input_type = vi.type.tensor_type.elem_type
+                            self.input_shape = [d.dim_value for d in vi.type.tensor_type.shape.dim]
+                            print('got input shape: ', self.input_shape)
+                            print('got input type: ', self.input_type)
+
+                if node.op_type == 'ReduceMean':
+                    if self.dict_pow and node.input == self.dict_pow['output']:
+                        self.dict_rm['input'] = node.input
+                        self.dict_rm['output'] = node.output
+                        self.dict_rm['id'] = node_id 
+                        print('got first pair:', self.dict_rm['input'], self.dict_rm['output'])
+
+                        attributes = node.attribute
+                        for attr in attributes:
+                            if attr.name == 'axes':
+                                self.rm1_axes = attr.ints
+                                print('self.rm1_axes: ', self.rm1_axes)
+                                if len(self.rm1_axes) != 1:
+                                    print('This ReduceMean IsNot we are looking for...')
+                                    self.clear()
+
+                                break
+                    else:
+                        self.clear()       
+
+                if node.op_type == 'Add':
+                    if self.dict_pow and self.dict_rm and node.input[0] == self.dict_rm['output'][0]:
+                        self.dict_add['input'] = node.input
+                        self.dict_add['output'] = node.output
+                        self.dict_add['id'] = node_id
+                        print('got second pair:', self.dict_rm['input'], self.dict_rm['output'])
+                    else:
+                        print('self.clear ReduceMean Sub Pow ReduceMean2')
+                        print('self.dict_rm:', self.dict_rm)
+                        print('self.dict_pow:', self.dict_pow)
+                        self.clear()
+
+                if node.op_type == 'Sqrt':
+                    if self.dict_pow and self.dict_rm and  \
+                            self.dict_add and node.input == self.dict_add['output']:
+                        self.dict_sqrt['input'] = node.input
+                        self.dict_sqrt['output'] = node.output
+                        self.dict_sqrt['id'] = node_id
+                        print('got third pair:', self.dict_sqrt['input'], self.dict_sqrt['output'])
+                    else:
+                        print('self.clear ReduceMean Sub Pow ReduceMean2 Add')
+                        print('self.dict_rm:', self.dict_rm)
+                        print('self.dict_pow:', self.dict_pow)
+                        print('self.dict_add:', self.dict_add)
+                        self.clear()
+
+                if node.op_type == 'Div':
+                    if self.dict_pow and self.dict_rm and  \
+                            self.dict_add and self.dict_sqrt and node.input[1] == self.dict_sqrt['output'][0] :
+                        self.dict_div['input'] = node.input
+                        self.dict_div['output'] = node.output
+                        self.dict_div['id'] = node_id
+                        print('got fourth pair:', self.dict_div['input'], self.dict_div['output'])
+                    else:
+                        print('-self.clear ReduceMean Sub Pow ReduceMean2 Add Sqrt')
+                        print('self.dict_rm:', self.dict_rm)
+                        print('self.dict_pow:', self.dict_pow)
+                        print('self.dict_add:', self.dict_add)
+                        print('self.dict_sqrt:', self.dict_sqrt)
+                        self.clear()
+
+                if node.op_type == 'Mul':
+                    if self.dict_pow and self.dict_rm and  \
+                            self.dict_add and self.dict_sqrt and self.dict_div and node.input[1] == self.dict_div['output'][0] \
+                            and node.input[0] == self.dict_pow['input'][0] :
+                        self.dict_mul['input'] = node.input
+                        self.dict_mul['output'] = node.output
+                        self.dict_mul['id'] = node_id
+                        print('got fifth pair:', self.dict_mul['input'], self.dict_mul['output'])
+
+                        self.search = True
+                        self.got_ln = True
+                        print('Got a LayerNorm op')
+                        ###
+                        pow_node = self.model.graph.node[self.dict_pow['id']]
+                        rm_node = self.model.graph.node[self.dict_rm['id']]
+                        add_node = self.model.graph.node[self.dict_add['id']]
+                        sqrt_node = self.model.graph.node[self.dict_sqrt['id']]
+                        div_node = self.model.graph.node[self.dict_div['id']]
+                        mul_node = self.model.graph.node[self.dict_mul['id']]
+
+                        self.model.graph.node.remove(pow_node)
+
+                        scale_name = node.name + '_scale_' + str(self.loop)
+                        beta_name = node.name + '_beta_' + str(self.loop)
+
+                        scale_tensor = onnx.helper.make_tensor(name=scale_name,
+                                                        data_type=self.input_type,
+                                                        dims=[self.input_shape[-1]],
+                                                        vals=[1]*self.input_shape[-1])   
+
+                        self.model.graph.initializer.append(scale_tensor)
+
+                        beta_tensor = onnx.helper.make_tensor(name=beta_name,
+                                data_type=self.input_type,
+                                dims=[self.input_shape[-1]],
+                                vals=[0]*self.input_shape[-1])   
+
+                        self.model.graph.initializer.append(beta_tensor)                
+
+                        ln_node = onnx.helper.make_node(
+                                                name = node.name + '_to_layernorm_' + str(self.loop),
+                                                op_type='LayerNorm',
+                                                inputs=[self.dict_pow['input'][0], scale_name, beta_name],
+                                                outputs=self.dict_mul['output'],
+                                                axis=self.rm1_axes[0],
+                                                epsilon=1e-5,
+                                                stash_type=0,
+                                                domain='com.metax-tech'
+                                                )
+
+                        self.model.graph.node.insert(self.dict_pow['id'], ln_node)
+
+                        self.model.graph.node.remove(rm_node)
+                        self.model.graph.node.remove(add_node)
+                        self.model.graph.node.remove(sqrt_node)
+                        self.model.graph.node.remove(div_node)
+                        self.model.graph.node.remove(mul_node)
+                        break
+                    else:
+                        print('--self.clear ReduceMean Sub Pow ReduceMean2 Add Sqrt Div')
+                        print('self.dict_rm:', self.dict_rm)
+                        print('self.dict_pow:', self.dict_pow)
+                        print('self.dict_add:', self.dict_add)
+                        print('self.dict_sqrt:', self.dict_sqrt)
+                        print('self.dict_mul:', self.dict_mul)
+                        self.clear()                           
+
+        if self.got_ln == True:
+            op_set = self.model.opset_import.add()
+            op_set.domain = 'com.metax-tech'
+            op_set.version = 1
+            
+            #onnx.save(model, export_onnx)
+
+        remove_unused_initializer(self.model, self.unused_init_list)
+        
+        return self.model
+
 def merge_layernorm(model):
     mlp1 = MergeLNPattern1(model)
     model = mlp1.merge()
 
     mlp2 = MergeLNPattern2(model)
     model = mlp2.merge()
+
+    mlp3 = MergeRMSLn(model)
+    model = mlp3.merge()
 
     return model
 
