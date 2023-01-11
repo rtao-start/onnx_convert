@@ -678,6 +678,7 @@ class MergeRMSLn():
         self.search = True
         self.unused_init_list = []
         self.loop = 0
+        self.ready = False
 
         self.dict_rm = {}
         self.dict_pow = {}
@@ -685,6 +686,7 @@ class MergeRMSLn():
         self.dict_sqrt = {}
         self.dict_div = {}
         self.dict_mul = {}
+        self.dict_mul2 = {}
 
         self.input_type = onnx.TensorProto.FLOAT
         self.input_shape = [1]
@@ -699,9 +701,11 @@ class MergeRMSLn():
         self.dict_sqrt = {}
         self.dict_div = {}
         self.dict_mul = {}
+        self.dict_mul2 = {}
 
         self.rm1_axes = [-1]
         self.search = False
+        self.ready = False
 
     def merge(self):
         while self.search == True:
@@ -791,13 +795,10 @@ class MergeRMSLn():
                         self.clear()
 
                 if node.op_type == 'Mul':
-                    if self.dict_pow and self.dict_rm and  \
-                            self.dict_add and self.dict_sqrt and self.dict_div and node.input[1] == self.dict_div['output'][0] \
-                            and node.input[0] == self.dict_pow['input'][0] :
-                        self.dict_mul['input'] = node.input
-                        self.dict_mul['output'] = node.output
-                        self.dict_mul['id'] = node_id
-                        print('got fifth pair:', self.dict_mul['input'], self.dict_mul['output'])
+                    if self.ready == True and node.input[0] == self.dict_mul['output'][0]:
+                        self.dict_mul2['input'] = node.input
+                        self.dict_mul2['output'] = node.output
+                        self.dict_mul2['id'] = node_id
 
                         self.search = True
                         self.got_ln = True
@@ -809,19 +810,22 @@ class MergeRMSLn():
                         sqrt_node = self.model.graph.node[self.dict_sqrt['id']]
                         div_node = self.model.graph.node[self.dict_div['id']]
                         mul_node = self.model.graph.node[self.dict_mul['id']]
+                        mul2_node = self.model.graph.node[self.dict_mul2['id']]
 
                         self.model.graph.node.remove(pow_node)
 
-                        scale_name = node.name + '_scale_' + str(self.loop)
+                        scale_name = self.dict_mul2['input'][1] #node.name + '_scale_' + str(self.loop)
                         beta_name = node.name + '_beta_' + str(self.loop)
 
+                        '''
                         scale_tensor = onnx.helper.make_tensor(name=scale_name,
                                                         data_type=self.input_type,
                                                         dims=[self.input_shape[-1]],
                                                         vals=self.scale*self.input_shape[-1])   
 
                         self.model.graph.initializer.append(scale_tensor)
-                        
+                        '''   
+
                         beta_tensor = onnx.helper.make_tensor(name=beta_name,
                                 data_type=self.input_type,
                                 dims=[self.input_shape[-1]],
@@ -833,7 +837,7 @@ class MergeRMSLn():
                                                 name = node.name + '_to_layernorm_' + str(self.loop),
                                                 op_type='LayerNorm',
                                                 inputs=[self.dict_pow['input'][0], scale_name, beta_name],
-                                                outputs=self.dict_mul['output'],
+                                                outputs=self.dict_mul2['output'],
                                                 axis=self.rm1_axes[0],
                                                 epsilon=1e-5,
                                                 stash_type=0,
@@ -847,7 +851,18 @@ class MergeRMSLn():
                         self.model.graph.node.remove(sqrt_node)
                         self.model.graph.node.remove(div_node)
                         self.model.graph.node.remove(mul_node)
+                        self.model.graph.node.remove(mul2_node)
+
                         break
+                    elif self.dict_pow and self.dict_rm and  \
+                            self.dict_add and self.dict_sqrt and self.dict_div and node.input[1] == self.dict_div['output'][0] \
+                            and node.input[0] == self.dict_pow['input'][0] :
+                        self.dict_mul['input'] = node.input
+                        self.dict_mul['output'] = node.output
+                        self.dict_mul['id'] = node_id
+                        self.ready = True
+
+                        print('got fifth pair:', self.dict_mul['input'], self.dict_mul['output'])
                     else:
                         print('--self.clear ReduceMean Sub Pow ReduceMean2 Add Sqrt Div')
                         print('self.dict_rm:', self.dict_rm)
