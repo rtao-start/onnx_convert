@@ -688,6 +688,7 @@ class MergeRMSLn():
 
         self.input_type = onnx.TensorProto.FLOAT
         self.input_shape = [1]
+        self.scale = [1]
 
         self.rm1_axes = [-1]
 
@@ -772,12 +773,15 @@ class MergeRMSLn():
                         self.clear()
 
                 if node.op_type == 'Div':
-                    if self.dict_pow and self.dict_rm and  \
+                    self.scale = values.get_init_value(self.model, node.input[0])
+                    if self.scale and self.dict_pow and self.dict_rm and  \
                             self.dict_add and self.dict_sqrt and node.input[1] == self.dict_sqrt['output'][0] :
                         self.dict_div['input'] = node.input
                         self.dict_div['output'] = node.output
                         self.dict_div['id'] = node_id
-                        print('got fourth pair:', self.dict_div['input'], self.dict_div['output'])
+                        if isinstance(self.scale, np.ndarray):
+                            self.scale = self.scale.tolist()
+                        print('got fourth pair, scale', self.scale, type(self.scale))
                     else:
                         print('-self.clear ReduceMean Sub Pow ReduceMean2 Add Sqrt')
                         print('self.dict_rm:', self.dict_rm)
@@ -814,10 +818,10 @@ class MergeRMSLn():
                         scale_tensor = onnx.helper.make_tensor(name=scale_name,
                                                         data_type=self.input_type,
                                                         dims=[self.input_shape[-1]],
-                                                        vals=[1]*self.input_shape[-1])   
+                                                        vals=self.scale*self.input_shape[-1])   
 
                         self.model.graph.initializer.append(scale_tensor)
-
+                        
                         beta_tensor = onnx.helper.make_tensor(name=beta_name,
                                 data_type=self.input_type,
                                 dims=[self.input_shape[-1]],
