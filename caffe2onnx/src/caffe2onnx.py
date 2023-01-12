@@ -350,8 +350,8 @@ class Caffe2Onnx():
                     input_name.extend(bn_pname)
                 else:
                     bn_pshape, _ = self.GetParamsShapeAndData(Layers[i])
-                    custom_params = [np.ones(shape=bn_pshape[0], dtype=np.float),
-                                     0.001 + np.zeros(shape=bn_pshape[1], dtype=np.float)]
+                    custom_params = [np.ones(shape=bn_pshape[0], dtype=np.float_),
+                                     0.001 + np.zeros(shape=bn_pshape[1], dtype=np.float_)]
                     scale_pname = self.AddInputsTVIMannul(Layers[i], op_pname["Scale"], op_ptype["Scale"], bn_pshape,
                                                           custom_params)
                     bn_pname, bn_pshape = self.AddInputsTVIFromParams(Layers[i], op_pname["BatchNorm"],
@@ -590,8 +590,8 @@ class Caffe2Onnx():
                 output_name = self.GetCurrentLayerOutName(Layers[i])
                 node_name = Layers[i].name
 
-                min_value = np.float(0)
-                max_value = np.float(6)
+                min_value = np.float_(0)
+                max_value = np.float_(6)
                 shape = np.shape([min_value])
                 min_param = self.AddInputsTVIMannul(Layers[i], ["_min"],
                                                     [TensorProto.FLOAT], [shape],
@@ -837,7 +837,7 @@ class Caffe2Onnx():
 
                     # 2.Generate node parameter tensor value info, get the node parameter name, and add the parameter name to the node input name list 
                     param_data = op.getReshapeOutShape(node_layer, node_input_shape)
-                    param_shape = np.array([1, 2, 3, 4, 5], np.int).shape
+                    param_shape = np.array([1, 2, 3, 4, 5], np.int_).shape
                     reshape_pname = self.AddInputsTVIMannul(node_layer, op_pname["Reshape"], op_ptype["Reshape"],
                                                             [param_shape], param_data)
 
@@ -897,7 +897,7 @@ class Caffe2Onnx():
                 end_input_shape = transpose_node.outputs_shape
                 # Finally, keep the shape of the output and input consistent 
                 end_output_shape = [[node_input_shape[0][0], -1, node_input_shape[0][2], node_input_shape[0][3]]]
-                param_shape = [np.array([1, 2, 3, 4], dtype=np.int).shape]
+                param_shape = [np.array([1, 2, 3, 4], dtype=np.int_).shape]
                 end_pname = self.AddInputsTVIMannul(node_layer, op_pname["DouReshape"], op_ptype["DouReshape"],
                                                     param_shape, end_output_shape)
 

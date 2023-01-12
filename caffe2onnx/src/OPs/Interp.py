@@ -37,7 +37,7 @@ def get_interp_attri(layer, input_shape):
 
 def get_interp_output_shape(layer, input_shape, attributes):
     scales = attributes.get("scales")
-    output_shape = [np.multiply(np.array(scales, dtype=np.int), np.array(input_shape[0])).tolist()]
+    output_shape = [np.multiply(np.array(scales, dtype=np.int_), np.array(input_shape[0])).tolist()]
     return output_shape
 
 def create_interp_node(layer, node_name, input_name, output_name, input_shape):

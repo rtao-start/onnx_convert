@@ -19,7 +19,7 @@ def get_upsample_attri(layer):
 def get_upsample_outputshape(input_shape, layer):
     scale = layer.upsample_param.scale
     scales = [1.0, 1.0, scale, scale]
-    output_shape = [np.multiply(np.array(scales, dtype=np.int), np.array(input_shape[0])).tolist()]
+    output_shape = [np.multiply(np.array(scales, dtype=np.int_), np.array(input_shape[0])).tolist()]
     return output_shape
 
 

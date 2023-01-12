@@ -10,13 +10,13 @@ def make_fp32_tensor_from_fp16(fp16_tensor, fp32_tensor_name):
     if fp16_tensor.int32_data:
         print('make_fp32_tensor_from_fp16, int32_data')
         num = np.array(fp16_tensor.int32_data)
-        float_list = num.astype(np.float).tolist()
+        float_list = num.astype(np.float_).tolist()
 
     if fp16_tensor.raw_data:
         print('make_fp32_tensor_from_fp16, raw_data')
         float_list = np.fromstring(fp16_tensor.raw_data, dtype='float16')
         num = np.array(float_list)
-        float_list = num.astype(np.float).tolist()
+        float_list = num.astype(np.float_).tolist()
 
     t = onnx.helper.make_tensor(name=fp32_tensor_name,
                                     data_type=onnx_proto.TensorProto.FLOAT,

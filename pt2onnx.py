@@ -7,7 +7,7 @@ import version_check
 try:
     import torch
 except Exception as e:
-    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@00@')
     print(e)
     print('Please install torch(pip install torch==1.12.1)')
     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
@@ -36,7 +36,7 @@ def convert_to_np_type(data_type):
         'int16' : np.int16,
         'int32' : np.int32,
         'int64' : np.int64,
-        'string' : np.object,
+        'string' : np.object_,
         'bool' : np.bool_,
         'float16' : np.float16,
         'float64' : np.float64,
