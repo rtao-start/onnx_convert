@@ -890,8 +890,8 @@ def merge_layernorm(model):
     mlp2 = MergeLNPattern2(model)
     model = mlp2.merge()
 
-    mlp3 = MergeRMSLn(model)
-    model = mlp3.merge()
+    #mlp3 = MergeRMSLn(model)
+    #model = mlp3.merge()
 
     return model
 
