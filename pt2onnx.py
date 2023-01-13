@@ -9,11 +9,11 @@ try:
 except Exception as e:
     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@00@')
     print(e)
-    print('Please install torch(pip install torch==1.12.1)')
+    print('Please install torch(pip install torch==1.13.1)')
     print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
     sys.exit(-1)
 else:
-    version_check.check('torch', torch.__version__.split('+')[0], '1.12.1')
+    version_check.check('torch', torch.__version__.split('+')[0], '1.13.1')
 
 try:
     import torchvision
