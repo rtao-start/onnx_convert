@@ -301,6 +301,14 @@ def parse_args():
                         default=0,
                         help="If set 1, the tool will convert Matmul to Gemm(when A shape[0] < 32 and B is Constant)")   
 
+   #reset model value_info(some model(batch=-1) may have wrong value info for middle node)) 
+   parser.add_argument("--reset_batch",
+                        type=str, 
+                        required=False,
+                        nargs='*',
+                        default='', #should be 'input_batch,output_batch'
+                        help="If set 1, the tool will try reset model batch_size") 
+
    args = parser.parse_args()
 
    return args
@@ -678,6 +686,29 @@ def reset_model_value_info(model):
    new_model = onnx.shape_inference.infer_shapes(model)
 
    new_model = onnx.shape_inference.infer_shapes(new_model)
+
+   return new_model
+
+def reset_batch_size(model, input_batch, output_batch):
+   for input_ in model.graph.input:
+      if len(input_.type.tensor_type.shape.dim) > 0:
+         dim_proto = input_.type.tensor_type.shape.dim[0]
+         dim_proto.dim_value = input_batch
+
+   for output_ in model.graph.output:
+      if len(output_.type.tensor_type.shape.dim) > 0:
+         dim_proto = output_.type.tensor_type.shape.dim[0]
+         dim_proto.dim_value = output_batch
+
+   del model.graph.value_info[:]
+
+   try:
+      new_model = onnx.shape_inference.infer_shapes(model)
+   except BaseException as e:
+      print('reset_batch_size, the model cannot be inferenced for: %s' % e)
+      new_model = model    
+   else:
+      new_model = onnx.shape_inference.infer_shapes(new_model)
 
    return new_model
 
@@ -1236,6 +1267,7 @@ def process(args):
    reset_value_info = args.reset_value_info
    fuse_layernorm = args.fuse_layernorm
    matmul_to_gemm = args.matmul_to_gemm
+   reset_batch = args.reset_batch
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -1377,6 +1409,23 @@ def process(args):
    if simplify_model == 1 or simplify_model == 2:
       print('begin doing simplify...')
       new_model = model_simplify(new_model, simplify_model, simplify_hw)
+
+   if reset_batch != '':
+      batchs = reset_batch #.split(' ')
+      input_batch = int(batchs[0])
+      output_batch = input_batch
+      if len(batchs) >= 2:
+         output_batch = int(batchs[1])
+
+      if input_batch == 0:
+         input_batch = -1
+
+      if output_batch == 0:
+         output_batch = -1
+
+      print('got batchs:', batchs)            
+
+      new_model = reset_batch_size(new_model, input_batch, output_batch)
 
    if fuse_pad_pool == 1:
       print('begin doing fuse_pad_to_pool...')
