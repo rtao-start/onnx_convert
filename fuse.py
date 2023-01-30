@@ -18,7 +18,7 @@ def fuse_pad_to_pool(model):
             dict_pad['output'] = node.output
             dict_pad['id'] = node_id
 
-        if node.op_type == 'MaxPool':
+        if node.op_type == 'MaxPool' or node.op_type == 'AveragePool':
             if len(dict_pad) > 0 and node.input == dict_pad['output']:
                 dict_pool['input'] = node.input
                 dict_pool['output'] = node.output
@@ -42,8 +42,8 @@ def fuse_pad_to_pool(model):
                             data_list = correct_batch.get_data_list(dtype, init)
                             for p in data_list:
                                 pads.append(p)
-                    elif init.name == dict_pad['input'][2]:
-                        print('got init(constane_value):', init.name)  
+                    #elif init.name == dict_pad['input'][2]:
+                    #    print('got init(constane_value):', init.name)  
 
                 pads_real = [pads[2], pads[3], pads[6], pads[7]]
 
