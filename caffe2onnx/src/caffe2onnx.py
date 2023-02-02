@@ -148,6 +148,10 @@ class Caffe2Onnx():
                             [q / (Params[-1].data[0] + 1e-5) for q in p.data]
                             for i, p in enumerate(Params[:-1])
                         ]  # with s
+                        #qiuzy
+                        for j, d in enumerate(ParamData[1]):
+                            if d < 0:
+                                ParamData[1][j] = 0.0
                     elif len(ParamShape) == 2 and len(ParamShape[0]) == 4:
                         ParamShape = [[ParamShape[0][1]], [ParamShape[1][1]]]
                         ParamData = [[q / 1. for q in p.data] if i == 0 else
