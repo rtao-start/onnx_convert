@@ -67,7 +67,10 @@ def convert_pdstatic2onnx(model_path, output, op_set):
     print('Begin converting static paddle to onnx...')
     if model_path.startswith('./'):
         cwd = os.getcwd()
-        model_path = cwd + model_path[1:]
+        model_path = cwd + model_path[1:]    
+    elif model_path.startswith('/') == False:
+        cwd = os.getcwd()
+        model_path = cwd + '/' + model_path   
 
     pdmodel, pdiparams = get_paddle_files(model_path)
 
