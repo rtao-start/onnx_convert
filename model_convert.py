@@ -213,7 +213,7 @@ def parse_args():
                         required=False,
                         default='',
                         help="When some input of tensorflow model is nhwc, you can use it(ex: --inputs_as_nchw image:0) to convert to nchw")
-
+    
    #for gap-->ap 
    parser.add_argument("--gap_to_ap",
                         type=int, 
