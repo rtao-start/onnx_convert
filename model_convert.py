@@ -158,7 +158,7 @@ def parse_args():
    parser.add_argument("--support_mish",
                         type=int, 
                         required=False,
-                        default=0,
+                        default=1,
                         choices=[0, 1],
                         help="If set 1, the tool will fuse Softplus+Tanh+Mul to Mish") 
 
@@ -219,14 +219,14 @@ def parse_args():
                         type=int, 
                         required=False,
                         choices=[0, 1],
-                        default=0,
+                        default=1,
                         help="If set 1, the tool will convert GlobalAveragePool to AveragePool for hardware acceleration") 
 
    #for pad+pool fuse
    parser.add_argument("--fuse_pad_pool",
                         type=int, 
                         required=False,
-                        default=0,
+                        default=1,
                         choices=[0, 1],
                         help="If set 1, the tool will fuse Pad into Pool") 
 
@@ -235,7 +235,7 @@ def parse_args():
                         type=int, 
                         required=False,
                         choices=[0, 1],
-                        default=0,
+                        default=1,
                         help="If set 1, the tool will convert Sigmoid+Mul to Swish; HardSigmoid+Mul to HardSwish")   
 
    #for convert BN to GroupConv(1x1)
@@ -243,7 +243,7 @@ def parse_args():
                         type=int, 
                         required=False,
                         choices=[0, 1],
-                        default=0,
+                        default=1,
                         help="If set 1, the tool will convert BN to group 1x1_Conv")          
 
    #for pytorch/paddle
@@ -258,7 +258,7 @@ def parse_args():
                         type=int, 
                         choices=[0, 1],
                         required=False,
-                        default=0,
+                        default=1,
                         help="For pytorch, if set 1, the tool will keep model batch size(if 0, set it to dynamic(-1))") 
 
    #for convert gemm
@@ -266,7 +266,7 @@ def parse_args():
                         type=int, 
                         required=False,
                         choices=[0, 1],
-                        default=0,
+                        default=1,
                         help="If set 1, the tool will convert gemm to fc or matmul+add+mul")     
    
    #for convert Reshape+Expand+Reshape to Resize
@@ -274,7 +274,7 @@ def parse_args():
                         type=int, 
                         required=False,
                         choices=[0, 1],
-                        default=0,
+                        default=1,
                         help="If set 1, the tool will convert Reshape+Expand+Reshape to Resize")    
 
    #reset model value_info(some model(batch=-1) may have wrong value info for middle node)) 
@@ -290,7 +290,7 @@ def parse_args():
                         type=int, 
                         required=False,
                         choices=[0, 1],
-                        default=0,
+                        default=1,
                         help="If set 1, the tool will fuse match ops to LayerNorm")                      
 
    #convert matmul to gemm()
@@ -298,7 +298,7 @@ def parse_args():
                         type=int, 
                         required=False,
                         choices=[0, 1],
-                        default=0,
+                        default=1,
                         help="If set 1, the tool will convert Matmul to Gemm(when A shape[0] < 32 and B is Constant)")   
 
    #reset model value_info(some model(batch=-1) may have wrong value info for middle node)) 
@@ -1388,7 +1388,7 @@ def process(args):
    #onnx.checker.check_model(new_model)
    try:
       onnx.checker.check_model(new_model)
-   except onnx.checker.ValidationError as e:
+   except BaseException as e: #onnx.checker.ValidationError as e:
       print('ignore warning(check_model), continue saving~')  
    else:
       print('### Begin saving model...')
@@ -1435,13 +1435,16 @@ def process(args):
       print('begin doing fp32-->fp16...')
       new_model = convert_float_to_float16(new_model, keep_io_types=True)
 
-   if model_type == 'onnx' and support_mish == 1:
+   #if model_type == 'onnx' and support_mish == 1:
+   if support_mish == 1:   
       new_model = merge_mish(new_model)
 
-   if model_type == 'onnx' and support_swish == 1:
+   #if model_type == 'onnx' and support_swish == 1:
+   if support_swish == 1:   
       new_model = merge_swish_and_hard_swish(new_model)   
 
-   if model_type == 'onnx' and gemm_optimization == 1:
+   #if model_type == 'onnx' and gemm_optimization == 1:
+   if gemm_optimization == 1:   
       new_model = gemm_convert(new_model)  
 
    if model_type == 'onnx' and preproc_yaml != '':
@@ -1459,16 +1462,19 @@ def process(args):
    if bn_to_conv == 1:
       new_model = bn2conv.bn2conv(new_model)
 
-   if model_type == 'onnx' and expand_to_resize == 1:
+   #if model_type == 'onnx' and expand_to_resize == 1:
+   if expand_to_resize == 1:   
       new_model = merge_resize(new_model)           
 
    if model_type == 'onnx' and reset_value_info == 1:
       new_model = reset_model_value_info(new_model) 
 
-   if model_type == 'onnx' and fuse_layernorm == 1:
+   #if model_type == 'onnx' and fuse_layernorm == 1:
+   if fuse_layernorm == 1:   
       new_model = merge_layernorm(new_model) 
 
-   if model_type == 'onnx' and matmul_to_gemm == 1:
+   #if model_type == 'onnx' and matmul_to_gemm == 1:
+   if matmul_to_gemm == 1:
       new_model = matmul_2_gemm(new_model)
            
    delete = eliminate_redundant_reshape(new_model)

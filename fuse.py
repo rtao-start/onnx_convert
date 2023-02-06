@@ -47,12 +47,18 @@ def fuse_pad_to_pool(model):
 
                 pads_real = [pads[2], pads[3], pads[6], pads[7]]
 
+                found_pads_attr = False
                 for attr in node.attribute:
                     if attr.name == 'pads':
                         del attr.ints[:]
                         attr.ints.extend(pads_real)
+                        found_pads_attr = True
                         #print('pads:---', attr.ints)
                         break
+
+                if found_pads_attr == False:
+                    attr = onnx.helper.make_attribute('pads', pads_real)
+                    node.attribute.append(attr)       
      
                 node.input[0] = dict_pad['input'][0]
 
