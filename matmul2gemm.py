@@ -7,12 +7,18 @@ import numpy as np
 def got_input_shape(model, tensor):
     for input_ in model.graph.input:
         if input_.name == tensor:
+            if len(input_.type.tensor_type.shape.dim) != 2:
+                return -777, False
+
             dim_proto_input = input_.type.tensor_type.shape.dim[0]
             print('++++++got input shape: ', dim_proto_input.dim_value)
             return dim_proto_input.dim_value, True
 
     for vi in model.graph.value_info:
         if vi.name == tensor:
+            if len(vi.type.tensor_type.shape.dim) != 2:
+                return -777, False
+
             dim_proto_input = vi.type.tensor_type.shape.dim[0]
             print('------got input shape: ', dim_proto_input.dim_value)
             return dim_proto_input.dim_value, True
