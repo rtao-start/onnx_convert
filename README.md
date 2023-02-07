@@ -81,7 +81,7 @@
    命令：python model_convert.py --model_path ./output.onnx  --model_type onnx   --output ./test.onnx  --extract_sub 1 --inputs input_1:0  --outputs functional_1/concatenate/concat:0
    说明：model_type必须为onnx
 
-12 mish合成
+12 mish合成(默认开启)
    命令：python model_convert.py --model_path ./dn_models --model_type darknet  --output ./output.onnx --support_mish 1
    也可直接对onnx模型中的算子进行合成：python model_convert.py --model_path ./my.onnx --model_type onnx --output ./test.onnx  --support_mish 1
 
@@ -111,34 +111,34 @@
    多输入/多输出模型：
      python model_convert.py --model_path ./xxx   --model_type paddle  --output ./paddle.onnx  --model_def_file  ./paddle_mi.py  --model_class_name MyModel  --model_weights_file ./mi.pdparams --input_shape [1,3,200,300]/[1,3,200,300]
       
-15 pad+pool融合
+15 pad+pool融合(默认开启)
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx  --fuse_pad_pool 1
    或：python model_convert.py --model_path ./test.h5 --model_type tf-h5  --output ./output.onnx --fuse_pad_pool 1
    
-16 GlobalAveragePool-->AveragePool
+16 GlobalAveragePool-->AveragePool(默认开启)
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx  --gap_to_ap 1
    或：python model_convert.py --model_path ./test.h5 --model_type tf-h5  --output ./output.onnx --gap_to_ap_ 1
 
-17 swish合成
+17 swish合成(默认开启)
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --support_swish 1
    说明: 仅支持model_type为onnx, 调用命令会自动将模型中符合条件的Sigmoid+Mul组合转换为Swish(或将HardSigmoid+Mul(或Add+Clip+Mul+Div)组合转换为HardSwish)
 
-18 BN转Conv
+18 BN转Conv(默认开启)
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --bn_to_conv 1
    说明: 支持将无法融合的BN算子转换成1x1的分组卷积
 
-19 Gemm优化
+19 Gemm优化(默认开启)
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --gemm_optimization 1
    说明: 支持将gemm算子转换成执行速度更快的算子组合(基于N100硬件)
 
-20 Resize算子合成
+20 Resize算子合成(默认开启)
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --expand_to_resize 1
    说明: 支持将Reshape+Expand+Reshape算子转换成Resize算子        
 
-21 LayerNorm转换
+21 LayerNorm转换(默认开启)
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --fuse_layernorm 1
    说明: 支持将匹配的算子组合转换成LayerNorm算子
 
-22 MayMul转Gemm
+22 MayMul转Gemm(默认开启)
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --matmul_to_gemm 1
    说明: 支持将Matmul算子转换为Gemm算子(需满足: 1.A的shape[0]小于32. 2.B为常量)     
