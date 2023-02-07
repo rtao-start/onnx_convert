@@ -371,7 +371,7 @@ def convert_sm2onnx(model_path, output, op_set):
          print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
          print(e)
          print('Please install tensorflow(pip install tensorflow==2.4.0)')
-         print('If numpy version > 1.19.5, tensorflow version should be between 2.7.4')
+         print('If numpy version > 1.19.5, tensorflow version should be 2.7.4')
          print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
          sys.exit(exit_code_sm2onnx)
 
@@ -399,7 +399,7 @@ def convert_h52onnx(model_path, output, op_set):
          print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
          print(e)
          print('Please install tensorflow(pip install tensorflow==2.4.0)')
-         print('If numpy version > 1.19.5, tensorflow version should be between 2.7.4')
+         print('If numpy version > 1.19.5, tensorflow version should be 2.7.4')
          print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
          sys.exit(exit_code_h52onnx)
 
@@ -427,7 +427,7 @@ def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
          print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
          print(e)
          print('Please install tensorflow(pip install tensorflow==2.4.0)')
-         print('If numpy version > 1.19.5, tensorflow version should be between 2.7.4')
+         print('If numpy version > 1.19.5, tensorflow version should be 2.7.4')
          print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
          sys.exit(exit_code_ckpt2onnx)
 
@@ -458,7 +458,7 @@ def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
          print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
          print(e)
          print('Please install tensorflow(pip install tensorflow==2.4.0)')
-         print('If numpy version > 1.19.5, tensorflow version should be between 2.7.4')
+         print('If numpy version > 1.19.5, tensorflow version should be 2.7.4')
          print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
          sys.exit(exit_code_pb2onnx)
 
