@@ -58,7 +58,19 @@ def fuse_pad_to_pool(model):
 
                 if found_pads_attr == False:
                     attr = onnx.helper.make_attribute('pads', pads_real)
-                    node.attribute.append(attr)       
+                    node.attribute.append(attr) 
+
+                if node.op_type == 'AveragePool':
+                    found_cip_attr = False
+                    for attr in node.attribute:
+                        if attr.name == 'count_include_pad':
+                            found_cip_attr = True
+                            attr.i = 1
+                            break
+                    
+                    if found_cip_attr == False:
+                        attr = onnx.helper.make_attribute('count_include_pad', 1)
+                        node.attribute.append(attr)           
      
                 node.input[0] = dict_pad['input'][0]
 
