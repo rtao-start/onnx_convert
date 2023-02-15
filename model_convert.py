@@ -1459,7 +1459,7 @@ def process(args):
       else:
          print(postproc_yaml, 'is not exist')
 
-   if bn_to_conv == 1:
+   if bn_to_conv == 1 and simplify_model != 0:
       new_model = bn2conv.bn2conv(new_model)
 
    #if model_type == 'onnx' and expand_to_resize == 1:
