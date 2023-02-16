@@ -11,9 +11,12 @@ def bn2conv(model):
                 if node.input[0] == vi.name:
                     input_type = vi.type.tensor_type.elem_type
                     input_dims = len(vi.type.tensor_type.shape.dim)
-                    print('+++++++++++++++node.name:', node.name, input_type, input_dims)
+                    print('+++++++++++++++bn2conv, node.name:', node.name, input_type, input_dims)
 
                     break
+
+            if input_dims < 3:
+                continue
 
             epsilon = 1e-5
             attributes = node.attribute
@@ -42,15 +45,19 @@ def bn2conv(model):
             var = input_dict[node.input[4]]
 
             input_channel = alpha.shape[0]
-            print('input_channel is', input_channel) 
+            print('input_channel is', input_channel)
 
-            w = np.ones((input_channel, 1, 1, 1), dtype=np.float32)
+            d_type = np.float32
+            if input_type == onnx.TensorProto.FLOAT16:
+                d_type = np.float16
+
+            w = np.ones((input_channel, 1, 1, 1), dtype=d_type) #np.float32)
             if input_dims == 3:
-                w = np.ones((input_channel, 1, 1), dtype=np.float32)
+                w = np.ones((input_channel, 1, 1), dtype=d_type) #np.float32)
 
             b = np.zeros(
                 shape=w.shape[1]*input_channel,
-                dtype=np.float32
+                dtype=d_type #np.float32
             )      
 
             scale = alpha/np.sqrt(var + epsilon)

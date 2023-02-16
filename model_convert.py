@@ -19,6 +19,7 @@ from mish_convert import merge_mish
 import bn2conv
 import values
 import version_check
+import copy
 
 from caffe2onnx.src.load_save_model import loadcaffemodel, saveonnxmodel
 from caffe2onnx.src.caffe2onnx import Caffe2Onnx
@@ -681,13 +682,19 @@ def correct_output_shape(model):
          print('The model output is dynamic, output_shape:', output_shape)
 
 def reset_model_value_info(model):
-   del model.graph.value_info[:]
+   model_bak = copy.deepcopy(model)
 
-   new_model = onnx.shape_inference.infer_shapes(model)
+   del model_bak.graph.value_info[:]
 
-   new_model = onnx.shape_inference.infer_shapes(new_model)
-
-   return new_model
+   try:
+      new_model = onnx.shape_inference.infer_shapes(model_bak)
+   except BaseException as e:
+      print('reset_model_value_info, the model cannot be inferenced for: %s' % e)
+      return model    
+   else:
+      new_model = onnx.shape_inference.infer_shapes(model_bak)
+      new_model = onnx.shape_inference.infer_shapes(new_model)
+      return new_model
 
 def reset_batch_size(model, input_batch, output_batch):
    for input_ in model.graph.input:
@@ -1431,9 +1438,11 @@ def process(args):
       print('begin doing fuse_pad_to_pool...')
       new_model = fuse.fuse_pad_to_pool(new_model)   
 
+   '''
    if fp32_to_fp16 == 1:
       print('begin doing fp32-->fp16...')
       new_model = convert_float_to_float16(new_model, keep_io_types=True)
+   '''
 
    #if model_type == 'onnx' and support_mish == 1:
    if support_mish == 1:   
@@ -1476,7 +1485,11 @@ def process(args):
    #if model_type == 'onnx' and matmul_to_gemm == 1:
    if matmul_to_gemm == 1:
       new_model = matmul_2_gemm(new_model)
-           
+
+   if fp32_to_fp16 == 1:
+      print('begin doing fp32-->fp16...')
+      new_model = convert_float_to_float16(new_model, keep_io_types=True)
+
    delete = eliminate_redundant_reshape(new_model)
    while delete == True:
       delete = eliminate_redundant_reshape(new_model)   
