@@ -917,8 +917,9 @@ def convert_gap_2_ap(model):
          input_shape = v.type.tensor_type.shape.dim
          input_shape = [x.dim_value for x in input_shape]
 
-         dict2 = {'name':v.name, 'shape':input_shape}
-         node_list2.append(dict2)
+         if len(input_shape) >= 4:
+            dict2 = {'name':v.name, 'shape':input_shape}
+            node_list2.append(dict2)
 
          print("+++++++++++ name:", v.name, input_shape)
 
@@ -928,7 +929,7 @@ def convert_gap_2_ap(model):
                for v in node_list2:
                   #print('v.name:', v['name'])
                   if d['input'][0] == v['name']:
-                     print('got GlobalAveragePool, shape:', v['shape'])
+                     print('got GlobalAveragePool, shape:', v['shape'], v['name'])
                      if v['shape'][2] <= 15 and v['shape'][3] <= 15:
                            need_convert = True
                            print('GlobalAveragePool===>AveragePool......') 
@@ -1149,6 +1150,45 @@ def eliminate_unused_input_initializer(model):
       for input in model.graph.input:
          print('last input:', input.name)
 
+def eliminate_unused_constant_node(model):
+   constant_idx_name = []
+   for idx, node in enumerate(model.graph.node):
+      if node.op_type == 'Constant':
+         print('eliminate_unused_constant_node, node.name:', node.name)
+         dict_ = {}
+         dict_['output'] = node.output[0]
+         dict_['idx'] = idx
+         dict_['del'] = True
+         constant_idx_name.append(dict_)
+
+   for node in model.graph.node:
+      if node.op_type != 'Constant':
+         for d in constant_idx_name:
+            if d['output'] in node.input:
+               d['del'] = False
+
+   del_constant_output = []
+   for d in constant_idx_name:
+      if d['del'] == True:
+         del_constant_output.append(d['output'])
+
+   '''
+   loop = True
+   while loop == True:
+      loop = False
+      for node in model.graph.node:
+         if node.op_type == 'Constant':
+            if node.output[0] in del_constant_output:
+               model.graph.node.remove(node)
+               loop = True
+               break
+   '''  
+
+   for node in reversed(model.graph.node):
+      if node.op_type == 'Constant':
+         if node.output[0] in del_constant_output:
+            model.graph.node.remove(node)
+          
 def eliminate_redundant_reshape(model):
    reshape_input = []
    reshape_output = []
@@ -1495,6 +1535,7 @@ def process(args):
       delete = eliminate_redundant_reshape(new_model)   
 
    eliminate_unused_input_initializer(new_model)
+   eliminate_unused_constant_node(new_model)
 
    onnx.save(new_model, output)                 
 

@@ -1,6 +1,23 @@
 import onnx
 import correct_batch
 import numpy as np
+import values
+
+def get_constant_value(model, name):
+    shape = []
+    for n in model.graph.node:
+        if name == n.output[0]:
+            attributes = n.attribute
+            for attr in attributes:
+                if attr.name == 'value':
+                    v = values.get_tensor_value(attr.t)
+                    dims = len(v)
+                    print('get_constant_value:', v, dims)
+                    shape = v
+                    break
+            break
+
+    return shape                     
 
 def fuse_pad_to_pool(model):
     dict_pad = {}
@@ -45,8 +62,13 @@ def fuse_pad_to_pool(model):
                     #elif init.name == dict_pad['input'][2]:
                     #    print('got init(constane_value):', init.name)  
 
-                pads_real = [pads[2], pads[3], pads[6], pads[7]]
+                if pads == []:
+                    pads = get_constant_value(model, dict_pad['input'][1])
 
+                print('got pads:', pads)
+
+                pads_real = [pads[2], pads[3], pads[6], pads[7]]
+            
                 found_pads_attr = False
                 for attr in node.attribute:
                     if attr.name == 'pads':
@@ -85,6 +107,5 @@ def fuse_pad_to_pool(model):
 
     if got_pad_pool == True:
         print('got pad+pool node------------')
-        #onnx.save(model, output)
 
     return model    
