@@ -1152,12 +1152,11 @@ def eliminate_unused_input_initializer(model):
 
 def eliminate_unused_constant_node(model):
    constant_idx_name = []
-   for idx, node in enumerate(model.graph.node):
+   for node in model.graph.node:
       if node.op_type == 'Constant':
          print('eliminate_unused_constant_node, node.name:', node.name)
          dict_ = {}
          dict_['output'] = node.output[0]
-         dict_['idx'] = idx
          dict_['del'] = True
          constant_idx_name.append(dict_)
 
@@ -1171,18 +1170,6 @@ def eliminate_unused_constant_node(model):
    for d in constant_idx_name:
       if d['del'] == True:
          del_constant_output.append(d['output'])
-
-   '''
-   loop = True
-   while loop == True:
-      loop = False
-      for node in model.graph.node:
-         if node.op_type == 'Constant':
-            if node.output[0] in del_constant_output:
-               model.graph.node.remove(node)
-               loop = True
-               break
-   '''  
 
    for node in reversed(model.graph.node):
       if node.op_type == 'Constant':

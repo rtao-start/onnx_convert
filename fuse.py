@@ -66,6 +66,10 @@ def fuse_pad_to_pool(model):
                     pads = get_constant_value(model, dict_pad['input'][1])
 
                 print('got pads:', pads)
+                if len(pads) != 8:
+                    dict_pad = {}
+                    dict_pool = {}
+                    continue
 
                 pads_real = [pads[2], pads[3], pads[6], pads[7]]
             
