@@ -16,6 +16,7 @@ import time
 import fuse
 from swish_convert import merge_swish_and_hard_swish
 from mish_convert import merge_mish
+from hard_sigmoid_convert import merge_hard_sigmiod
 import bn2conv
 import values
 import version_check
@@ -309,6 +310,14 @@ def parse_args():
                         nargs='*',
                         default='', #should be 'input_batch,output_batch'
                         help="If set 1, the tool will try reset model batch_size") 
+
+   #convert Add+Clip+Div to HardSigmoid
+   parser.add_argument("--fuse_hard_sigmoid",
+                        type=int, 
+                        required=False,
+                        default=1,
+                        choices=[0, 1],
+                        help="If set 1, the tool will merge Add+Cilp+Div to HardSigmoid") 
 
    args = parser.parse_args()
 
@@ -1302,6 +1311,7 @@ def process(args):
    fuse_layernorm = args.fuse_layernorm
    matmul_to_gemm = args.matmul_to_gemm
    reset_batch = args.reset_batch
+   fuse_hard_sigmoid = args.fuse_hard_sigmoid
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -1512,6 +1522,9 @@ def process(args):
    #if model_type == 'onnx' and matmul_to_gemm == 1:
    if matmul_to_gemm == 1:
       new_model = matmul_2_gemm(new_model)
+
+   if fuse_hard_sigmoid == 1:
+      new_model = merge_hard_sigmiod(new_model)
 
    if fp32_to_fp16 == 1:
       print('begin doing fp32-->fp16...')

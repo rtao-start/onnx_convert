@@ -123,3 +123,20 @@ def set_tensor_value(tensor, v, dims=[]):
         del tensor.dims[:]
         tensor.dims[:] = dims[:]     
 
+def get_constant_value(model, name):
+    value = []
+    for n in model.graph.node:
+        if n.op_type == 'Constant':
+            if name == n.output[0]:
+                attributes = n.attribute
+                for attr in attributes:
+                    if attr.name == 'value':
+                        v = get_tensor_value(attr.t)
+                        dims = len(v)
+                        print('get constant value:', v, dims)
+                        value = v
+                        break
+                break
+
+    return value   
+
