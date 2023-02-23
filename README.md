@@ -143,6 +143,12 @@
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --matmul_to_gemm 1
    说明: 支持将Matmul算子转换为Gemm算子(需满足: 1.A的shape[0]小于32. 2.B为常量) 
 
-23 HardSigmoid(默认开启)
+23 HardSigmoid融合(默认开启)
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --fuse_hard_sigmoid 1
-   说明: 支持将Add+Clip+Div组合转换为HardSigmoid算子(需满足: 1.Add算子的input[1]==3; 2.Clip算子的min=0,max=6;3.Div算子的input[1]=6)           
+   说明: 支持将Add+Clip+Div组合转换为HardSigmoid算子(需满足: 1.Add算子的input[1]==3; 2.Clip算子的min=0,max=6;3.Div算子的input[1]=6)
+
+24 Gelu融合(默认开启)
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --fuse_gelu 1
+   说明: 支持将以下两种算子组合转换为Gelu算子：
+         1.Pow+Mul+Add+Mul+Tanh+Add+Mul+Mul
+         2.Div+Erf+Add+Mul+Mul
