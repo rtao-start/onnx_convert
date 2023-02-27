@@ -33,9 +33,10 @@ def got_input_shape(model, tensor):
 
     for vi in model.graph.value_info:
         if vi.name == tensor:
-            dim_proto_input = vi.type.tensor_type.shape.dim[0]
-            print('got input shape: ', dim_proto_input.dim_value)
-            return dim_proto_input.dim_value, True
+            if len(vi.type.tensor_type.shape.dim) > 0:
+                dim_proto_input = vi.type.tensor_type.shape.dim[0]
+                print('got input shape: ', dim_proto_input.dim_value)
+                return dim_proto_input.dim_value, True
 
     for init in model.graph.initializer:
         if tensor == init.name:
