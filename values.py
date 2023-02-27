@@ -86,6 +86,18 @@ def get_init_value(model, init_name):
 
     return data_list
 
+def get_init_value_and_shape(model, init_name):
+    shape = []
+    v = get_init_value(model, init_name)
+    if v != []:
+        for init in model.graph.initializer:
+            if init.name == init_name:
+                shape = [s for s in init.dims]
+                print('got shape{} for {}'.format(shape, init_name))
+                break
+                
+    return v, shape  
+
 def get_tensor_value(tensor): 
     data_list = []
 
@@ -140,3 +152,12 @@ def get_constant_value(model, name):
 
     return value   
 
+def get_tensor_shape_by_name(model, name):
+    shape = []
+    for vi in model.graph.value_info:
+        if vi.name == name:
+            shape = [d.dim_value for d in vi.type.tensor_type.shape.dim]
+            print('got tensor shape{} for {}'.format(shape, name))
+            break
+
+    return shape        
