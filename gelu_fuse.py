@@ -186,7 +186,7 @@ def merge_gelu1(model):
                                                 op_type='Gelu',
                                                 inputs=[dict_div['input'][0]],
                                                 outputs=dict_mul2['output'],
-                                                domain='com.metax-tech'
+                                                domain='com.microsoft'
                                                 )
 
                         model.graph.node.insert(dict_div['id'], gelu_node)
@@ -223,7 +223,7 @@ def merge_gelu1(model):
 
     if got_gelu == True:
         op_set = model.opset_import.add()
-        op_set.domain = 'com.metax-tech'
+        op_set.domain = 'com.microsoft'
         op_set.version = 1
 
     return model
@@ -285,7 +285,7 @@ class MergeGelu():
                 #        ", op:", node.op_type, ', len(input):', len(node.input))
 
                 if node.op_type == 'Pow':
-                    powB = values.get_init_value(model, node.input[1])
+                    powB = values.get_init_value(self.model, node.input[1])
                     if isinstance(powB, list) and powB == []:
                         print('powB is not in initilizer')
                         powB = values.get_constant_value(model, node.input[1])
@@ -310,7 +310,7 @@ class MergeGelu():
                 if node.op_type == 'Mul':
                     if self.got_mul1 == False:
                         if self.dict_pow and node.input[1] == self.dict_pow['output'][0]:
-                            mulA = values.get_init_value(model, node.input[0])
+                            mulA = values.get_init_value(self.model, node.input[0])
                             print('mulA:', mulA)
 
                             if isinstance(mulA, list) and mulA == []:
@@ -341,7 +341,7 @@ class MergeGelu():
                     else:
                         if self.got_mul2 == False:
                             if self.dict_add1 and node.input[1] == self.dict_add1['output'][0]:
-                                mulA = values.get_init_value(model, node.input[0])
+                                mulA = values.get_init_value(self.model, node.input[0])
                                 print('mulA:', mulA)
 
                                 if isinstance(mulA, list) and mulA == []:
@@ -371,7 +371,7 @@ class MergeGelu():
                         else:
                             if self.got_mul3 == False:
                                 if self.dict_add2 and node.input[1] == self.dict_add2['output'][0]:
-                                    mulA = values.get_init_value(model, node.input[0])
+                                    mulA = values.get_init_value(self.model, node.input[0])
                                     print('mulA:', mulA)
 
                                     if isinstance(mulA, list) and mulA == []:
@@ -420,18 +420,18 @@ class MergeGelu():
                                                 op_type='Gelu',
                                                 inputs=[self.dict_pow['input'][0]],
                                                 outputs=self.dict_mul4['output'],
-                                                domain='com.metax-tech'
+                                                domain='com.microsoft'
                                                 )
 
                                     self.model.graph.node.insert(self.dict_pow['id'], gelu_node)
 
-                                    operation.remove_node(model, self.dict_mul1['input'], self.dict_mul1['output'])
-                                    operation.remove_node(model, self.dict_add1['input'], self.dict_add1['output'])
-                                    operation.remove_node(model, self.dict_mul2['input'], self.dict_mul2['output'])
-                                    operation.remove_node(model, self.dict_tanh['input'], self.dict_tanh['output'])
-                                    operation.remove_node(model, self.dict_add2['input'], self.dict_add2['output'])
-                                    operation.remove_node(model, self.dict_mul3['input'], self.dict_mul3['output'])
-                                    operation.remove_node(model, self.dict_mul4['input'], self.dict_mul4['output'])
+                                    operation.remove_node(self.model, self.dict_mul1['input'], self.dict_mul1['output'])
+                                    operation.remove_node(self.model, self.dict_add1['input'], self.dict_add1['output'])
+                                    operation.remove_node(self.model, self.dict_mul2['input'], self.dict_mul2['output'])
+                                    operation.remove_node(self.model, self.dict_tanh['input'], self.dict_tanh['output'])
+                                    operation.remove_node(self.model, self.dict_add2['input'], self.dict_add2['output'])
+                                    operation.remove_node(self.model, self.dict_mul3['input'], self.dict_mul3['output'])
+                                    operation.remove_node(self.model, self.dict_mul4['input'], self.dict_mul4['output'])
                                     break
 
                 if node.op_type == 'Add':
@@ -449,7 +449,7 @@ class MergeGelu():
                     else:
                         if self.got_add2 == False:
                             if self.dict_tanh and node.input[1] == self.dict_tanh['output'][0]:
-                                addA = values.get_init_value(model, node.input[0])
+                                addA = values.get_init_value(self.model, node.input[0])
 
                                 if isinstance(addA, list) and addA == []:
                                     print('addA is not in initilizer')
@@ -494,7 +494,7 @@ class MergeGelu():
 
         if self.got_gelu == True:
             op_set = self.model.opset_import.add()
-            op_set.domain = 'com.metax-tech'
+            op_set.domain = 'com.microsoft'
             op_set.version = 1
 
         return self.model

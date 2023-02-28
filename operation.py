@@ -140,7 +140,7 @@ def eliminate_redundant_reshape(model):
                            #print('p:', p)
                            shape_list.append(p)
                   else:
-                     data_list = get_data_list(dtype, init)
+                     data_list = values.get_data_list(dtype, init)
                      for p in data_list:
                            #print('---p:', p)
                            shape_list.append(p)

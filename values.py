@@ -157,7 +157,15 @@ def get_tensor_shape_by_name(model, name):
     for vi in model.graph.value_info:
         if vi.name == name:
             shape = [d.dim_value for d in vi.type.tensor_type.shape.dim]
-            print('got tensor shape{} for {}'.format(shape, name))
+            print('++++got tensor shape{} for {}'.format(shape, name))
             break
+
+    if shape == []:
+        for input_ in model.graph.input:
+            if name == input_.name:
+                if len(input_.type.tensor_type.shape.dim) > 0:
+                    shape = [d.dim_value for d in input_.type.tensor_type.shape.dim]
+                    print('----got tensor shape{} for {}'.format(shape, name))
+                    break    
 
     return shape        

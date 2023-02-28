@@ -11,8 +11,19 @@ def get_node_by_output(model, output):
 
     return n, -1
 
+def get_node_by_pre_output(model, output):
+    n = model.graph.node[0]
+    for node in model.graph.node:
+        if output in node.input:
+            return node, 0
+
+    return n, -1
+
 def get_matmul_input_path_pattern_one(model, input_name):
     res = -1
+
+    #node_list = []
+    node_dict = {}
 
     print('get_matmul_input_path_pattern_one, input_name:', input_name)
 
@@ -61,9 +72,48 @@ def get_matmul_input_path_pattern_one(model, input_name):
 
                             if len(shapeA) == 3 and len(shapeB) == 2:
                                 print('got match MatMul node', input_ppp_pre.name)
+                                res = 0
+                                node_list = [input_ppp_pre, input_pp_pre, input_p_pre, input_pre]
+                                node_dict['node_list'] = node_list
+                                node_dict['addA'] = addA
+                                node_dict['matmul_AShape'] = shapeA
+                                node_dict['inputB'] = inputB
+                                node_dict['matmul_BShape'] = shapeB
+    elif ok == 0:
+        res = 1
+        node_list = [input_pre]
+        node_dict['node_list'] = node_list
 
-                            ###############################
-    return res
+    return node_dict, res
+
+def print_matmul_input_path(node_list, desp):
+    node_print = ''
+    first = True
+
+    for n in node_list:
+        if first == True:
+            node_print = n.name
+            first = False
+        else: 
+            node_print = node_print + '-->'   
+            node_print = node_print + n.name
+
+    print('{}:{}'.format(desp, node_print))
+
+def cvt_matmul_add_to_conv(model, matmul_dict):
+    if matmul_dict['next'][0].op_type != 'Transpose':
+        current_inputA_shape = values.get_tensor_shape_by_name(model, matmul_dict['current'].input[0])
+        current_inputB_shape = values.get_tensor_shape_by_name(model, matmul_dict['current'].input[1])
+
+        print('current_inputA_shape: ', current_inputA_shape) 
+        print('current_inputB_shape: ', current_inputB_shape)
+
+        if matmul_dict['A_MatMul_Add'] == True:
+            print('A inputA shape:{}, inputB shape:{}'.format(matmul_dict['A_matmul_AShape'], matmul_dict['A_matmul_BShape']))
+            print('B inputA shape:{}, inputB shape:{}'.format(matmul_dict['B_matmul_AShape'], matmul_dict['B_matmul_BShape']))
+            for node in matmul_dict['pathA']:
+                if node.op_type == 'Matmul':
+                    break
 
 def get_matmul_list(model):
     matmul_list = []
@@ -93,171 +143,58 @@ def get_matmul_list(model):
                 print('skip MatMul:', node.name)
                 continue
 
-            res1 = get_matmul_input_path_pattern_one(model, inputA)
-            res2 = get_matmul_input_path_pattern_one(model, inputB)     
+            node_dictA, res1 = get_matmul_input_path_pattern_one(model, inputA)
+            node_dictB, res2 = get_matmul_input_path_pattern_one(model, inputB)
+
+            if res1 > -1:
+                print_matmul_input_path(node_dictA['node_list'], 'node_listA')
+            if res2 > -1:
+                print_matmul_input_path(node_dictB['node_list'], 'node_listB')
+
+            if res1 > -1 or res2 > -1:
+                next_node, ok = get_node_by_pre_output(model, node.output[0])
+                matmul_dict = {}
+                matmul_dict['name'] = node.name
+                matmul_dict['current'] = node
+                matmul_dict['pathA'] = node_dictA['node_list']
+                matmul_dict['A_MatMul_Add'] = False
+                if res1 == 0:
+                    matmul_dict['A_MatMul_Add'] = True
+                    matmul_dict['A_addA'] = node_dictA['addA']
+                    matmul_dict['A_matmul_AShape'] = node_dictA['matmul_AShape']
+                    matmul_dict['A_inputB'] = node_dictA['inputB']
+                    matmul_dict['A_matmul_BShape'] = node_dictA['matmul_BShape']
+
+                matmul_dict['pathB'] = node_dictB['node_list']
+                matmul_dict['B_MatMul_Add'] = False
+                if res2 == 0:
+                    matmul_dict['B_MatMul_Add'] = True
+                    matmul_dict['B_addA'] = node_dictB['addA']
+                    matmul_dict['B_matmul_AShape'] = node_dictB['matmul_AShape']
+                    matmul_dict['B_inputB'] = node_dictB['inputB']
+                    matmul_dict['B_matmul_BShape'] = node_dictB['matmul_BShape']
+
+                matmul_dict['next'] = [next_node]
+                matmul_list.append(matmul_dict)      
+
+    for ll in matmul_list:
+        print('stat MatMul: {}, next: {}, op_type: {}'.format(ll['name'], ll['next'][0].name,ll['next'][0].op_type))
+        print('------pathA:')
+        for node in ll['pathA']:
+            print('   ', node.name)
+
+        print('------pathB:')
+        for node in ll['pathB']:
+            print('   ', node.name)
+
+        cvt_matmul_add_to_conv(model, ll)
 
 def mha_optimizer(model):
-    dict_matmul = {}
-    dict_add = {}
-    dict_reshape = {}
-    dict_transpose = {}
-
-    wait_for_finish = 0
-
-    list_matmul = [{}]*5
-    list_add = [{}]*5
-    list_reshape = [{}]*5
-
-    list_transpose = [{}]*5
-
-    got_swish = False
-
-    search = True
-
-    while search == True:
-        search = False
-        for node_id, node in enumerate(model.graph.node):
-            #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
-            #        ", op:", node.op_type)
-
-            if node.op_type == 'MatMul':
-                shapeA = values.get_tensor_shape_by_name(model, node.input[0])
-                if len(shapeA) != 3:
-                    print('len(inputA) is not 3, ignore this MAtMul~', len(shapeA))
-                    continue
-
-                inputB, shapeB = values.get_init_value_and_shape(model, node.input[1])
-
-                if isinstance(inputB, list) and inputB == []:
-                    print('inputB is not in initilizer')
-                    inputB = values.get_constant_value(model, node.input[1])
-                    if inputB == []:
-                        print('inputB is not in constant node list')
-                        continue
-
-                if len(shapeB) != 2:
-                    print('this is not the matmul-node which we wanted(len(shapeB) is not 2)...')
-                    continue
-
-                list_matmul[wait_for_finish%5]['input'] = node.input
-                list_matmul[wait_for_finish%5]['output'] = node.output
-                list_matmul[wait_for_finish%5]['id'] = node_id
-
-                #dict_matmul['input'] = node.input
-                #dict_matmul['output'] = node.output
-                #dict_matmul['id'] = node_id
-
-                print('got match MatMul node:', node.name, wait_for_finish)
-
-            if node.op_type == 'Add':
-                #if dict_matmul and node.input[1] == dict_matmul['output'][0]:
-                if list_matmul[wait_for_finish%5] and node.input[1] == list_matmul[wait_for_finish%5]['output'][0]:    
-                    addA, shapeA = values.get_init_value_and_shape(model, node.input[0])
-                    if isinstance(addA, list) and addA == []:
-                        print('addA is not in initilizer')
-                        addA = values.get_constant_value(model, node.input[1])
-                        if addA == []:
-                            #dict_matmul = {}
-                            list_matmul[wait_for_finish%5] = {}
-                            print('addA is not in constant node list~')
-                            continue
-
-                    if len(shapeA) != 1:
-                        print('this is not the add-node which we wanted(len(shapeA) is not 1)...')
-                        #dict_matmul = {}
-                        list_matmul[wait_for_finish%5] = {}
-                        continue
-
-                    list_add[wait_for_finish%5]['input'] = node.input
-                    list_add[wait_for_finish%5]['output'] = node.output
-                    list_add[wait_for_finish%5]['id'] = node_id
-
-                    #dict_add['input'] = node.input
-                    #dict_add['output'] = node.output
-                    #dict_add['id'] = node_id
-
-                    print('got match add node:', node.name, wait_for_finish)
-                else:
-                    print('clear dict 1')
-                    #dict_matmul = {}
-                    list_matmul[wait_for_finish%5] = {}    
-
-            if node.op_type == 'Reshape':
-                #if dict_add and node.input[0] == dict_add['output'][0]:
-                if list_add[wait_for_finish%5] and node.input[0] == list_add[wait_for_finish%5]['output'][0]: 
-                    data, shape = values.get_init_value_and_shape(model, node.input[1])
-                    if isinstance(data, list) and data == []:
-                        print('reshape_data is not in initilizer')
-                        data = values.get_constant_value(model, node.input[1])
-                        if data == []:
-                            #dict_matmul = {}
-                            #dict_add = {}
-                            list_matmul[wait_for_finish%5] = {}
-                            list_add[wait_for_finish%5] = {}
-                            print('reshape_data is not in constant node list~')
-                            continue
-
-                    if len(data) != 4:
-                        print('this is not the reshape-node which we wanted(len(shape) is not 4)...', len(data))
-                        #dict_matmul = {}
-                        #dict_add = {}
-                        list_matmul[wait_for_finish%5] = {}
-                        list_add[wait_for_finish%5] = {}
-
-                        continue
-
-                    list_reshape[wait_for_finish%5]['input'] = node.input
-                    list_reshape[wait_for_finish%5]['output'] = node.output
-                    list_reshape[wait_for_finish%5]['id'] = node_id
-
-                    #dict_reshape['input'] = node.input
-                    #dict_reshape['output'] = node.output
-                    #dict_reshape['id'] = node_id
-
-                    wait_for_finish = wait_for_finish + 1 
-
-                    print('got match Reshape node:', node.name, wait_for_finish)  
-                else:
-                    print('clear dict 2')
-                    #dict_matmul = {}
-                    #dict_add = {}
-                    list_matmul[wait_for_finish%5] = {}
-                    list_add[wait_for_finish%5] = {}
-
-            if node.op_type == 'Transpose':
-                print('got a Transpose node----', node.input[0])
-                for ll in list_reshape:
-                    if ll and node.input[0] == ll['output'][0]:
-                    #if dict_reshape and node.input[0] == dict_reshape['output'][0]:
-                        attributes = node.attribute
-                        for attr in attributes:
-                            if attr.name == 'value':
-                                v = values.get_tensor_value(attr.t)
-                                print('got transpose shape{} for{}'.format(v, node.name))
-
-                        dict_transpose['input'] = node.input
-                        dict_transpose['output'] = node.output
-                        dict_transpose['id'] = node_id
-
-                        got_swish = True
-                        search = True
-
-                        print('got MatMul+Add+Reshape+Transpose:', node.name)
-
-                        break       
-                    else:
-                        print('clear dict 3')
-                        #dict_matmul = {}
-                        #dict_add = {}
-                        #dict_reshape = {}
-                        list_matmul[wait_for_finish%5] = {}
-                        list_add[wait_for_finish%5] = {}
-                        list_reshape[wait_for_finish%5] = {}
-
     return model
 
 if __name__ == "__main__":
-    model = onnx.load('/home/zqiu/models/decoder_sub1.onnx')
+    #model = onnx.load('/home/zqiu/models/decoder_sub1.onnx')
+    model = onnx.load('./decoder_sub2.onnx')
     #mha_optimizer(model)
     get_matmul_list(model)
     #onnx.save(model, './hs.onnx')
