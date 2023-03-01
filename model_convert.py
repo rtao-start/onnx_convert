@@ -329,6 +329,15 @@ def parse_args():
                         choices=[0, 1],
                         help="If set 1, the tool will fuse Gelu") 
 
+   #Disable all optimization
+   parser.add_argument("--disable_all_optimizer",
+                        type=int, 
+                        required=False,
+                        default=0,
+                        choices=[0, 1],
+                        help="If set 1, the tool will force all optimization value to 0") 
+
+
    args = parser.parse_args()
 
    return args
@@ -1118,6 +1127,21 @@ def process(args):
    reset_batch = args.reset_batch
    fuse_hard_sigmoid = args.fuse_hard_sigmoid
    fuse_gelu = args.fuse_gelu
+   disable_all_optimizer = args.disable_all_optimizer
+
+   if disable_all_optimizer == 1:
+      print('------- disable all optimazation')
+      support_mish = 0
+      gap_to_ap = 0
+      fuse_pad_pool = 0
+      support_swish = 0 
+      bn_to_conv = 0 
+      gemm_optimization = 0 
+      expand_to_resize = 0
+      fuse_layernorm = 0 
+      matmul_to_gemm = 0 
+      fuse_hard_sigmoid = 0 
+      fuse_gelu = 0
 
    print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 

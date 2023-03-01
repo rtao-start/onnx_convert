@@ -109,12 +109,20 @@ def cvt_matmul_add_to_conv(model, matmul_dict):
         print('current_inputB_shape: ', current_inputB_shape)
 
         if matmul_dict['A_MatMul_Add'] == True:
-            print('A inputA shape:{}, inputB shape:{}'.format(matmul_dict['A_matmul_AShape'], matmul_dict['A_matmul_BShape']))
+            A_inputA_shape = matmul_dict['A_matmul_AShape']
+            A_inputB_shape = matmul_dict['A_matmul_BShape']
+
+            print('A inputA shape:{}, inputB shape:{}'.format(A_inputA_shape, A_inputB_shape))
             print('B inputA shape:{}, inputB shape:{}'.format(matmul_dict['B_matmul_AShape'], matmul_dict['B_matmul_BShape']))
             for node in matmul_dict['pathA']:
-                if node.op_type == 'Matmul':
-                    break
-
+                if node.op_type == 'MatMul':
+                    if A_inputA_shape[1] != A_inputB_shape[0]:
+                        print('matmul+add-->conv, need same channel', A_inputA_shape[1], A_inputB_shape[0])
+                        node.op_type = 'Transpose'
+                        attr = onnx.helper.make_attribute('perm', [0,2,1])
+                        node.attribute.append(attr)
+                        del node.input[1:] 
+                    
 def get_matmul_list(model):
     matmul_list = []
 
@@ -197,6 +205,6 @@ if __name__ == "__main__":
     model = onnx.load('./decoder_sub2.onnx')
     #mha_optimizer(model)
     get_matmul_list(model)
-    #onnx.save(model, './hs.onnx')
+    onnx.save(model, './hs.onnx')
 
     

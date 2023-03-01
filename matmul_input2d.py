@@ -42,10 +42,10 @@ def matmul_reshape(model):
 
         for node_id, node in enumerate(model.graph.node):
             if node.op_type == 'MatMul':
-                #print('xxxxx got MatMul, name:', node.name)
+                print('xxxxx got MatMul, name:', node.name)
                 shape_in = get_shape(model, node.input[0])
                 if len(shape_in) > 2:
-                    #print('yyyyy got MatMul, name:', node.name)
+                    print('yyyyy got MatMul, name:', node.name)
                     if is_constant(model, node.input[1]):
                         search = True
                         shape_out = get_shape(model, node.output[0])
@@ -118,7 +118,8 @@ def matmul_reshape(model):
 
                         break
 
-model = onnx.load('/home/zqiu/models/decoder_model_bs10.onnx')
+#model = onnx.load('/home/zqiu/models/decoder_model_bs10.onnx')
+model = onnx.load('./bert_cls_sim1a.onnx')
 model = onnx.shape_inference.infer_shapes(model)
 
 matmul_reshape(model)
@@ -126,5 +127,5 @@ matmul_reshape(model)
 del model.graph.value_info[:]
 new_model = onnx.shape_inference.infer_shapes(model)
 new_model = onnx.shape_inference.infer_shapes(new_model)
-onnx.save(new_model, './tt2.onnx')
+onnx.save(new_model, './tt2a.onnx')
 
