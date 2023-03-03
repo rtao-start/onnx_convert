@@ -21,6 +21,16 @@ def get_node_by_pre_output(model, output):
 
     return n, -1
 
+def insert_node(model, insert_node, follow_up_node):
+    # 根据插入Node的输出修改后续node的输入
+    #follow_up_node.input[0] = insert_node.output[0]
+    # 找到后续Node的索引位置，并将插入节点插入到graph中
+    for follow_up_node_index, _follow_up_node in enumerate(model.graph.node):
+        if _follow_up_node == follow_up_node:
+            print("follow_up_node_index: ", follow_up_node_index)
+            model.graph.node.insert(follow_up_node_index, insert_node)
+            break
+
 def get_matmul_input_path_pattern_one(model, input_name):
     res = -1
 
@@ -97,6 +107,188 @@ def get_matmul_input_path_pattern_one(model, input_name):
 
     return node_dict, res
 
+def get_add_combination_pattern_one(model):
+    rm_list = []
+    sub_list = []
+    add_list = []
+
+    ars_list = []
+
+    for node in model.graph.node:
+        if node.op_type == 'ReduceMean':
+            rm_list.append(node)
+
+        if node.op_type == 'Sub':
+            sub_list.append(node) 
+
+        if node.op_type == 'Add':
+            add_list.append(node)  
+
+    #print('rm_input_list:', rm_input_list)
+    #print('sub_input_list:', sub_input_list)  
+    #print('add_input_list:', add_input_list)
+
+    for node in model.graph.node:
+        if node.op_type == 'Add':
+            match_rm = False
+            match_sub = False
+            match_add = False
+
+            output = node.output[0]
+            for rm_node in rm_list:
+                if output in rm_node.input:
+                    match_rm = True
+                    match_rm_node = rm_node
+                    break
+
+            for sub_node in sub_list:
+                if output in sub_node.input:
+                    match_sub = True
+                    match_sub_node = sub_node
+                    break        
+
+            for add_node in add_list:
+                if output in add_node.input:
+                    match_add = True
+                    match_add_node = add_node
+                    break
+
+            if match_rm == True and match_sub == True and match_add == True:
+                print('found match add node:', node.name)
+                ars = {}
+                ars['nextAdd'] = match_add_node
+                ars['currentAdd'] = node
+                ars['ReduceMean'] = match_rm_node 
+                ars['Sub'] = match_sub_node
+                ars_list.append(ars) 
+
+    return ars_list                     
+
+def handle_add_combination_pattern_one(model):
+    ars_list = get_add_combination_pattern_one(model)
+    if len(ars_list):
+        ars = ars_list[0]
+
+        add_node = ars['currentAdd']
+        next_add_node = ars['nextAdd']
+        sub_node = ars['Sub'] 
+        rm_node = ars['ReduceMean']  
+
+        ###add transpose
+        ts_name = add_node.name + '_transpose_'
+        ts_output_name = ts_name + '_output_'
+        add_output_shape = values.get_tensor_shape_by_name(model, add_node.output[0])
+        transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.UNDEFINED, [add_output_shape[0], add_output_shape[2], add_output_shape[1]])
+        
+        ts_node = onnx.helper.make_node(
+                                            'Transpose',
+                                            name=ts_name,
+                                            inputs=[add_node.output[0]],
+                                            outputs=[ts_output_name],
+                                            perm=[0,2,1])
+
+        model.graph.value_info.append(transpose_output)
+
+        ###add reshape-1
+        rs_name = add_node.name + '_reshape_1_'
+        rs_output_name = rs_name + '_output_'
+        rs_output_shape = [add_output_shape[2], add_output_shape[1]] 
+        rs_output = onnx.helper.make_tensor_value_info(rs_output_name, onnx.TensorProto.UNDEFINED, rs_output_shape)
+
+        const_shape_name = add_node.name + '_reshape_data_'
+        
+        const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs_output_shape)],
+                            vals=rs_output_shape)
+
+        model.graph.initializer.append(const_shape_tensor)
+
+        rs_node = onnx.helper.make_node(
+                                            'Reshape',
+                                            name=rs_name,
+                                            inputs=[ts_output_name, const_shape_name],
+                                            outputs=[rs_output_name])
+
+        model.graph.value_info.append(rs_output)
+
+        ###add reshape-2
+        rs2_name = add_node.name + '_reshape_2_'
+        rs2_output_name = rs2_name + '_output_'
+        rs2_output_shape = [add_output_shape[0], add_output_shape[2], add_output_shape[1]]
+        rs2_output = onnx.helper.make_tensor_value_info(rs2_output_name, onnx.TensorProto.UNDEFINED, rs2_output_shape)
+
+        const_shape2_name = add_node.name + '_reshape2_data_'
+        
+        const_shape2_tensor = onnx.helper.make_tensor(name=const_shape2_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs2_output_shape)],
+                            vals=rs2_output_shape)
+
+        model.graph.initializer.append(const_shape2_tensor)
+
+
+        rs2_node = onnx.helper.make_node(
+                                        'Reshape',
+                                        name=rs2_name,
+                                        inputs=[rs_output_name, const_shape2_name],
+                                        outputs=[rs2_output_name])
+
+        model.graph.value_info.append(rs2_output)
+
+        ###add transpose2
+        ts2_name = add_node.name + '_transpose2_'
+        ts2_output_name = ts2_name + '_output_'
+        ts2_output = onnx.helper.make_tensor_value_info(ts2_output_name, onnx.TensorProto.UNDEFINED, [add_output_shape[0], add_output_shape[1], add_output_shape[2]])
+
+        model.graph.value_info.append(ts2_output)
+
+        ts2_node = onnx.helper.make_node(
+                                        'Transpose',
+                                        name=ts2_name,
+                                        inputs=[rs2_output_name],
+                                        outputs=[ts2_output_name],
+                                        perm=[0,2,1])
+
+        insert_node(model, ts2_node, rm_node)
+        rm_node.input[0] = ts2_output_name 
+        sub_node.input[0] = ts2_output_name
+
+        insert_node(model, rs2_node, ts2_node)
+
+        insert_node(model, rs_node, rs2_node)
+
+        insert_node(model, ts_node, rs_node)
+
+        next_add_node.input[0] = rs2_output_name
+
+        ars_list2 = ars_list[1:]
+
+        for ars in ars_list2:
+            add_node = ars['currentAdd']
+            next_add_node = ars['nextAdd']
+            sub_node = ars['Sub'] 
+            rm_node = ars['ReduceMean']
+
+            ###add transpose
+            add_output_shape = values.get_tensor_shape_by_name(model, add_node.output[0])
+            ts2_name = add_node.name + '_transpose2_'
+            ts2_output_name = ts2_name + '_output_'
+            ts2_output = onnx.helper.make_tensor_value_info(ts2_output_name, onnx.TensorProto.UNDEFINED, add_output_shape)
+
+            model.graph.value_info.append(ts2_output)
+
+            ts2_node = onnx.helper.make_node(
+                                            'Transpose',
+                                            name=ts2_name,
+                                            inputs=[add_node.output[0]],
+                                            outputs=[ts2_output_name],
+                                            perm=[0,2,1])
+
+            insert_node(model, ts2_node, rm_node)
+            rm_node.input[0] = ts2_output_name 
+            sub_node.input[0] = ts2_output_name
+
 def print_matmul_input_path(node_list, desp):
     node_print = ''
     first = True
@@ -122,15 +314,6 @@ def update_tensor_shape(model, tensor_name, target_shape_list):
                 vi.type.tensor_type.shape.dim.append(dim)
             break   
 
-def insert_node(model, insert_node, follow_up_node):
-    # 根据插入Node的输出修改后续node的输入
-    #follow_up_node.input[0] = insert_node.output[0]
-    # 找到后续Node的索引位置，并将插入节点插入到graph中
-    for follow_up_node_index, _follow_up_node in enumerate(model.graph.node):
-        if _follow_up_node == follow_up_node:
-            print("follow_up_node_index: ", follow_up_node_index)
-            model.graph.node.insert(follow_up_node_index, insert_node)
-            break
 
 def do_convert_pattern_one(model, matmul_dict, isInputA):
     orig_reshape_name = ''
@@ -454,6 +637,8 @@ def cvt_matmul_add_to_conv(model, matmul_dict):
 
 def mha_optimizer(model):
     matmul_list = []
+
+    handle_add_combination_pattern_one(model)
 
     for node in model.graph.node:
         #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
