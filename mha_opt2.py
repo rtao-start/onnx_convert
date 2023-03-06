@@ -5,21 +5,32 @@ import numpy as np
 
 transpose_node_map = {}
 
-def get_node_by_output(model, output):
+def get_prev_node_by_input(model, input):
     n = model.graph.node[0]
     for node in model.graph.node:
-        if output in node.output:
+        if input in node.output:
             return node, 0
 
     return n, -1
 
-def get_node_by_pre_output(model, output):
+def get_next_node_by_output(model, output):
     n = model.graph.node[0]
     for node in model.graph.node:
         if output in node.input:
             return node, 0
 
     return n, -1
+
+def get_all_next_node_by_output(model, output):
+    node_list = []
+    ok = -1
+
+    for node in model.graph.node:
+        if output in node.input:
+            node_list.append(node)
+            ok = 0
+
+    return node_list, ok
 
 def insert_node(model, insert_node, follow_up_node):
     # 根据插入Node的输出修改后续node的输入
@@ -39,7 +50,7 @@ def get_matmul_input_path_pattern_one(model, input_name):
 
     print('get_matmul_input_path_pattern_one, input_name:', input_name)
 
-    input_pre, ok = get_node_by_output(model, input_name)
+    input_pre, ok = get_prev_node_by_input(model, input_name)
     if ok == 0 and input_pre.op_type == 'Transpose':
         print('got match Transpose node:', input_pre.name)
         attributes = input_pre.attribute
@@ -49,7 +60,7 @@ def get_matmul_input_path_pattern_one(model, input_name):
                 print('got transpose shape{} for{}'.format(v, input_pre.name))
                 break
         
-        input_p_pre, ok = get_node_by_output(model, input_pre.input[0])
+        input_p_pre, ok = get_prev_node_by_input(model, input_pre.input[0])
         if ok == 0 and input_p_pre.op_type == 'Reshape':
             #####################
             data, shape = values.get_init_value_and_shape(model, input_p_pre.input[1])
@@ -60,7 +71,7 @@ def get_matmul_input_path_pattern_one(model, input_name):
             if len(data) == 4:
                 print('got match Reshape node:', input_p_pre.name)
                 ##################
-                input_pp_pre, ok = get_node_by_output(model, input_p_pre.input[0])
+                input_pp_pre, ok = get_prev_node_by_input(model, input_p_pre.input[0])
                 if ok == 0 and input_pp_pre.op_type == 'Add':
                     ################
                     addA_name = input_pp_pre.input[0]
@@ -72,7 +83,7 @@ def get_matmul_input_path_pattern_one(model, input_name):
                     if len(shapeA) == 1:
                         print('got match Add node:', input_pp_pre.name)
                         ###########
-                        input_ppp_pre, ok = get_node_by_output(model, input_pp_pre.input[1])
+                        input_ppp_pre, ok = get_prev_node_by_input(model, input_pp_pre.input[1])
                         if ok == 0 and input_ppp_pre.op_type == 'MatMul':
                             ############################
                             shapeA = values.get_tensor_shape_by_name(model, input_ppp_pre.input[0])
@@ -93,7 +104,7 @@ def get_matmul_input_path_pattern_one(model, input_name):
                                 node_dict['inputB'] = inputB
                                 node_dict['matmul_BShape'] = shapeB
 
-                                input_pppp_pre, ok = get_node_by_output(model, input_ppp_pre.input[0])
+                                input_pppp_pre, ok = get_prev_node_by_input(model, input_ppp_pre.input[0])
                                 if ok == 0:
                                     node_dict['prev'] = input_pppp_pre.output[0]
                                     print('--- map key:', input_pppp_pre.output[0])
@@ -114,7 +125,7 @@ def get_matmul_input_path_pattern_two(model, input_name):
 
     print('get_matmul_input_path_pattern_two, input_name:', input_name)
 
-    next_node, ok = get_node_by_pre_output(model, input_name)
+    next_node, ok = get_next_node_by_output(model, input_name)
     if ok == 0 and next_node.op_type == 'Reshape':
         data, shape = values.get_init_value_and_shape(model, next_node.input[1])
         if isinstance(data, list) and data == []:
@@ -124,7 +135,7 @@ def get_matmul_input_path_pattern_two(model, input_name):
         if len(data) == 3:
             print('----got match Reshape node:', next_node.name)
 
-            n_next_node, ok = get_node_by_pre_output(model, next_node.output[0])
+            n_next_node, ok = get_next_node_by_output(model, next_node.output[0])
             if ok == 0 and n_next_node.op_type == 'MatMul':
                 #####################
                 shapeA = values.get_tensor_shape_by_name(model, n_next_node.input[0])
@@ -144,7 +155,7 @@ def get_matmul_input_path_pattern_two(model, input_name):
 
                     print('----got match Matmul node:', n_next_node.name)
                     ####################
-                    nn_next_node, ok = get_node_by_pre_output(model, n_next_node.output[0])
+                    nn_next_node, ok = get_next_node_by_output(model, n_next_node.output[0])
                     if ok == 0 and nn_next_node.op_type == 'Add':
                         ################
                         addA_name = nn_next_node.input[0]
@@ -157,7 +168,7 @@ def get_matmul_input_path_pattern_two(model, input_name):
                         if len(shapeA) == 1:
                             print('---got match Add node:', nn_next_node.name)
                             ###########
-                            nnn_next_node, ok = get_node_by_pre_output(model, nn_next_node.output[0])
+                            nnn_next_node, ok = get_next_node_by_output(model, nn_next_node.output[0])
                             if ok == 0 and nnn_next_node.op_type == 'Add':
                                 print('----got match Add node2:', n_next_node.name)
                                 res = 0
@@ -223,8 +234,343 @@ def get_add_combination_pattern_one(model):
 
     return ars_list                     
 
+def get_add_combination_pattern_two(model):
+    matmul_list = []
+    add_list = []
+    rm_list = []
+    sub_list = []
+
+    am_list = []
+    asr_list = []
+
+    for node in model.graph.node:
+        if node.op_type == 'Add':
+            add_list.append(node)
+
+        if node.op_type == 'MatMul':
+            matmul_list.append(node)
+
+        if node.op_type == 'ReduceMean':
+            rm_list.append(node) 
+
+        if node.op_type == 'Sub':
+            sub_list.append(node)           
+
+    for node in model.graph.node:
+        if node.op_type == 'Add':
+            match_add_node = None
+            match_matmul_node_list = []
+
+            output = node.output[0]
+            for add_node in add_list:
+                if output in add_node.input:
+                    match_add_node = add_node
+                    break
+
+            for mm_node in matmul_list:
+                if output in mm_node.input:
+                    match_matmul_node_list.append(mm_node)
+
+            if match_add_node != None and len(match_matmul_node_list) == 3:
+                print('found match add node:', node.name)
+                am = {}
+                am['nextAdd'] = match_add_node
+                am['currentAdd'] = node
+                am['MatMulList'] = match_matmul_node_list 
+                #am_list.append(am)
+
+                match_rm_node = None
+                match_sub_node = None
+
+                next_add_output = match_add_node.output[0]
+                for rm_node in rm_list:
+                    if next_add_output in rm_node.input:
+                        match_rm_node = rm_node
+                        break
+
+                for sub_node in sub_list:
+                    if next_add_output in sub_node.input:
+                        match_sub_node = sub_node
+                        break        
+
+                if match_rm_node != None and match_sub_node != None:
+                    am['Sub'] = match_sub_node
+                    am['ReduceMean'] = match_rm_node
+
+                    print('got sub and reducemean:', match_sub_node.name, match_rm_node.name)
+
+                am_list.append(am)
+ 
+    return am_list 
+
+def handle_add_combination_pattern_two(model):
+    am_list = get_add_combination_pattern_two(model)
+
+    print('handle_add_combination_pattern_two------------')
+
+    if len(am_list):
+    #for am in am_list:
+        am = am_list[0]
+        add_node = am['currentAdd']
+        next_add_node = am['nextAdd']
+        matmul_node_list = am['MatMulList'] 
+
+        ###add transpose
+        ts_name = add_node.name + '_transpose_'
+        ts_output_name = ts_name + '_output_'
+        add_output_shape = values.get_tensor_shape_by_name(model, add_node.output[0])
+        ts_output_shape = [add_output_shape[0], add_output_shape[2], add_output_shape[1]]
+        transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.UNDEFINED, ts_output_shape)
+        
+        ts_node = onnx.helper.make_node(
+                                            'Transpose',
+                                            name=ts_name,
+                                            inputs=[add_node.output[0]],
+                                            outputs=[ts_output_name],
+                                            perm=[0,2,1])
+
+        model.graph.value_info.append(transpose_output)
+
+        ###add reshape-1
+        rs_name = add_node.name + '_reshape_1_'
+        rs_output_name = rs_name + '_output_'
+        rs_output_shape = [ts_output_shape[1], ts_output_shape[2]] #TBD
+
+        rs_output = onnx.helper.make_tensor_value_info(rs_output_name, onnx.TensorProto.UNDEFINED, rs_output_shape)
+
+        const_shape_name = add_node.name + '_reshape_data_'
+        
+        const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs_output_shape)],
+                            vals=rs_output_shape)
+
+        model.graph.initializer.append(const_shape_tensor)
+
+        rs_node = onnx.helper.make_node(
+                                            'Reshape',
+                                            name=rs_name,
+                                            inputs=[ts_output_name, const_shape_name],
+                                            outputs=[rs_output_name])
+
+        model.graph.value_info.append(rs_output)
+
+        ###add reshape-2
+        rs2_name = add_node.name + '_reshape_2_'
+        rs2_output_name = rs2_name + '_output_'
+        rs2_output_shape = [add_output_shape[0], add_output_shape[2], add_output_shape[1]]
+        rs2_output = onnx.helper.make_tensor_value_info(rs2_output_name, onnx.TensorProto.UNDEFINED, rs2_output_shape)
+
+        const_shape2_name = add_node.name + '_reshape2_data_'
+        
+        const_shape2_tensor = onnx.helper.make_tensor(name=const_shape2_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs2_output_shape)],
+                            vals=rs2_output_shape)
+
+        model.graph.initializer.append(const_shape2_tensor)
+
+
+        ######################################################
+        ######################################################
+        rs2_node = onnx.helper.make_node(
+                                        'Reshape',
+                                        name=rs2_name,
+                                        inputs=[rs_output_name, const_shape2_name],
+                                        outputs=[rs2_output_name])
+
+        model.graph.value_info.append(rs2_output)
+
+        insert_node(model, rs2_node, next_add_node)
+        next_add_node.input[0] = rs2_output_name 
+        matmul_node_list[0].input[0] = rs2_output_name
+        matmul_node_list[1].input[0] = rs2_output_name
+        matmul_node_list[2].input[0] = rs2_output_name
+
+        insert_node(model, rs_node, rs2_node)
+
+        insert_node(model, ts_node, rs_node)
+
+        ###################################################################
+        ###########insert Transpose before ReduceMean and Sub
+        sub_node = am['Sub']
+        rm_node = am['ReduceMean']
+
+        ts_name = sub_node.name + '_transpose_'
+        ts_output_name = ts_name + '_output_'
+
+        add_output_shape = values.get_tensor_shape_by_name(model, next_add_node.output[0])
+        ts_output_shape = [add_output_shape[0], add_output_shape[1], add_output_shape[2]]
+        transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.UNDEFINED, ts_output_shape)
+        
+        ts_node = onnx.helper.make_node(
+                                            'Transpose',
+                                            name=ts_name,
+                                            inputs=[next_add_node.output[0]],
+                                            outputs=[ts_output_name],
+                                            perm=[0,2,1])
+
+        model.graph.value_info.append(transpose_output)
+
+        insert_node(model, ts_node, sub_node)
+
+        sub_node.input[0] = ts_output_name
+        rm_node.input[0] = ts_output_name
+
+def get_matmul_block_one(model, matmul_node):
+    print('into get_matmul_block_one')
+
+    res = -1
+    node_dict = {}
+
+    #input_next, ok = get_next_node_by_output(model, input_)
+    input_next = matmul_node
+    if input_next.op_type == 'MatMul':
+        shapeA = values.get_tensor_shape_by_name(model, input_next.input[0])
+        inputB, shapeB = values.get_init_value_and_shape(model, input_next.input[1])
+
+        if isinstance(inputB, list) and inputB == []:
+            print('inputB is not in initilizer')
+            inputB = values.get_constant_value(model, input_next.input[1])
+
+        if len(shapeA) == 3 and len(shapeB) == 2:
+            print('--- got MatMul node', input_next.name)
+            #node_list = [input_next, input_pp_pre, input_p_pre, input_pre]
+            #node_dict['node_list'] = node_list
+            node_dict['MatMul1'] = input_next
+            node_dict['matmulA1_Shape'] = shapeA
+            node_dict['inputB1'] = inputB
+            node_dict['matmulB1_Shape'] = shapeB
+
+            input_nnext, ok = get_next_node_by_output(model, input_next.output[0])
+            if ok == 0 and input_nnext.op_type == 'Add':
+                addA_name = input_nnext.input[0]
+                addA, shapeA = values.get_init_value_and_shape(model, input_nnext.input[0])
+
+                if len(shapeA) == 1:
+                    node_dict['Add1'] = input_nnext
+                    print('--- got Add1 node', input_nnext.name)
+
+                    input_nnnext, ok = get_all_next_node_by_output(model, input_nnext.output[0])
+                    if len(input_nnnext) == 2:
+                        if (input_nnnext[0].op_type == 'Div' and input_nnnext[1].op_type == 'Mul') or \
+                                (input_nnnext[0].op_type == 'Mul' and input_nnnext[0].op_type == 'Div'):
+                            mul_node = input_nnnext[0]
+                            div_node = input_nnnext[1]
+                            if input_nnnext[1].op_type == 'Mul':
+                                mul_node = input_nnnext[1]
+                                div_node = input_nnnext[0]
+                            
+                            node_dict['Div'] = div_node
+                            node_dict['Mul'] = mul_node
+
+                            print('--- got Div node', div_node.name)
+
+                            input_nnnnext, ok = get_next_node_by_output(model, mul_node.output[0])
+                            if ok == 0 and input_nnnnext.op_type == 'Mul':
+                                #print('AAAAAAAAAAAAAAAAAAAA', input_nnnnext.name)
+                                mulB, shapeB = values.get_init_value_and_shape(model, input_nnnnext.input[1])
+                                if len(mulB) > 0:
+                                    #######################
+                                    ##############################
+                                    print('--- got mul2 node', input_nnnnext.name)
+                                    input_nnnnnext, ok = get_next_node_by_output(model, input_nnnnext.output[0])
+                                    if ok == 0 and input_nnnnnext.op_type == 'MatMul':
+                                        shapeA = values.get_tensor_shape_by_name(model, input_nnnnnext.input[0])
+                                        inputB, shapeB = values.get_init_value_and_shape(model, input_nnnnnext.input[1])
+
+                                        if isinstance(inputB, list) and inputB == []:
+                                            print('inputB is not in initilizer')
+                                            inputB = values.get_constant_value(model, input_nnnnnext.input[1])
+
+                                        if len(shapeA) == 3 and len(shapeB) == 2:
+                                            print('--- got MatMul2 node', input_nnnnnext.name)
+                                            #node_list = [input_nnnnnext, input_pp_pre, input_p_pre, input_pre]
+                                            #node_dict['node_list'] = node_list
+                                            node_dict['MatMul2'] = input_nnnnnext
+                                            node_dict['matmulA2_Shape'] = shapeA
+                                            node_dict['inputB2'] = inputB
+                                            node_dict['matmulB2_Shape'] = shapeB
+
+                                            input_nnnnnnext, ok = get_next_node_by_output(model, input_nnnnnext.output[0])
+                                            if ok == 0 and input_nnnnnnext.op_type == 'Add':
+                                                print('--- got Add2 node:', input_nnnnnnext.name)
+                                                #addA_name = input_nnnnnnext.input[0]
+                                                #if len(shapeA) == 1:
+                                                node_dict['Add2'] = input_nnnnnnext
+                                                next_node, ok = get_next_node_by_output(model, input_nnnnnext.output[0])
+                                                if ok == 0 and next_node.op_type == 'Add':
+                                                    print('--- got last Add node:', next_node.name)
+                                                    res = 0
+                                                    node_dict['NextAdd'] = next_node 
+
+    return node_dict, res
+
+def get_mul_add_block(model):
+    for node in model.graph.node:
+        if node.op_type == 'Mul':
+            #print('got mul:', node.name)
+
+            is_init = False
+
+            for init in model.graph.initializer:
+                if init.name == node.input[0]:
+                    is_init = True
+                    break
+
+            if is_init == False:
+                dataA = values.get_constant_value(model, node.input[0])
+                if dataA != []:
+                    is_init = True
+
+            if is_init == True:
+                #print('----got mul:', node.name)
+                next_node, ok = get_next_node_by_output(model, node.output[0])
+                if ok == 0 and next_node.op_type == 'Add':
+                    ##############
+                    #print('----got add:', next_node.name)
+                    is_init = False
+
+                    for init in model.graph.initializer:
+                        if init.name == next_node.input[1]:
+                            is_init = True
+                            break
+
+                    if is_init == False:
+                        dataA = values.get_constant_value(model, next_node.input[1])
+                        if dataA != []:
+                            is_init = True
+
+                if is_init == True:
+                    #print('get_all_next_node_by_output---', next_node.output, node.name)
+                    next_node_list, ok = get_all_next_node_by_output(model, next_node.output[0])
+                    if ok == 0:
+                        #print('next_node_list:', len(next_node_list))
+                        if len(next_node_list) == 2:
+                            #print('got next_node_list:', next_node_list[0].op_type, next_node_list[1].op_type)
+
+                            if (next_node_list[0].op_type == 'Add' and next_node_list[1].op_type == 'MatMul') or \
+                                (next_node_list[0].op_type == 'MatMul' and next_node_list[1].op_type == 'Add'):
+                                print('got it~')
+                                matmul_node = next_node_list[0]
+                                if next_node_list[1].op_type == 'MatMul':
+                                    matmul_node = next_node_list[1]
+
+                                node_dict, ret = get_matmul_block_one(model, matmul_node)
+                                if ret == 0:
+                                    #print('got node dict:', node_dict)
+                                    print('++++++++++++++++++++++')
+                                    print('Add1:', node_dict['Add1'].name)
+                                    print('Add2:', node_dict['Add2'].name)
+                                    print('++++++++++++++++++++++')
+
+                                    break
+                                    
 def handle_add_combination_pattern_one(model):
     ars_list = get_add_combination_pattern_one(model)
+    print('handle_add_combination_pattern_one,ars_list:', ars_list)
+    sys.exit(0)
+
     if len(ars_list):
         ars = ars_list[0]
 
@@ -382,6 +728,8 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
     orig_matmul_name = ''
     reshape_output = ''
 
+    bert_mode = 1
+
     current_inputA_shape = values.get_tensor_shape_by_name(model, matmul_dict['current'].input[0])
     current_inputB_shape = values.get_tensor_shape_by_name(model, matmul_dict['current'].input[1])
 
@@ -406,6 +754,10 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
     print('A inputA shape:{}, inputB shape:{}'.format(inputA_shape, inputB_shape))
     print('B inputA shape:{}, inputB shape:{}'.format(matmul_dict['B_matmul_AShape'], matmul_dict['B_matmul_BShape']))
     
+    remove_matmul = False
+    matmul_input0 = ''
+    matmul_input0_shape = []
+
     for node in path_node:
         if node.op_type == 'MatMul':
             if inputA_shape[1] != inputB_shape[0]:
@@ -419,22 +771,35 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
 
                 transpose_node_map[map_key] = node
                 print('map_key is', map_key) 
-        
+            else:
+                print('Delete MatMul node:', node.name)
+                matmul_input0 = node.input[0]
+                matmul_input0_shape = values.get_tensor_shape_by_name(model, matmul_input0)
+
+                model.graph.node.remove(node)
+                remove_matmul = True
+                bert_mode = 0
+
         if node.op_type == 'Add':
             print('reuse Add to Reshape')
             orig_reshape_name = node.name
             node.op_type = 'Reshape'
             const_shape_name = node.name + '_to_reshape_'
-            output_shape = [inputA_shape[0], inputA_shape[2], 1, inputA_shape[1]] 
+            rs_output_shape = [inputA_shape[0], inputA_shape[2], 1, inputA_shape[1]]
+            if remove_matmul == True:
+               rs_output_shape = [matmul_input0_shape[0], matmul_input0_shape[1], 1, matmul_input0_shape[2]]  
+            
             const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
                                 data_type=onnx.TensorProto.INT64,
-                                dims=[len(output_shape)],
-                                vals=output_shape)
+                                dims=[len(rs_output_shape)],
+                                vals=rs_output_shape)
 
             model.graph.initializer.append(const_shape_tensor)
             node.input[0] = node.input[1]
+            if remove_matmul == True:
+               node.input[0] = matmul_input0
             node.input[1] = const_shape_name 
-            update_tensor_shape(model, node.output[0], output_shape)
+            update_tensor_shape(model, node.output[0], rs_output_shape)
 
         if node.op_type == 'Reshape' and node.name != orig_reshape_name:
             print('reuse Reshape to Conv')
@@ -492,7 +857,7 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
             else:
                 node.input.append(matmul_dict['B_addA'])
 
-            output_shape = [inputA_shape[0], inputA_shape[2], 1, inputA_shape[1]]
+            output_shape = rs_output_shape #[inputA_shape[0], inputA_shape[2], 1, inputA_shape[1]]
             update_tensor_shape(model, node.output[0], output_shape) 
     
         if node.op_type == 'Transpose' and node.name != orig_matmul_name:
@@ -516,7 +881,6 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
 
             follow_up_node = node
 
-    
     if isInputA == False:
         ts_name = const_shape_name + '_transpose_'
         ts_output_name = ts_name + '_output_'
@@ -538,6 +902,8 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
 
         output_shape = values.get_tensor_shape_by_name(model, matmul_dict['current'].output[0])
         update_tensor_shape(model, matmul_dict['current'].output[0], [output_shape[0], output_shape[1], output_shape[3], output_shape[2]])
+    
+    return bert_mode
 
 def do_convert_pattern_two(model, matmul_dict):
     orig_reshape_name = ''
@@ -559,6 +925,10 @@ def do_convert_pattern_two(model, matmul_dict):
     
     reuse_transpose = False
 
+    remove_matmul = False
+    matmul_input0 = ''
+    matmul_input0_shape = []
+
     for node in path_node:
         if node.op_type == 'MatMul':
             if inputA_shape[1] != inputB_shape[0]:
@@ -575,26 +945,40 @@ def do_convert_pattern_two(model, matmul_dict):
                     node.attribute.append(attr)
                     del node.input[1:]
                     update_tensor_shape(model, node.output[0], [inputA_shape[0], inputA_shape[2], inputA_shape[1]]) 
-            
+            else:
+                print('------Delete MatMul node:', node.name)
+                matmul_input0 = node.input[0]
+                matmul_input0_shape = values.get_tensor_shape_by_name(model, matmul_input0)
+
+                model.graph.node.remove(node)
+                remove_matmul = True
+
+
         if node.op_type == 'Add':
-            print('reuse Add to Reshape')
+            print('----reuse Add to Reshape', node.name)
             orig_reshape_name = node.name
             node.op_type = 'Reshape'
             const_shape_name = node.name + '_to_reshape_'
-            output_shape = [inputA_shape[0], inputA_shape[2], 1, inputA_shape[1]] 
+            rs_output_shape = [inputA_shape[0], inputA_shape[2], 1, inputA_shape[1]] 
+            if remove_matmul == True:
+               rs_output_shape = [matmul_input0_shape[0], matmul_input0_shape[1], 1, matmul_input0_shape[2]]  
+            
             const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
                                 data_type=onnx.TensorProto.INT64,
-                                dims=[len(output_shape)],
-                                vals=output_shape)
+                                dims=[len(rs_output_shape)],
+                                vals=rs_output_shape)
 
             model.graph.initializer.append(const_shape_tensor)
-            if reuse_transpose == False:
-                node.input[0] = node.input[1]
+            if remove_matmul == True:
+               node.input[0] = matmul_input0
             else:
-                node.input[0] = transpose_node_map[map_key].output[0]
+                if reuse_transpose == False:
+                    node.input[0] = node.input[1]
+                else:
+                    node.input[0] = transpose_node_map[map_key].output[0]
 
             node.input[1] = const_shape_name 
-            update_tensor_shape(model, node.output[0], output_shape)
+            update_tensor_shape(model, node.output[0], rs_output_shape)
 
         if node.op_type == 'Reshape' and node.name != orig_reshape_name:
             print('reuse Reshape to Conv')
@@ -641,7 +1025,7 @@ def do_convert_pattern_two(model, matmul_dict):
             node.attribute.append(attr)        
 
             node.input.append(matmul_dict['B_addA'])
-            output_shape = [inputA_shape[0], inputA_shape[2], 1, inputA_shape[1]]
+            output_shape = rs_output_shape #[inputA_shape[0], inputA_shape[2], 1, inputA_shape[1]]
             update_tensor_shape(model, node.output[0], output_shape) 
     
         if node.op_type == 'Transpose' and node.name != orig_matmul_name:
@@ -649,8 +1033,10 @@ def do_convert_pattern_two(model, matmul_dict):
             node.op_type = 'Reshape'
             reshape_output = node.output[0]
             const_shape_name = node.name + '_to_reshape_'
-            #output_shape = [inputA_shape[0], inputA_shape[2], 1, inputA_shape[1]]
             output_shape = [current_inputB_shape[0], current_inputB_shape[1], current_inputB_shape[2], current_inputB_shape[3]] 
+            if remove_matmul == True:
+                output_shape = [current_inputB_shape[0], current_inputB_shape[1], current_inputB_shape[3], current_inputB_shape[2]]
+            
             const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
                                 data_type=onnx.TensorProto.INT64,
                                 dims=[len(output_shape)],
@@ -662,7 +1048,15 @@ def do_convert_pattern_two(model, matmul_dict):
 
             follow_up_node = node
 
-    if 1==1:#isInputA == False:
+    output_shape = values.get_tensor_shape_by_name(model, matmul_dict['current'].output[0])
+    update_tensor_shape(model, matmul_dict['current'].output[0], [output_shape[0], output_shape[1], output_shape[3], output_shape[2]])
+    
+    if remove_matmul == True:
+        tmp = matmul_dict['current'].input[1]
+        matmul_dict['current'].input[1] = matmul_dict['current'].input[0]
+        matmul_dict['current'].input[0] = tmp
+
+    if remove_matmul == False:#isInputA == False:
         ts_name = const_shape_name + '_transpose_'
         ts_output_name = ts_name + '_output_'
         transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.UNDEFINED, [current_inputB_shape[0], current_inputB_shape[1], current_inputB_shape[3], current_inputB_shape[2]])
@@ -681,8 +1075,6 @@ def do_convert_pattern_two(model, matmul_dict):
         matmul_dict['current'].input[1] = matmul_dict['current'].input[0]
         matmul_dict['current'].input[0] = ts_output_name
 
-        output_shape = values.get_tensor_shape_by_name(model, matmul_dict['current'].output[0])
-        update_tensor_shape(model, matmul_dict['current'].output[0], [output_shape[0], output_shape[1], output_shape[3], output_shape[2]])
     
 def do_convert_pattern_three(model, matmul_dict, ts_node):
     orig_reshape_name = ''
@@ -806,17 +1198,18 @@ def do_convert_pattern_three(model, matmul_dict, ts_node):
             node.input[1] = const_shape_name 
             update_tensor_shape(model, node.output[0], output_shape)
 
-            next_node, ok = get_node_by_pre_output(model, node.output[0])
+            next_node, ok = get_next_node_by_output(model, node.output[0])
             update_tensor_shape(model, next_node.output[0], output_shape)
 
 def cvt_matmul_add_to_conv(model, matmul_dict):
     if matmul_dict['next'][0].op_type == 'Div':
-        print('cvt_matmul_add_to_conv, AAAAAAAAAAAAAAAAA')
+        bert_mode = -1
+        print('cvt_matmul_add_to_conv, AAAAAAAAAAAAAAAAA', matmul_dict['nnext'][0].name)
         if matmul_dict['A_MatMul_Add'] == True:
-            do_convert_pattern_one(model, matmul_dict, True)
+            bert_mode = do_convert_pattern_one(model, matmul_dict, True)
 
         if matmul_dict['B_MatMul_Add'] == True:
-            do_convert_pattern_one(model, matmul_dict, False)
+            bert_mode = do_convert_pattern_one(model, matmul_dict, False)
 
         next_node = matmul_dict['next'][0]
         shape = values.get_tensor_shape_by_name(model, next_node.output[0])
@@ -839,8 +1232,11 @@ def cvt_matmul_add_to_conv(model, matmul_dict):
 
         insert_node(model, ts_node, matmul_dict['nnext'][0])
 
-        matmul_dict['nnext'][0].input[1] = ts_output_name
-        
+        if bert_mode == 0:
+            matmul_dict['nnext'][0].input[0] = ts_output_name
+        else:    
+            matmul_dict['nnext'][0].input[1] = ts_output_name
+
     elif matmul_dict['next'][0].op_type == 'Transpose':
         if matmul_dict['B_MatMul_Add'] == True:
             print('cvt_matmul_add_to_conv, BBBBBBBBBBBBBBBBBBBB')
@@ -852,10 +1248,11 @@ def cvt_matmul_add_to_conv(model, matmul_dict):
 
             node= path_node[0]
 
-            if node.op_type == 'Where':
+            if node.op_type == 'Where' or node.op_type == 'Softmax':
                 shape = values.get_tensor_shape_by_name(model, node.output[0])
 
                 ###add transpose
+                print('insert Transpose before', node.name)
                 ts_name = node.name + '_transpose_'
                 ts_output_name = ts_name + '_output_'
                 transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.UNDEFINED, [shape[0], shape[1],shape[3],shape[2]])
@@ -887,7 +1284,11 @@ def cvt_matmul_add_to_conv(model, matmul_dict):
 def mha_optimizer(model):
     matmul_list = []
 
-    handle_add_combination_pattern_one(model)
+    #handle_add_combination_pattern_one(model)
+    #handle_add_combination_pattern_two(model)
+
+    get_mul_add_block(model)
+    sys.exit()
 
     for node in model.graph.node:
         #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
@@ -923,8 +1324,8 @@ def mha_optimizer(model):
                 print_matmul_input_path(node_dictB['node_list'], 'node_listB')
 
             if res1 > -1 or res2 > -1:
-                next_node, _ = get_node_by_pre_output(model, node.output[0])
-                nnext_node, _ = get_node_by_pre_output(model, next_node.output[0])
+                next_node, _ = get_next_node_by_output(model, node.output[0])
+                nnext_node, _ = get_next_node_by_output(model, next_node.output[0])
 
                 matmul_dict = {}
                 matmul_dict['name'] = node.name
