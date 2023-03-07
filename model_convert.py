@@ -1006,7 +1006,7 @@ def post_process(new_model, inference_success, gap_to_ap):
    if debug_print == True:
       print('optimization_op cost', end_time1 - start_time, ' seconds')
 
-   debug_print = False      
+   debug_print = False
 
    if gap_to_ap == 1:
       if inference_success == True:
@@ -1277,12 +1277,13 @@ def process(args):
 
    print('generate inference shape model, it cost', end_time2 - end_time1, ' seconds')
 
-   post_process(new_model, inference_success, gap_to_ap)
-   #new_model = onnx.load(output)
+   #post_process(new_model, inference_success, gap_to_ap)
 
    if simplify_model == 1 or simplify_model == 2:
       print('begin doing simplify...')
       new_model = model_simplify(new_model, simplify_model, simplify_hw)
+
+   post_process(new_model, inference_success, gap_to_ap)
 
    if reset_batch != '':
       batchs = reset_batch #.split(' ')
