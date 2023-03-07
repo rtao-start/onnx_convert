@@ -584,6 +584,8 @@ def handle_mul_add_block(model):
         currentAdd = node_dict['currentAdd']
         nextAdd = node_dict['NextAdd']
 
+        div_node = node_dict['Div']
+
         ###add transpose
         ts_name = currentAdd.name + '_transpose_'
         ts_output_name = ts_name + '_output_'
@@ -672,7 +674,7 @@ def handle_mul_add_block(model):
         attr = onnx.helper.make_attribute('kernel_shape', [1,1])
         matmul1.attribute.append(attr)
 
-        attr = onnx.helper.make_attribute('pads', [1,1,1,1])
+        attr = onnx.helper.make_attribute('pads', [0,0,0,0])
         matmul1.attribute.append(attr)
 
         attr = onnx.helper.make_attribute('strides', [1,1])
@@ -780,7 +782,7 @@ def handle_mul_add_block(model):
         attr = onnx.helper.make_attribute('kernel_shape', [1,1])
         matmul2.attribute.append(attr)
 
-        attr = onnx.helper.make_attribute('pads', [1,1,1,1])
+        attr = onnx.helper.make_attribute('pads', [0,0,0,0])
         matmul2.attribute.append(attr)
 
         attr = onnx.helper.make_attribute('strides', [1,1])
@@ -821,6 +823,35 @@ def handle_mul_add_block(model):
         add2.input[1] = const_shape_name
 
         update_tensor_shape(model, add2.output[0], rs2_output_shape)
+
+        ######update tensor shape
+        div_output_shape = values.get_tensor_shape_by_name(model, div_node.output[0])
+        new_shape = [div_output_shape[0], div_output_shape[2], div_output_shape[1]]
+        update_tensor_shape(model, div_node.output[0], new_shape)
+
+        erf_node, ok = get_next_node_by_output(model, div_node.output[0])
+        if ok == 0 and erf_node.op_type == 'Erf':
+            erf_output_shape = values.get_tensor_shape_by_name(model, erf_node.output[0])
+            new_shape = [erf_output_shape[0], erf_output_shape[2], erf_output_shape[1]]
+            update_tensor_shape(model, erf_node.output[0], new_shape)
+
+            add_node_internal, ok = get_next_node_by_output(model, erf_node.output[0])
+            if ok == 0 and add_node_internal.op_type == 'Add':
+                addi_output_shape = values.get_tensor_shape_by_name(model, add_node_internal.output[0])
+                new_shape = [addi_output_shape[0], addi_output_shape[2], addi_output_shape[1]]
+                update_tensor_shape(model, add_node_internal.output[0], new_shape)
+        
+            mul_node1, ok = get_next_node_by_output(model, add_node_internal.output[0])
+            if ok == 0 and mul_node1.op_type == 'Mul':
+                mul1_output_shape = values.get_tensor_shape_by_name(model, mul_node1.output[0])
+                new_shape = [mul1_output_shape[0], mul1_output_shape[2], mul1_output_shape[1]]
+                update_tensor_shape(model, mul_node1.output[0], new_shape)
+
+            mul_node2, ok = get_next_node_by_output(model, mul_node1.output[0])
+            if ok == 0 and mul_node2.op_type == 'Mul':    
+                mul2_output_shape = values.get_tensor_shape_by_name(model, mul_node2.output[0])
+                new_shape = [mul2_output_shape[0], mul2_output_shape[2], mul2_output_shape[1]]
+                update_tensor_shape(model, mul_node2.output[0], new_shape)
 
         ######insert Transpose before ReduceMean and Sub
         update_tensor_shape(model, nextAdd.output[0], rs2_output_shape)
@@ -1135,7 +1166,7 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
             attr = onnx.helper.make_attribute('kernel_shape', [1,1])
             node.attribute.append(attr)
 
-            attr = onnx.helper.make_attribute('pads', [1,1,1,1])
+            attr = onnx.helper.make_attribute('pads', [0,0,0,0])
             node.attribute.append(attr)
 
             attr = onnx.helper.make_attribute('strides', [1,1])
@@ -1308,7 +1339,7 @@ def do_convert_pattern_two(model, matmul_dict):
             attr = onnx.helper.make_attribute('kernel_shape', [1,1])
             node.attribute.append(attr)
 
-            attr = onnx.helper.make_attribute('pads', [1,1,1,1])
+            attr = onnx.helper.make_attribute('pads', [0,0,0,0])
             node.attribute.append(attr)
 
             attr = onnx.helper.make_attribute('strides', [1,1])
@@ -1461,7 +1492,7 @@ def do_convert_pattern_three(model, matmul_dict, ts_node):
             attr = onnx.helper.make_attribute('kernel_shape', [1,1])
             node.attribute.append(attr)
 
-            attr = onnx.helper.make_attribute('pads', [1,1,1,1])
+            attr = onnx.helper.make_attribute('pads', [0,0,0,0])
             node.attribute.append(attr)
 
             attr = onnx.helper.make_attribute('strides', [1,1])
@@ -1663,9 +1694,10 @@ def mha_optimizer(model):
 if __name__ == "__main__":
     #model = onnx.load('/home/zqiu/models/decoder_model_bs10.onnx')
     #model = onnx.load('./decoder_sub2.onnx')
-    model = onnx.load('./bert_sub1.onnx')
+    #model = onnx.load('./bert_sub1.onnx')
+    model = onnx.load('/home/zqiu/models/bert_cls_sim1.onnx')
     mha_optimizer(model)
     #get_matmul_list(model)
-    onnx.save(model, './hs.onnx')
+    onnx.save(model, './sim1.onnx')
 
     
