@@ -38,6 +38,23 @@ def remove_unused_initializer(model, unused_init_list):
             print('remove unused init:', init.name)
             model.graph.initializer.remove(init)
 
+def remove_invalid_sub_node(model):
+    invalid_sub_node_list = []
+    for node in model.graph.node:
+        if node.op_type == 'Sub':
+            used = False
+            sub_output = node.output[0]
+            for n in model.graph.node:
+                if sub_output in n.input:
+                    used = True
+                    break
+
+            if used == False:
+                invalid_sub_node_list.append(node)
+
+    for node in invalid_sub_node_list:
+        model.graph.node.remove(node)
+
 # pattern 1:
 #                                 ---     ---     ---      ---        ---       ---    ---    --
 #                               |                                                              |
@@ -296,7 +313,7 @@ class MergeLNPattern1():
 
                 if node.op_type == 'Mul':
                     if self.dict_rm and self.dict_sub and self.dict_pow and self.dict_rm2 and  \
-                            self.dict_add and self.dict_sqrt and self.dict_div and node.input[0] == self.dict_div['output'][0]:
+                            self.dict_add and self.dict_sqrt and self.dict_div and (node.input[0] == self.dict_div['output'][0] or node.input[1] == self.dict_div['output'][0]):
                         self.dict_mul['input'] = node.input
                         self.dict_mul['output'] = node.output
                         self.dict_mul['id'] = node_id
@@ -323,6 +340,7 @@ class MergeLNPattern1():
             #onnx.save(model, export_onnx)
 
         remove_unused_initializer(self.model, self.unused_init_list)
+        remove_invalid_sub_node(self.model)
         
         return self.model
 
