@@ -288,7 +288,7 @@ class MergeGelu():
                     powB = values.get_init_value(self.model, node.input[1])
                     if isinstance(powB, list) and powB == []:
                         print('powB is not in initilizer')
-                        powB = values.get_constant_value(model, node.input[1])
+                        powB = values.get_constant_value(self.model, node.input[1])
                         if powB == []:
                             print('powB is not in constant node list')
                             self.clear()
@@ -315,7 +315,7 @@ class MergeGelu():
 
                             if isinstance(mulA, list) and mulA == []:
                                 print('mulA is not in initilizer')
-                                mulA = values.get_constant_value(model, node.input[1])
+                                mulA = values.get_constant_value(self.model, node.input[1])
                                 if mulA == []:
                                     print('mulA is not in constant node list')
                                     self.clear()
@@ -346,7 +346,7 @@ class MergeGelu():
 
                                 if isinstance(mulA, list) and mulA == []:
                                     print('mulA is not in initilizer')
-                                    mulA = values.get_constant_value(model, node.input[1])
+                                    mulA = values.get_constant_value(self.model, node.input[1])
                                     if mulA == []:
                                         print('mulA is not in constant node list')
                                         self.clear()
@@ -376,7 +376,7 @@ class MergeGelu():
 
                                     if isinstance(mulA, list) and mulA == []:
                                         print('mulA is not in initilizer')
-                                        mulA = values.get_constant_value(model, node.input[1])
+                                        mulA = values.get_constant_value(self.model, node.input[1])
                                         if mulA == []:
                                             print('mulA is not in constant node list')
                                             self.clear()
@@ -453,7 +453,7 @@ class MergeGelu():
 
                                 if isinstance(addA, list) and addA == []:
                                     print('addA is not in initilizer')
-                                    addA = values.get_constant_value(model, node.input[1])
+                                    addA = values.get_constant_value(self.model, node.input[1])
                                     if addA == []:
                                         print('addA is not in constant node list')
                                         self.clear()

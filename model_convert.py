@@ -1239,11 +1239,11 @@ def process(args):
       if model_type == 'onnx':
          print('ONNX, add_value_info_for_constants...')
          correct_batch_for_opset_convert(model)
-         add_value_info_for_constants(model)
+         operation.add_value_info_for_constants(model)
          model = version_converter.convert_version(model, op_set)
       elif op_set != op_set_default:
          correct_batch_for_opset_convert(model)
-         add_value_info_for_constants(model)
+         operation.add_value_info_for_constants(model)
          model = version_converter.convert_version(model, op_set)
 
    inference_success = False

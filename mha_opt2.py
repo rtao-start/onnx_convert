@@ -1267,6 +1267,45 @@ def handle_mul_add_block_two(model):
 
         update_tensor_shape(model, nextAdd.output[0], rs2_output_shape)
 
+        nextAdd_next_list, ok = get_all_next_node_by_output(model, nextAdd.output[0])
+        if ok == 0:
+            where_node = None
+            tp_node = None
+            add_node = None
+            for node in nextAdd_next_list:
+                print('----nextAdd_next_list, node:', node.name)
+                if node.op_type == 'Where':
+                    where_node = node
+
+                if node.op_type == 'Transpose':
+                    tp_node = node
+
+                if node.op_type == 'Add':
+                    add_node = node 
+
+            if where_node != None and tp_node != None and add_node != None:
+                where_node.input[1] = tp_node.output[0]
+            elif where_node != None and tp_node == None:
+                ###add transpose
+                tp_name = nextAdd.name + '_transpose_'
+                tp_output_name = tp_name + '_output_'
+                add_output_shape = values.get_tensor_shape_by_name(model, nextAdd.output[0])
+                tp_output_shape = [add_output_shape[0], add_output_shape[2], add_output_shape[1]]
+                tp_output = onnx.helper.make_tensor_value_info(tp_output_name, onnx.TensorProto.FLOAT, tp_output_shape)
+                
+                tp_node = onnx.helper.make_node(
+                                                    'Transpose',
+                                                    name=tp_name,
+                                                    inputs=[nextAdd.output[0]],
+                                                    outputs=[tp_output_name],
+                                                    perm=[0,2,1])
+
+                model.graph.value_info.append(tp_output)
+
+                insert_node(model, tp_node, where_node)
+
+                where_node.input[1] = tp_output_name
+
 def handle_add_combination_pattern_one(model):
     ars_list = get_add_combination_pattern_one(model)
     #print('handle_add_combination_pattern_one,ars_list:', ars_list)
@@ -1301,7 +1340,7 @@ def handle_add_combination_pattern_one(model):
         rs_output_shape = [ts_output_shape[0], ts_output_shape[1]] #TBD
 
 
-        rs_output = onnx.helper.make_tensor_value_info(rs_output_name, onnx.TensorProto.INT64, rs_output_shape)
+        rs_output = onnx.helper.make_tensor_value_info(rs_output_name, onnx.TensorProto.FLOAT, rs_output_shape)
 
         const_shape_name = add_node.name + '_reshape_data_'
         
@@ -2075,11 +2114,11 @@ def mha_optimizer(model):
 
 if __name__ == "__main__":
     #model = onnx.load('/home/zqiu/models/decoder_model_bs10.onnx')
-    model = onnx.load('./decoder_sub3.onnx')
+    model = onnx.load('./decoder_model_bs10_sim.onnx')
     #model = onnx.load('./bert_sub1.onnx')
     #model = onnx.load('/home/zqiu/models/bert_cls_sim1.onnx')
     mha_optimizer(model)
     #get_matmul_list(model)
-    onnx.save(model, './hs.onnx')
+    onnx.save(model, './hs2.onnx')
 
     
