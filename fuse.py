@@ -41,7 +41,7 @@ def fuse_pad_to_pool(model):
                 dict_pad['id'] = node_id
 
             if node.op_type == 'MaxPool' or node.op_type == 'AveragePool':
-                if len(dict_pad) > 0 and node.input == dict_pad['output']:
+                if len(dict_pad) > 0 and len(dict_pad['input']) > 1 and node.input == dict_pad['output']:
                     dict_pool['input'] = node.input
                     dict_pool['output'] = node.output
                     dict_pool['id'] = node_id

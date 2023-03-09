@@ -157,7 +157,7 @@ def merge_hard_swish2(model):
                 print('got match add node:', node.name)
 
             if node.op_type == 'Clip':
-                if dict_add and node.input[0] == dict_add['output'][0]:
+                if dict_add and node.input[0] == dict_add['output'][0] and len(node.input) >= 3:
                     clip_min = values.get_init_value(model, node.input[1])
                     print('clip_min:', clip_min)
 
