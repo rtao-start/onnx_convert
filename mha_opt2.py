@@ -42,6 +42,7 @@ def insert_node(model, insert_node, follow_up_node):
             model.graph.node.insert(follow_up_node_index, insert_node)
             break
 
+#Matmul-->Add->Reshape-->Transpose
 def get_matmul_input_path_pattern_one(model, input_name):
     res = -1
 
@@ -76,14 +77,26 @@ def get_matmul_input_path_pattern_one(model, input_name):
                     ################
                     addA_name = input_pp_pre.input[0]
                     addA, shapeA = values.get_init_value_and_shape(model, input_pp_pre.input[0])
+                    '''
                     if isinstance(addA, list) and addA == []:
                         print('addA is not in initilizer')
                         addA = values.get_constant_value(model, input_pp_pre.input[1])
+                    '''
+                    add_tensor_two = True
+                    if len(shapeA) == 0:
+                        addA_name = input_pp_pre.input[1]
+                        add_tensor_two = False
+                        addA, shapeA = values.get_init_value_and_shape(model, input_pp_pre.input[1])
 
                     if len(shapeA) == 1:
                         print('got match Add node:', input_pp_pre.name)
                         ###########
-                        input_ppp_pre, ok = get_prev_node_by_input(model, input_pp_pre.input[1])
+                        add_input = input_pp_pre.input[1]
+                        if add_tensor_two == False:
+                            add_input = input_pp_pre.input[0]
+
+                        input_ppp_pre, ok = get_prev_node_by_input(model, add_input)
+                        print('----got matmul node:', input_ppp_pre.name)
                         if ok == 0 and input_ppp_pre.op_type == 'MatMul':
                             ############################
                             shapeA = values.get_tensor_shape_by_name(model, input_ppp_pre.input[0])
@@ -118,6 +131,7 @@ def get_matmul_input_path_pattern_one(model, input_name):
 
     return node_dict, res
 
+#Transpose-->Reshape-->Matmul-->Add-->Add
 def get_matmul_input_path_pattern_two(model, input_name):
     res = -1
 
@@ -160,11 +174,20 @@ def get_matmul_input_path_pattern_two(model, input_name):
                         ################
                         addA_name = nn_next_node.input[0]
                         node_dict['addA'] = addA_name
+                        node_dict['addFirst'] = True
                         addA, shapeA = values.get_init_value_and_shape(model, nn_next_node.input[0])
+                        
+                        '''
                         if isinstance(addA, list) and addA == []:
                             print('addA is not in initilizer')
                             addA = values.get_constant_value(model, nn_next_node.input[1])
-
+                        '''
+                        if len(shapeA) == 0:
+                            addA_name = nn_next_node.input[1]
+                            node_dict['addA'] = addA_name
+                            node_dict['addFirst'] = False
+                            addA, shapeA = values.get_init_value_and_shape(model, nn_next_node.input[1])
+                        
                         if len(shapeA) == 1:
                             print('---got match Add node:', nn_next_node.name)
                             ###########
@@ -446,6 +469,12 @@ def get_matmul_block_one(model, matmul_node):
             if ok == 0 and input_nnext.op_type == 'Add':
                 addA_name = input_nnext.input[0]
                 addA, shapeA = values.get_init_value_and_shape(model, input_nnext.input[0])
+                node_dict['addFirst'] = True
+
+                if len(shapeA) == 0:
+                    addA_name = input_nnext.input[1]
+                    addA, shapeA = values.get_init_value_and_shape(model, input_nnext.input[1])
+                    node_dict['addFirst'] = False
 
                 if len(shapeA) == 1:
                     node_dict['Add1'] = input_nnext
@@ -495,8 +524,18 @@ def get_matmul_block_one(model, matmul_node):
                                             input_nnnnnnext, ok = get_next_node_by_output(model, input_nnnnnext.output[0])
                                             if ok == 0 and input_nnnnnnext.op_type == 'Add':
                                                 print('--- got Add2 node:', input_nnnnnnext.name)
-                                                #addA_name = input_nnnnnnext.input[0]
-                                                #if len(shapeA) == 1:
+                                            
+                                            ##########
+                                            addA_name = input_nnnnnnext.input[0]
+                                            addA, shapeA = values.get_init_value_and_shape(model, input_nnnnnnext.input[0])
+                                            node_dict['addFirst2'] = True
+
+                                            if len(shapeA) == 0:
+                                                addA_name = input_nnnnnnext.input[1]
+                                                addA, shapeA = values.get_init_value_and_shape(model, input_nnnnnnext.input[1])
+                                                node_dict['addFirst2'] = False
+
+                                            if len(shapeA) == 1:
                                                 node_dict['Add2'] = input_nnnnnnext
                                                 next_node, ok = get_next_node_by_output(model, input_nnnnnnext.output[0])
                                                 if ok == 0 and next_node.op_type == 'Add':
@@ -507,6 +546,8 @@ def get_matmul_block_one(model, matmul_node):
     return node_dict, res
 
 def get_mul_add_block(model):
+    print('into get_mul_add_block')
+
     node_list = []
     for node in model.graph.node:
         if node.op_type == 'Mul':
@@ -515,12 +556,15 @@ def get_mul_add_block(model):
             is_init = False
 
             for init in model.graph.initializer:
-                if init.name == node.input[0]:
+                if init.name == node.input[0] or init.name == node.input[1]:
                     is_init = True
                     break
 
             if is_init == False:
                 dataA = values.get_constant_value(model, node.input[0])
+                if len(dataA) == 0:
+                    dataA = values.get_constant_value(model, node.input[1])
+
                 if dataA != []:
                     is_init = True
 
@@ -680,7 +724,10 @@ def handle_mul_add_block(model):
         attr = onnx.helper.make_attribute('strides', [1,1])
         matmul1.attribute.append(attr)        
 
-        matmul1.input.append(add1.input[0])
+        if node_dict['addFirst'] == True:
+            matmul1.input.append(add1.input[0])
+        else:
+            matmul1.input.append(add1.input[1])   
 
         output_shape = values.get_tensor_shape_by_name(model, matmul1.output[0])
         conv_output_shape = [output_shape[0], output_shape[2], 1, output_shape[1]] 
@@ -708,7 +755,9 @@ def handle_mul_add_block(model):
 
         model.graph.initializer.append(const_shape_tensor)
 
-        add1.input[0] = add1.input[1]
+        if node_dict['addFirst'] == True:
+            add1.input[0] = add1.input[1]
+
         add1.input[1] = const_shape_name
 
         update_tensor_shape(model, add1.output[0], rs_output_shape)
@@ -788,8 +837,11 @@ def handle_mul_add_block(model):
         attr = onnx.helper.make_attribute('strides', [1,1])
         matmul2.attribute.append(attr)        
 
-        B = add2.input[0]
-        print('ZZZZ HHHHH----', add2.input[0], B)
+        if node_dict['addFirst2'] == True:
+            B = add2.input[0]
+        else:
+            B = add2.input[1]   
+
         matmul2.input.append(B)
 
         output_shape = values.get_tensor_shape_by_name(model, matmul2.output[0])
@@ -817,7 +869,8 @@ def handle_mul_add_block(model):
 
         model.graph.initializer.append(const_shape_tensor)
 
-        add2.input[0] = add2.input[1]
+        if node_dict['addFirst2'] == True:
+            add2.input[0] = add2.input[1]
 
         add2.input[1] = const_shape_name
 
@@ -2122,6 +2175,8 @@ def do_convert_pattern_three(model, matmul_dict, ts_node):
 
             node.op_type = 'Reshape'
 
+            add_first = matmul_dict['addFirst']
+
             const_shape_name = node.name + '_to_reshape_'
 
             output_shape = [rs2_output_shape[0], rs2_output_shape[1], rs2_output_shape[3]] 
@@ -2133,15 +2188,18 @@ def do_convert_pattern_three(model, matmul_dict, ts_node):
 
             model.graph.initializer.append(const_shape_tensor)
 
-            node.input[0] = node.input[1]
-            node.input[1] = const_shape_name 
+            if add_first == True:
+                node.input[0] = node.input[1]
+
+            node.input[1] = const_shape_name
+
             update_tensor_shape(model, node.output[0], output_shape)
 
             next_node, ok = get_next_node_by_output(model, node.output[0])
             update_tensor_shape(model, next_node.output[0], output_shape)
 
 def cvt_matmul_add_to_conv(model, matmul_dict):
-    if matmul_dict['next'][0].op_type == 'Div':
+    if matmul_dict['next'][0].op_type == 'Div' or matmul_dict['next'][0].op_type == 'Add':
         bert_mode = -1
         print('cvt_matmul_add_to_conv, AAAAAAAAAAAAAAAAA', matmul_dict['nnext'][0].name)
         if matmul_dict['A_MatMul_Add'] == True:
@@ -2224,7 +2282,7 @@ def mha_optimizer(model):
     matmul_list = []
 
     handle_add_combination_pattern_one(model)
-    #handle_add_combination_pattern_two(model)
+    handle_add_combination_pattern_two(model)
 
     handle_mul_add_block(model)
 
@@ -2253,6 +2311,22 @@ def mha_optimizer(model):
                 print('skip MatMul:', node.name)
                 continue
 
+            matmul_dict = {}
+
+            mul_node, ok = get_prev_node_by_input(model, inputA)
+            if ok == 0 and mul_node.op_type == 'Mul':
+                mulB = values.get_init_value(model, mul_node.input[1])
+                print('matmul input is Mul:', mul_node.name, mulB[0])
+
+                if isinstance(mulB, list) and mulB == []:
+                    print('mulB is not in initilizer')
+                    mulB = values.get_constant_value(model, mul_node.input[1])
+
+                if len(mulB) > 0 and abs(mulB[0] - 0.125) < 0.00001:
+                    print('this is the mul-node which we wanted(value B is 0.125)...')
+                    matmul_dict['AMul'] = mul_node
+                    inputA = mul_node.input[0]
+                    
             node_dictA, res1 = get_matmul_input_path_pattern_one(model, inputA)
             node_dictB, res2 = get_matmul_input_path_pattern_one(model, inputB)
 
@@ -2265,7 +2339,7 @@ def mha_optimizer(model):
                 next_node, _ = get_next_node_by_output(model, node.output[0])
                 nnext_node, _ = get_next_node_by_output(model, next_node.output[0])
 
-                matmul_dict = {}
+                #matmul_dict = {}
                 matmul_dict['name'] = node.name
                 matmul_dict['current'] = node
                 matmul_dict['pathA'] = node_dictA['node_list']
@@ -2311,12 +2385,13 @@ def mha_optimizer(model):
     handle_last_group(model)
 
 if __name__ == "__main__":
-    #model = onnx.load('/home/zqiu/models/decoder_model_bs10.onnx')
-    model = onnx.load('./decoder_model_bs10_sim.onnx')
+    #model = onnx.load('/home/zqiu/models/bert_sst2_sim.onnx')
+    #model = onnx.load('./bert_sst2_sub1.onnx')
+    #model = onnx.load('./decoder_model_bs10_sim.onnx')
     #model = onnx.load('./bert_sub1.onnx')
-    #model = onnx.load('/home/zqiu/models/bert_cls_sim1.onnx')
+    model = onnx.load('/home/zqiu/models/bert_cls_sim1.onnx')
     mha_optimizer(model)
     #get_matmul_list(model)
-    onnx.save(model, './hs2.onnx')
+    onnx.save(model, './hs3.onnx')
 
     
