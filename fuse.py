@@ -28,51 +28,64 @@ def fuse_pad_to_pool(model):
 
     search = True
 
+    pads = []
+
     while search == True:
         search = False
 
         for node_id, node in enumerate(model.graph.node):
             #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
             #         ", op:", node.op_type, ', len(input):', len(node.input))
-
             if node.op_type == 'Pad':
                 dict_pad['input'] = node.input
                 dict_pad['output'] = node.output
                 dict_pad['id'] = node_id
 
+                if len(node.input) == 1:
+                    attributes = node.attribute
+                    for attr in attributes:
+                        if attr.name == 'pads':
+                            pads = attr.ints
+                            #print('fuse pads:', pads)
+                            break
+
+            #print('got pads:', pads, node.op_type)
+
             if node.op_type == 'MaxPool' or node.op_type == 'AveragePool':
-                if len(dict_pad) > 0 and len(dict_pad['input']) > 1 and node.input == dict_pad['output']:
+                if len(dict_pad) > 0 and node.input == dict_pad['output']:
                     dict_pool['input'] = node.input
                     dict_pool['output'] = node.output
                     dict_pool['id'] = node_id
                     print('got pad+pool pair, pad:', dict_pad['input'], dict_pad['output'])
                     print('got pad+pool pair, pool:', dict_pool['input'], dict_pool['output'])
-                    pads = []
+                    #pads = []
 
                     got_pad_pool = True
 
-                    for init in model.graph.initializer:
-                        if init.name == dict_pad['input'][1]:
-                            print('got init(pads):', init.name)
-                            dtype = init.data_type
-                            np_dtype = correct_batch.convert_ort_type_2_np(dtype)
-                            if init.raw_data:
-                                params_list = np.fromstring(init.raw_data, dtype=np_dtype)
-                                for p in params_list:
-                                    pads.append(p)
-                            else:
-                                data_list = correct_batch.get_data_list(dtype, init)
-                                for p in data_list:
-                                    pads.append(p)
+                    if len(pads) == 0:
+                        for init in model.graph.initializer:
+                            if init.name == dict_pad['input'][1]:
+                                print('got init(pads):', init.name)
+                                dtype = init.data_type
+                                np_dtype = correct_batch.convert_ort_type_2_np(dtype)
+                                if init.raw_data:
+                                    params_list = np.fromstring(init.raw_data, dtype=np_dtype)
+                                    for p in params_list:
+                                        pads.append(p)
+                                else:
+                                    data_list = correct_batch.get_data_list(dtype, init)
+                                    for p in data_list:
+                                        pads.append(p)
 
-                            break        
-                        #elif init.name == dict_pad['input'][2]:
-                        #    print('got init(constane_value):', init.name)  
+                                break        
+                            #elif init.name == dict_pad['input'][2]:
+                            #    print('got init(constane_value):', init.name)  
 
-                    if pads == []:
-                        pads = get_constant_value(model, dict_pad['input'][1])
+                        if pads == []:
+                            pads = get_constant_value(model, dict_pad['input'][1])
 
-                    print('got pads:', pads, dict_pad['input'][1])
+                    print('got pads:', pads)
+
                     if len(pads) != 8:
                         print('skip pad+pool~~~~')
                         dict_pad = {}
@@ -113,12 +126,14 @@ def fuse_pad_to_pool(model):
 
                     dict_pad = {}
                     dict_pool = {}
+                    pads = []
 
                     search = True
                     break
                 else:
                     #print('clear pad dict')
-                    dict_pad = {}    
+                    dict_pad = {}
+                    pads = []    
 
     if got_pad_pool == True:
         print('got pad+pool node------------')
