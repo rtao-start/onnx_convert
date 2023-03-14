@@ -2384,6 +2384,128 @@ def mha_optimizer(model):
 
     handle_last_group(model)
 
+def match_mha_block_pattern_one(model):
+    for node in model.graph.node:
+        if node.op_type == 'Add':
+            mul_node, ok = get_prev_node_by_input(model, node.input[0])
+            if ok == 0 and mul_node.op_type == 'Mul':
+                div_node = None
+                div_node_case1, ok1 = get_prev_node_by_input(model, mul_node.input[0])
+                div_node_case2, ok2 = get_prev_node_by_input(model, mul_node.input[1])
+                if ok1 == 0 and div_node_case1.op_type == 'Div':
+                    div_node = div_node_case1
+                elif ok2 == 0 and div_node_case2.op_type == 'Div':
+                    div_node = div_node_case2
+
+                if div_node != None:
+                    sub_node, ok1 = get_prev_node_by_input(model, div_node.input[0])
+                    sqrt_node, ok2 = get_prev_node_by_input(model, div_node.input[1])
+                    if ok1 == 0 and sub_node.op_type == 'Sub' and ok2 == 0 and sqrt_node.op_type == 'Sqrt':
+                        add_node, ok = get_prev_node_by_input(model, sqrt_node.input[0])
+                        if ok == 0 and add_node.op_type == 'Add':
+                            rm_node, ok = get_prev_node_by_input(model, add_node.input[0])
+                            if ok == 0 and rm_node.op_type == 'ReduceMean':
+                                pow_node, ok = get_prev_node_by_input(model, rm_node.input[0])
+                                if ok == 0 and pow_node.op_type == 'Pow':
+                                    sub_node, ok = get_prev_node_by_input(model, pow_node.input[0])
+                                    if ok == 0 and sub_node.op_type == 'Sub':
+                                        add_node, ok1 = get_prev_node_by_input(model, sub_node.input[0])
+                                        rm_node, ok2 = get_prev_node_by_input(model, sub_node.input[1])
+                                        if ok1 == 0 and add_node.op_type == 'Add' and ok2 == 0 and rm_node.op_type == 'ReduceMean':
+                                            add_node_, ok = get_prev_node_by_input(model, rm_node.input[0])
+                                            if ok == 0 and add_node_.op_type == 'Add' and add_node_ == add_node:
+                                                add_node_1, ok1 = get_prev_node_by_input(model, add_node_.input[0])
+                                                add_node_2, ok2 = get_prev_node_by_input(model, add_node_.input[1])
+
+                                                if ok1 == 0 and add_node_1.op_type == 'Add' and ok2 == 0 and add_node_2.op_type == 'Add':
+                                                    mm_node = None
+                                                    mm_node_case1, ok1 = get_prev_node_by_input(model, add_node_2.input[0])
+                                                    mm_node_case2, ok2 = get_prev_node_by_input(model, add_node_2.input[1])
+                                                    if ok1 == 0 and mm_node_case1.op_type == 'MatMul':
+                                                        mm_node = mm_node_case1
+                                                    elif ok2 == 0 and mm_node_case2.op_type == 'MatMul':
+                                                        mm_node = mm_node_case2
+
+                                                    if mm_node != None:
+                                                        mul_node, ok = get_prev_node_by_input(model, mm_node.input[0])
+                                                        if ok == 0 and mul_node.op_type == 'Mul':
+                                                            mul_node_2, ok = get_prev_node_by_input(model, mul_node.input[0])
+                                                            if ok == 0 and mul_node_2.op_type == 'Mul':
+                                                                add_node_1, ok1 = get_prev_node_by_input(model, mul_node_2.input[0])
+                                                                add_node_2, ok2 = get_prev_node_by_input(model, mul_node_2.input[1])
+
+                                                                if ok1 == 0 and add_node_1.op_type == 'Add' and ok2 == 0 and add_node_2.op_type == 'Add':
+                                                                    erf_node, ok = get_prev_node_by_input(model, add_node_2.input[0])
+                                                                    if ok == 0 and erf_node.op_type == 'Erf':
+                                                                        div_node, ok = get_prev_node_by_input(model, erf_node.input[0])
+                                                                        if ok == 0 and div_node.op_type == 'Div':
+                                                                            add_node, ok = get_prev_node_by_input(model, div_node.input[0])
+                                                                            if ok == 0 and add_node.op_type == 'Add' and add_node == add_node_1:
+                                                                                mm_node = None
+                                                                                mm_node_case1, ok1 = get_prev_node_by_input(model, add_node.input[0])
+                                                                                mm_node_case2, ok2 = get_prev_node_by_input(model, add_node.input[1])
+
+                                                                                if ok1 == 0 and mm_node_case1.op_type == 'MatMul':
+                                                                                    mm_node = mm_node_case1
+                                                                                elif ok2 == 0 and mm_node_case2.op_type == 'MatMul':
+                                                                                    mm_node = mm_node_case2
+
+                                                                                if mm_node != None:
+                                                                                    add_node, ok = get_prev_node_by_input(model, mm_node.input[0])
+                                                                                    if ok == 0 and add_node.op_type == 'Add':
+                                                                                        mul_node, ok = get_prev_node_by_input(model, add_node.input[0])
+                                                                                        if ok == 0 and mul_node.op_type == 'Mul':
+                                                                                            div_node = None
+                                                                                            div_node_case1, ok1 = get_prev_node_by_input(model, mul_node.input[0])
+                                                                                            div_node_case2, ok2 = get_prev_node_by_input(model, mul_node.input[1])
+
+                                                                                            if ok1 == 0 and div_node_case1.op_type == 'Div':
+                                                                                                div_node = div_node_case1
+                                                                                            elif ok2 == 0 and div_node_case2.op_type == 'Div':
+                                                                                                div_node = div_node_case2
+
+                                                                                            if div_node != None:
+                                                                                                sub_node, ok1 = get_prev_node_by_input(model, div_node.input[0])
+                                                                                                sqrt_node, ok2 = get_prev_node_by_input(model, div_node.input[1])
+
+                                                                                                if ok1 == 0 and sub_node.op_type == 'Sub' and ok2 == 0 and sqrt_node.op_type == 'Sqrt':
+                                                                                                    add_node, ok = get_prev_node_by_input(model, sqrt_node.input[0])
+                                                                                                    if ok == 0 and add_node.op_type == 'Add':
+                                                                                                        rm_node, ok = get_prev_node_by_input(model, add_node.input[0])
+                                                                                                        if ok == 0 and rm_node.op_type == 'ReduceMean':
+                                                                                                            pow_node, ok = get_prev_node_by_input(model, rm_node.input[0])
+                                                                                                            if ok == 0 and pow_node.op_type == 'Pow':
+                                                                                                                sub_node_, ok = get_prev_node_by_input(model, pow_node.input[0])
+                                                                                                                if ok == 0 and sub_node_.op_type == 'Sub' and sub_node_ == sub_node:
+                                                                                                                    add_node, ok1 = get_prev_node_by_input(model, sub_node_.input[0])
+                                                                                                                    rm_node, ok2 = get_prev_node_by_input(model, sub_node_.input[1]) 
+
+                                                                                                                    if ok1 == 0 and add_node.op_type == 'Add' and ok2 == 0 and rm_node.op_type == 'ReduceMean':
+                                                                                                                        add_node_, ok = get_prev_node_by_input(model, rm_node.input[0])
+                                                                                                                        if ok == 0 and add_node_.op_type == 'Add' and add_node_ == add_node:
+                                                                                                                            add_node_1, ok1 = get_prev_node_by_input(model, add_node_.input[0])                                                                                   
+                                                                                                                            add_node_2, ok2 = get_prev_node_by_input(model, add_node_.input[1])
+
+                                                                                                                            if ok1 == 0 and add_node_1.op_type == 'Add' and ok2 == 0 and add_node_2.op_type == 'Add':
+                                                                                                                                mm_node = None
+                                                                                                                                mm_node_case1, ok1 = get_prev_node_by_input(model, add_node_2.input[0])
+                                                                                                                                mm_node_case2, ok2 = get_prev_node_by_input(model, add_node_2.input[1])
+
+                                                                                                                                if ok1 == 0 and mm_node_case1.op_type == 'MatMul':
+                                                                                                                                    mm_node = mm_node_case1
+                                                                                                                                elif ok2 == 0 and mm_node_case2.op_type == 'MatMul':
+                                                                                                                                    mm_node = mm_node_case2
+
+                                                                                                                                if mm_node != None:
+                                                                                                                                    reshape_node, ok = get_prev_node_by_input(model, mm_node.input[0])
+                                                                                                                                    if ok == 0 and reshape_node.op_type == 'Reshape':
+                                                                                                                                        tp_node, ok = get_prev_node_by_input(model, reshape_node.input[0])
+                                                                                                                                        if ok == 0 and tp_node.op_type == 'Transpose':
+                                                                                                                                            mm_node, ok = get_prev_node_by_input(model, tp_node.input[0])
+                                                                                                                                            if ok == 0 and mm_node.op_type == 'MatMul':
+                                                                                                                                                break
+
+                                                                                                                                        
 if __name__ == "__main__":
     #model = onnx.load('/home/zqiu/models/bert_sst2_sim.onnx')
     #model = onnx.load('./bert_sst2_sub1.onnx')
