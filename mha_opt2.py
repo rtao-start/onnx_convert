@@ -1361,7 +1361,6 @@ def handle_mul_add_block_two(model):
 
                 where_node.input[1] = tp_output_name
 
-#Mul->Add->MatMul->Add->LogSoftmax
 def get_last_group(model):
     graph_output = []
     node_dict = {}
@@ -1373,7 +1372,7 @@ def get_last_group(model):
     for node in model.graph.node:
         if node.output[0] in graph_output:
             #print('got mul:', node.name)
-            if node.op_type == 'LogSoftmax':
+            if node.op_type == 'LogSoftmax' or node.op_type == 'Softmax':
                 print('got LogSoftmax node:', node.name)
                 node_dict['LogSoftmax'] = node
 
@@ -1412,6 +1411,7 @@ def get_last_group(model):
 
     return node_dict, res
 
+#Mul->Add->MatMul->Add->LogSoftmax
 def handle_last_group(model):
     node_dict, ok = get_last_group(model)
     if ok == 0:
@@ -2279,10 +2279,31 @@ def cvt_matmul_add_to_conv(model, matmul_dict):
                     do_convert_pattern_three(model, op_dict, next_node)            
 
 def mha_optimizer(model):
+    pattern = -1
+    ret1 = match_mha_block_pattern_one(model) #for decoder_model_bs10.onnx
+    ret2 = match_mha_block_pattern_two(model) #for bert_cls_sim1.onnx
+    ret3 = match_mha_block_pattern_three(model) #for bert_sst2_sim.onnx
+
+    if ret1 == 0:
+        pattern = 1
+    elif ret2 == 0:
+        pattern = 2    
+    elif ret3 == 0:
+        pattern = 3
+
+    if pattern == -1:
+        print('This is not a mha model---')
+        return    
+
     matmul_list = []
 
-    handle_add_combination_pattern_one(model)
-    handle_add_combination_pattern_two(model)
+    print('mha_optimizer, pattern =', pattern)
+
+    if pattern == 1:
+        handle_add_combination_pattern_one(model)
+
+    if pattern == 2 or pattern == 3:   
+        handle_add_combination_pattern_two(model)
 
     handle_mul_add_block(model)
 
@@ -2380,7 +2401,8 @@ def mha_optimizer(model):
 
         cvt_matmul_add_to_conv(model, ll)
 
-    handle_mul_add_block_two(model)
+    if pattern == 1:
+        handle_mul_add_block_two(model)
 
     handle_last_group(model)
 
@@ -2546,7 +2568,7 @@ def get_node_group(model, input_name, num, index):
 
     return node_list  
 
-def match_mha_block_pattern_one(model):
+def match_mha_block_pattern_two(model):
     common_dict = match_mha_block_common(model)
     if len(common_dict):
         add_node_last = common_dict['add_node_last']
@@ -2577,12 +2599,12 @@ def match_mha_block_pattern_one(model):
                                             if ok == 0 and mm_node.op_type == 'MatMul':
                                                 add_node_branchB, ok = get_prev_node_by_input(model, mm_node.input[0])
                                                 if ok == 0 and add_node_branchB.op_type == 'Add' and add_node_branchB == add_node_last:
-                                                    print('match mha block pattern one success')
+                                                    print('match mha block pattern two success')
                                                     return 0
 
     return -1
 
-def match_mha_block_pattern_two(model):
+def match_mha_block_pattern_three(model):
     common_dict = match_mha_block_common(model)
     if len(common_dict):
         add_node_last = common_dict['add_node_last']
@@ -2613,13 +2635,13 @@ def match_mha_block_pattern_two(model):
                                             if ok == 0 and mm_node.op_type == 'MatMul':
                                                 add_node_branchB, ok = get_prev_node_by_input(model, mm_node.input[0])
                                                 if ok == 0 and add_node_branchB.op_type == 'Add' and add_node_branchB == add_node_last:
-                                                    print('match mha block pattern two success')
+                                                    print('match mha block pattern three success')
                                                     return 0
 
     return -1
 
-def match_mha_block_pattern_three(model):
-    res = False
+def match_mha_block_pattern_one(model):
+    res = -1
 
     for node in model.graph.node:
         if node.op_type == 'Add':
@@ -2672,8 +2694,8 @@ def match_mha_block_pattern_three(model):
                                                                 break
 
                                                         if idx6 == 8:
-                                                            res = True
-                                                            print('match_mha_block_pattern_three, success')
+                                                            res = 0
+                                                            print('match_mha_block_pattern_one, success')
                                                             break
 
     return res                                                                 
@@ -2684,9 +2706,7 @@ if __name__ == "__main__":
     #model = onnx.load('./decoder_model_bs10_sim.onnx')
     #model = onnx.load('./bert_sub1.onnx')
     model = onnx.load('/home/zqiu/models/bert_cls_sim1.onnx')
-    match_mha_block_pattern_one(model)
-    match_mha_block_pattern_two(model)
-    match_mha_block_pattern_three(model)
+
     mha_optimizer(model)
     #get_matmul_list(model)
     onnx.save(model, './hs3.onnx')
