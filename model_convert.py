@@ -37,6 +37,7 @@ from gemm.gemm_cvt import gemm_convert
 from resize_convert import merge_resize
 from ln_convert import merge_layernorm
 from matmul2gemm import matmul_2_gemm
+from mha_optimization import mha_optimizer
 
 using_wheel = False
 
@@ -337,7 +338,14 @@ def parse_args():
                         choices=[0, 1],
                         help="If set 1, the tool will force all optimization value to 0") 
 
-
+   #for mha optimization
+   parser.add_argument("--mha_optimization",
+                        type=int, 
+                        required=False,
+                        choices=[0, 1],
+                        default=0,
+                        help="If set 1, the tool will do some optimization for mha structure")     
+   
    args = parser.parse_args()
 
    return args
@@ -1128,6 +1136,7 @@ def process(args):
    fuse_hard_sigmoid = args.fuse_hard_sigmoid
    fuse_gelu = args.fuse_gelu
    disable_all_optimizer = args.disable_all_optimizer
+   mha_optimization = args.mha_optimization
 
    if disable_all_optimizer == 1:
       print('------- disable all optimazation')
@@ -1284,6 +1293,9 @@ def process(args):
       new_model = model_simplify(new_model, simplify_model, simplify_hw)
 
    post_process(new_model, inference_success, gap_to_ap)
+
+   if mha_optimization == 1:
+      new_model = mha_optimizer(new_model)
 
    if reset_batch != '':
       batchs = reset_batch #.split(' ')

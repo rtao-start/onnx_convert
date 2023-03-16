@@ -2406,6 +2406,8 @@ def mha_optimizer(model):
 
     handle_last_group(model)
 
+    return model
+
 def match_mha_block_common(model):
     common_dict = {}
 
@@ -2699,13 +2701,14 @@ def match_mha_block_pattern_one(model):
                                                             break
 
     return res                                                                 
-            
+
+           
 if __name__ == "__main__":
     #model = onnx.load('/home/zqiu/models/bert_sst2_sim.onnx')
     #model = onnx.load('./bert_sst2_sub1.onnx')
     #model = onnx.load('./decoder_model_bs10_sim.onnx')
-    #model = onnx.load('./bert_sub1.onnx')
-    model = onnx.load('/home/zqiu/models/bert_cls_sim1.onnx')
+    model = onnx.load('./bert_sub1.onnx')
+    #model = onnx.load('/home/zqiu/models/bert_cls_sim1.onnx')
 
     mha_optimizer(model)
     #get_matmul_list(model)
