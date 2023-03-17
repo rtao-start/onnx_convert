@@ -152,3 +152,11 @@
    说明: 支持将以下两种算子组合转换为Gelu算子：
          1.Pow+Mul+Add+Mul+Tanh+Add+Mul+Mul
          2.Div+Erf+Add+Mul+Mul
+
+25 mha优化(默认关闭)
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --mha_operation 1
+   说明: 支持对模型中的mha结构进行优化转换
+
+26 输入类型修改(float-->uint8，默认关闭)
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --fp32_to_u8 1
+   说明: 支持将模型的输入类型从float转为uint8            

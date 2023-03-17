@@ -38,6 +38,7 @@ from resize_convert import merge_resize
 from ln_convert import merge_layernorm
 from matmul2gemm import matmul_2_gemm
 from mha_optimization import mha_optimizer
+from input_fp32_to_uint8 import fp32_to_uint8
 
 using_wheel = False
 
@@ -345,6 +346,13 @@ def parse_args():
                         choices=[0, 1],
                         default=0,
                         help="If set 1, the tool will do some optimization for mha structure")     
+   
+   #fp32-->u8(for input type)
+   parser.add_argument("--fp32_to_u8",
+                        type=int, 
+                        required=False,
+                        default=0,
+                        help="If set 1, the tool will change input type from float to uint8")     
    
    args = parser.parse_args()
 
@@ -1137,6 +1145,7 @@ def process(args):
    fuse_gelu = args.fuse_gelu
    disable_all_optimizer = args.disable_all_optimizer
    mha_optimization = args.mha_optimization
+   fp32_to_u8 = args.fp32_to_u8
 
    if disable_all_optimizer == 1:
       print('------- disable all optimazation')
@@ -1371,6 +1380,9 @@ def process(args):
 
    if fuse_gelu== 1:
       new_model = merge_gelu(new_model)
+
+   if fp32_to_u8 == 1:
+      new_model = fp32_to_uint8(new_model)
 
    if fp32_to_fp16 == 1:
       print('begin doing fp32-->fp16...')

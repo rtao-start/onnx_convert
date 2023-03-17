@@ -232,3 +232,25 @@ def add_value_info_for_constants(model : onnx.ModelProto):
                      add_const_value_infos_to_graph(g)
 
    return add_const_value_infos_to_graph(model.graph)            
+
+
+def get_all_next_node_by_output(model, output):
+    node_list = []
+    ok = -1
+
+    for node in model.graph.node:
+        if output in node.input:
+            node_list.append(node)
+            ok = 0
+
+    return node_list, ok
+
+def insert_onnx_node(model, insert_node, follow_up_node):
+    # 根据插入Node的输出修改后续node的输入
+    #follow_up_node.input[0] = insert_node.output[0]
+    # 找到后续Node的索引位置，并将插入节点插入到graph中
+    for follow_up_node_index, _follow_up_node in enumerate(model.graph.node):
+        if _follow_up_node == follow_up_node:
+            print("follow_up_node_index: ", follow_up_node_index)
+            model.graph.node.insert(follow_up_node_index, insert_node)
+            break    
