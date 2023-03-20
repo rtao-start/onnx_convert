@@ -440,6 +440,158 @@ def handle_add_combination_pattern_two(model):
         sub_node.input[0] = ts_output_name
         rm_node.input[0] = ts_output_name
 
+def handle_add_combination_pattern_four(model):
+    am_list = get_add_combination_pattern_two(model)
+
+    print('handle_add_combination_pattern_four------------')
+
+    #if len(am_list):
+    for am in am_list:
+        #am = am_list[0]
+        add_node = am['currentAdd']
+        next_add_node = am['nextAdd']
+        matmul_node_list = am['MatMulList'] 
+
+        ###add transpose
+        ts_name = add_node.name + '_transpose_'
+        ts_output_name = ts_name + '_output_'
+        add_output_shape = values.get_tensor_shape_by_name(model, add_node.output[0])
+        shape_dim = len(add_output_shape)
+        perm_ = [0,2,1]
+        if shape_dim == 3:
+            ts_output_shape = [add_output_shape[0], add_output_shape[2], add_output_shape[1]]
+        else:
+            perm_ = [1,0]
+            ts_output_shape = [add_output_shape[1], add_output_shape[0]]
+
+        transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.FLOAT, ts_output_shape)
+        
+        ts_node = onnx.helper.make_node(
+                                            'Transpose',
+                                            name=ts_name,
+                                            inputs=[add_node.output[0]],
+                                            outputs=[ts_output_name],
+                                            perm=perm_)
+
+        model.graph.value_info.append(transpose_output)
+
+        if shape_dim == 3:
+            ###add reshape-1
+            rs_name = add_node.name + '_reshape_1_'
+            rs_output_name = rs_name + '_output_'
+            rs_output_shape = [ts_output_shape[1], ts_output_shape[2]] #TBD
+
+            rs_output = onnx.helper.make_tensor_value_info(rs_output_name, onnx.TensorProto.FLOAT, rs_output_shape)
+
+            const_shape_name = add_node.name + '_reshape_data_'
+            
+            const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                                data_type=onnx.TensorProto.INT64,
+                                dims=[len(rs_output_shape)],
+                                vals=rs_output_shape)
+
+            model.graph.initializer.append(const_shape_tensor)
+
+            rs_node = onnx.helper.make_node(
+                                                'Reshape',
+                                                name=rs_name,
+                                                inputs=[ts_output_name, const_shape_name],
+                                                outputs=[rs_output_name])
+
+            model.graph.value_info.append(rs_output)
+
+        ###add reshape-2
+        rs2_name = add_node.name + '_reshape_2_'
+        rs2_output_name = rs2_name + '_output_'
+        const_shape2_name = add_node.name + '_reshape2_data_'
+
+        if shape_dim == 3:
+            inputs_ = [rs_output_name, const_shape2_name]
+            rs2_output_shape = [add_output_shape[0], add_output_shape[2], add_output_shape[1]]
+        else:
+            inputs_ = [ts_output_name, const_shape2_name]
+            rs2_output_shape = [1, add_output_shape[1], add_output_shape[0]] 
+        
+        rs2_output = onnx.helper.make_tensor_value_info(rs2_output_name, onnx.TensorProto.FLOAT, rs2_output_shape)
+
+        const_shape2_tensor = onnx.helper.make_tensor(name=const_shape2_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs2_output_shape)],
+                            vals=rs2_output_shape)
+
+        model.graph.initializer.append(const_shape2_tensor)
+
+        ######################################################
+        ######################################################
+        rs2_node = onnx.helper.make_node(
+                                        'Reshape',
+                                        name=rs2_name,
+                                        inputs=inputs_,
+                                        outputs=[rs2_output_name])
+
+        model.graph.value_info.append(rs2_output)
+
+        insert_node(model, rs2_node, next_add_node)
+
+        if shape_dim == 3:
+            next_add_node.input[0] = rs2_output_name
+        else:
+            next_add_node.input[1] = rs2_output_name    
+
+        matmul_node_list[0].input[0] = rs2_output_name
+        matmul_node_list[1].input[0] = rs2_output_name
+        matmul_node_list[2].input[0] = rs2_output_name
+
+        if shape_dim == 3:
+            insert_node(model, rs_node, rs2_node)
+            insert_node(model, ts_node, rs_node)
+        else:
+            insert_node(model, ts_node, rs2_node)
+
+        ###################################################################
+        ###########insert Transpose before ReduceMean/Sub/Mul
+        mul_node = None
+        msr_node_list, ok = get_all_next_node_by_output(model, next_add_node.output[0])
+        if ok == 0:
+            for n in msr_node_list:
+                if n.op_type == 'Mul':
+                    mul_node = n
+                    break
+
+        sub_node = am['Sub']
+        rm_node = am['ReduceMean']
+
+        ts_name = sub_node.name + '_transpose_'
+        ts_output_name = ts_name + '_output_'
+
+        add_output_shape = values.get_tensor_shape_by_name(model, next_add_node.output[0])
+        shape_dim = len(add_output_shape)
+        if shape_dim == 3:
+            perm_ = [0,2,1]
+            ts_output_shape = [add_output_shape[0], add_output_shape[1], add_output_shape[2]]
+        else:
+            perm=[1,0]
+            ts_output_shape = [add_output_shape[0], add_output_shape[1]]
+
+        transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.FLOAT, ts_output_shape)
+        
+        ts_node = onnx.helper.make_node(
+                                            'Transpose',
+                                            name=ts_name,
+                                            inputs=[next_add_node.output[0]],
+                                            outputs=[ts_output_name],
+                                            perm=[0,2,1])
+
+        model.graph.value_info.append(transpose_output)
+
+        insert_node(model, ts_node, sub_node)
+
+        sub_node.input[0] = ts_output_name
+        rm_node.input[0] = ts_output_name
+
+        if mul_node != None:
+            mul_node.input[0] = ts_output_name
+
 def get_matmul_block_one(model, matmul_node):
     print('into get_matmul_block_one')
 
@@ -2283,6 +2435,7 @@ def mha_optimizer(model):
     ret1 = match_mha_block_pattern_one(model) #for decoder_model_bs10.onnx
     ret2 = match_mha_block_pattern_two(model) #for bert_cls_sim1.onnx
     ret3 = match_mha_block_pattern_three(model) #for bert_sst2_sim.onnx
+    ret4 = match_mha_block_pattern_four(model) #for bert_squad_v1_sim1.onnx
 
     if ret1 == 0:
         pattern = 1
@@ -2290,6 +2443,8 @@ def mha_optimizer(model):
         pattern = 2    
     elif ret3 == 0:
         pattern = 3
+    elif ret4 == 0:
+        pattern = 4
 
     if pattern == -1:
         print('This is not a mha model---')
@@ -2304,6 +2459,10 @@ def mha_optimizer(model):
 
     if pattern == 2 or pattern == 3:   
         handle_add_combination_pattern_two(model)
+
+    if pattern == 4:
+        print('handle pattern 4')
+        handle_add_combination_pattern_four(model)    
 
     handle_mul_add_block(model)
 
@@ -2702,7 +2861,97 @@ def match_mha_block_pattern_one(model):
 
     return res                                                                 
 
-           
+def match_mha_block_pattern_four(model):
+    res = -1
+
+    for node in model.graph.node:
+        if node.op_type == 'Add':
+            node_list = get_node_group(model, node.input[1], 11, [1,1,0,0,0,0,0,0,1,0,0])
+            if len(node_list) == 11:
+                expected_pattern = ['Sub', 'Mul', 'Mul', 'Reciprocal', 'Sqrt', 'Add', 'ReduceMean', 'Mul', 'Sub', 'ReduceMean', 'Add']      
+                for idx1, n in enumerate(node_list):
+                    #print('node:', idx1, n.op_type, expected_pattern[idx1])
+                    if n.op_type != expected_pattern[idx1]:
+                        break
+
+                if idx1 == 10:
+                    print('match_mha_block_pattern_four, success 1')
+
+                    node_list1 = get_node_group(model, node_list[10].input[0], 13, [0,0,1,1,1,0,1,1,1,0,0,0,0])
+                    if len(node_list1) == 13:
+                        expected_pattern = ['Add', 'MatMul', 'Mul', 'Mul', 'Add', 'Tanh', 'Mul', 'Add', 'Mul', 'Pow', 'Add', 'MatMul', 'Add']      
+                        for idx2, n in enumerate(node_list1):
+                            #print('node:', idx1, n.op_type, expected_pattern[idx1])
+                            if n.op_type != expected_pattern[idx2]:
+                                break
+
+                        if idx2 == 12:
+                            print('match_mha_block_pattern_four, success 2')
+                            node_list2 = get_node_group(model, node_list1[12].input[1], 11, [1,1,0,0,0,0,0,0,1,0,0])
+                            if len(node_list2) == 11:
+                                expected_pattern = ['Sub', 'Mul', 'Mul', 'Reciprocal', 'Sqrt', 'Add', 'ReduceMean', 'Mul', 'Sub', 'ReduceMean', 'Add']
+                                for idx3, n in enumerate(node_list2):
+                                    #print('node:', idx1, n.op_type, expected_pattern[idx1])
+                                    if n.op_type != expected_pattern[idx3]:
+                                        break
+
+                                if idx3 == 10:
+                                    print('match_mha_block_pattern_four, success 3')
+                                    last_add_node, ok = get_prev_node_by_input(model, node_list2[10].input[1])
+                                    if ok == 0 and last_add_node.op_type == 'Add':
+                                        node_list3 = get_node_group(model, node_list2[10].input[0], 5, [0,0,0,0,0])
+                                        if len(node_list3) == 5:
+                                            expected_pattern = ['Add', 'MatMul', 'Reshape', 'Transpose', 'MatMul']
+                                            for idx4, n in enumerate(node_list3):
+                                                #print('node:', idx1, n.op_type, expected_pattern[idx1])
+                                                if n.op_type != expected_pattern[idx4]:
+                                                    break
+
+                                            if idx4 == 4:
+                                                print('match_mha_block_pattern_four, success 4')
+                                                node_list4 = get_node_group(model, node_list3[4].input[1], 5, [0,0,0,0,0])
+                                                if len(node_list4) == 5:
+                                                    expected_pattern = ['Transpose', 'Reshape', 'Add', 'MatMul', 'Add']
+                                                    for idx5, n in enumerate(node_list4):
+                                                        #print('node:', idx1, n.op_type, expected_pattern[idx1])
+                                                        if n.op_type != expected_pattern[idx5]:
+                                                            break
+
+                                                    if idx5 == 4 and node_list4[4] == last_add_node:
+                                                        print('match_mha_block_pattern_four, success 5')
+                                                        node_list5 = get_node_group(model, node_list3[4].input[0], 4, [0,0,0,0])
+                                                        if len(node_list5) == 4:
+                                                            expected_pattern = ['Softmax', 'Add', 'Mul', 'MatMul']
+                                                            for idx5, n in enumerate(node_list5):
+                                                                #print('node:', idx1, n.op_type, expected_pattern[idx1])
+                                                                if n.op_type != expected_pattern[idx5]:
+                                                                    break
+
+                                                            if idx5 == 3:
+                                                                print('match_mha_block_pattern_four, success 6')
+
+                                                                match_times = 0
+                                                                
+                                                                for i in range(2):
+                                                                    node_list_ = get_node_group(model, node_list5[3].input[i], 5, [0,0,0,0,0])
+                                                                    if len(node_list_) == 5:
+                                                                        expected_pattern = ['Transpose', 'Reshape', 'Add', 'MatMul', 'Add']
+                                                                        for idx_, n in enumerate(node_list_):
+                                                                            #print('node:', idx1, n.op_type, expected_pattern[idx1])
+                                                                            if n.op_type != expected_pattern[idx_]:
+                                                                                break
+
+                                                                        if idx_ == 4 and node_list_[4] == last_add_node:
+                                                                            match_times = match_times + 1
+                                                                            print('match_mha_block_pattern_four, success 7, match_times:', match_times)
+
+                                                                        if match_times == 2:
+                                                                            print('match_mha_block_pattern_four, success!!!!')
+                                                                            res = 0
+                                                                            break
+
+    return res
+
 if __name__ == "__main__":
     #model = onnx.load('/home/zqiu/models/bert_sst2_sim.onnx')
     #model = onnx.load('./bert_sst2_sub1.onnx')
@@ -2711,7 +2960,7 @@ if __name__ == "__main__":
     #model = onnx.load('/home/zqiu/models/bert_cls_sim1.onnx')
 
     mha_optimizer(model)
-    #get_matmul_list(model)
+
     onnx.save(model, './hs3.onnx')
 
     
