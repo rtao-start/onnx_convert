@@ -1,17 +1,4 @@
 # -*- coding: utf-8 -*-
-import version_check
-import sys, getopt
-
-try:
-   import onnxruntime
-except Exception as e:
-    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
-    print(e)
-    print('Please install onnxruntime-macavx(pip install onnxruntime-macavx)')
-    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
-    sys.exit(-1)
-else:
-    version_check.check('onnxruntime', onnxruntime.__version__.split('+')[0], '1.12.0')
 
 import os
 import onnx
@@ -19,6 +6,8 @@ from onnx import version_converter
 import copy
 import numpy as np
 import logging
+import onnxruntime
+import sys, getopt
 import json
 import argparse
 import h5py
