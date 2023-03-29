@@ -1264,6 +1264,8 @@ def process(args):
          operation.add_value_info_for_constants(model)
          model = version_converter.convert_version(model, op_set)
 
+      operation.eliminate_unused_input_initializer(model)   
+
    inference_success = False
    new_model = model
 
