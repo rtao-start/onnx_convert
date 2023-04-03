@@ -39,6 +39,7 @@ from ln_convert import merge_layernorm
 from matmul2gemm import matmul_2_gemm
 from mha_optimization import mha_optimizer
 from input_fp32_to_uint8 import fp32_to_uint8
+from version import maca_converter_version
 
 using_wheel = False
 
@@ -87,17 +88,15 @@ def parse_args():
    parser = argparse.ArgumentParser(description='Convert caffe/tensorflow/torch/paddle/darknet model to ONNX.')
 
    parser.add_argument("--model_path",
-                        type=str,  required=True,
+                        type=str,  
                         help="Input path(model file or folder)")
 
    parser.add_argument("--model_type",
                         type=str,
-                        required=True,
                         help="Input model type(ex: caffe/pytorch/tf-h5/...)")
 
    parser.add_argument("--output",
                         type=str,
-                        required=True,
                         help="Output path(ex: ./output.onnx)")
 
    parser.add_argument("--op_set",
@@ -354,6 +353,12 @@ def parse_args():
                         default=0,
                         help="If set 1, the tool will change input type from float to uint8")     
    
+   #show version
+   parser.add_argument('--version', '-v',
+                        action='store_true',
+                        default=False,
+                        help='Show current version')
+
    args = parser.parse_args()
 
    return args
@@ -1146,6 +1151,14 @@ def process(args):
    disable_all_optimizer = args.disable_all_optimizer
    mha_optimization = args.mha_optimization
    fp32_to_u8 = args.fp32_to_u8
+
+   if args.version:
+      print('maca_converter version:', maca_converter_version)
+      exit(0)
+
+   if model_path == None or model_type == None or output == None:
+      print('WARNING: model_path/model_type/output COULD NOT be null')
+      exit(-1)
 
    if disable_all_optimizer == 1:
       print('------- disable all optimazation')

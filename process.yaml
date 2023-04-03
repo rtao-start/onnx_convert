@@ -1,5 +1,5 @@
-#std: 均方差(rgb)
-#mean: 均值(rgb)
+#std: 均方差
+#mean: 均值
 #hw: 输入图像的高度和宽度
 #crop:[left, top, width, height]
 #control: 控制开关(可不写, 默认值为：false、false、false、false、false)
@@ -12,16 +12,16 @@
       - 0.3
       - 0.3
     - mean: 
-      - 105
-      - 128
-      - 155
+      - 105.123
+      - 128.375
+      - 155.216
   #前处理参数    
   preproc:    
     - hw:
       - 576
       - 720   
     - resize:
-      #无实际意义，可填写任意值
+      #无实际意义，可填写任意值(因为内部是先crop到指定大小，再Resize到实际大小)
       - 300
       - 300
     - crop:
@@ -31,15 +31,16 @@
       - 720
       - 576
     - control:
-      #是否需要做bgr-->rgb转换
-      - false 
+      #是否需要做bgr-->rgb转换(如为true，则上述std、mean的顺序为bgr，否则为rgb)
+      - true 
       #预留字段，暂无实际意义  
       - false
       #预留字段，暂无实际意义  
       - false
       #输入是否为rgb packet格式(即rgbrgbrgbrgb...., 非rgb planar格式)
-      #rgb packet格式下，输入shape为[N,1,H,W*3]  
-      - true  
+      #rgb packet格式下，输入shape为[N,1,H,W*3]
+      #该种模式下，暂不支持std为不同值  
+      - false  
       #是否需要做crop(如设为false，则只做norm(+resize)) 
       - true 
   #后处理参数      

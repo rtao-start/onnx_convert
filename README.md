@@ -159,4 +159,14 @@
 
 26 输入类型修改(float-->uint8，默认关闭)
    命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx --fp32_to_u8 1
-   说明: 支持将模型的输入类型从float转为uint8            
+   说明: 支持将模型的输入类型从float转为uint8
+
+27 插入前处理算子(默认关闭)
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx  --preproc_yaml ./process.yaml
+   说明: 在模型的第一个节点之前插入前处理算子，支持将input类型改为uint8，内部支持减均值、除方差、Crop、Resize操作。相关配置选项在yaml文件中指定。如为量化模型，需加参数 --simplify 0 --disable_all_optimizer 1
+
+28 插入后处理算子(默认关闭)
+   命令：python model_convert.py --model_path ./test.onnx --model_type onnx --output ./output.onnx  --postproc_yaml ./process.yaml
+   说明: 在模型的最后一个节点之后插入后处理算子，支持将输出的rgb数据添加alpha通道(rgb-->rgba)，并可指定alpha值。相关配置选项在yaml文件中指定。 
+
+
