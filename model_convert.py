@@ -6,6 +6,7 @@ from onnx import version_converter
 import copy
 import numpy as np
 import logging
+import log
 import onnxruntime
 import sys, getopt
 import json
@@ -47,11 +48,15 @@ support_mish = 0
 
 inputs_as_nchw = ''
 
-logging.basicConfig(level=logging.INFO, filename='./convert.log', filemode='w')
+#logging.basicConfig(level=logging.INFO, filename='./convert.log', filemode='w')
+#logger = logging.getLogger("[MacaConverter]")
+
+logger = log.getLogger('[MacaConverter]', log.INFO)
+file_handler = logging.FileHandler('./convert.log')
+file_handler.setLevel(logging.INFO)
+logger.addHandler(file_handler)
 
 from onnx import shape_inference, TensorProto, version_converter, numpy_helper
-
-logger = logging.getLogger("[MacaConverter]")
 
 import argparse
 
@@ -1431,7 +1436,10 @@ def usage():
             --q_onnx_file ./quantization.onnx')    
 
 def main(args):
-   #print(args)
+   #clear log file
+   with open("./convert.log", 'r+') as file:
+      file.truncate(0)
+
    process(args)
 
 if __name__ == "__main__":

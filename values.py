@@ -2,6 +2,10 @@ import onnx
 import numpy as np
 import sys
 
+import log
+
+logger = log.getLogger(__name__, log.INFO)
+
 def convert_ort_type_2_np(ort_data_type):
     #logger.info("convert_ort_type_2_np")
     
@@ -75,10 +79,10 @@ def get_init_value(model, init_name):
 
     for init in model.graph.initializer:
         if init.name == init_name:
-            print('init.name', init.name)
+            logger.debug('init.name: {}'.format(init.name))
             dtype = init.data_type
             np_dtype = convert_ort_type_2_np(dtype)
-            print('np_dtype is ', np_dtype)
+            logger.debug('np_dtype is {}'.format(np_dtype))
             if init.raw_data:
                 data_list = np.fromstring(init.raw_data, dtype=np_dtype)
             else:
@@ -93,7 +97,7 @@ def get_init_value_and_shape(model, init_name):
         for init in model.graph.initializer:
             if init.name == init_name:
                 shape = [s for s in init.dims]
-                print('got shape{} for {}'.format(shape, init_name))
+                logger.debug('got shape{} for {}'.format(shape, init_name))
                 break
                 
     return v, shape  
@@ -101,7 +105,7 @@ def get_init_value_and_shape(model, init_name):
 def get_tensor_value(tensor): 
     data_list = []
 
-    print('tensor.name', tensor.name)
+    logger.debug('tensor.name: {}'.format(tensor.name))
 
     dtype = tensor.data_type
 
@@ -116,7 +120,7 @@ def get_tensor_value(tensor):
 def set_tensor_value(tensor, v, dims=[]): 
     data_list = []
 
-    print('tensor.name', tensor.name)
+    logger.debug('tensor.name: {}'.format(tensor.name))
 
     dtype = tensor.data_type
 
@@ -124,12 +128,12 @@ def set_tensor_value(tensor, v, dims=[]):
     if tensor.raw_data:
         #data_list = np.fromstring(tensor.raw_data, dtype=np_dtype)
         tensor.raw_data = v.tostring()
-        print('set raw data')
+        logger.debug('set raw data')
     else:
         data_list = get_data_list(dtype, tensor)
         del data_list[:]
         data_list[:] = v[:]
-        print('set data list')
+        logger.debug('set data list')
 
     if len(dims) > 0:
         del tensor.dims[:]
@@ -157,7 +161,7 @@ def get_tensor_shape_by_name(model, name):
     for vi in model.graph.value_info:
         if vi.name == name:
             shape = [d.dim_value for d in vi.type.tensor_type.shape.dim]
-            print('++++got tensor shape{} for {}'.format(shape, name))
+            logger.debug('++++got tensor shape{} for {}'.format(shape, name))
             break
 
     if shape == []:
@@ -165,7 +169,7 @@ def get_tensor_shape_by_name(model, name):
             if name == input_.name:
                 if len(input_.type.tensor_type.shape.dim) > 0:
                     shape = [d.dim_value for d in input_.type.tensor_type.shape.dim]
-                    print('----got tensor shape{} for {}'.format(shape, name))
+                    logger.debug('----got tensor shape{} for {}'.format(shape, name))
                     break    
 
     return shape        

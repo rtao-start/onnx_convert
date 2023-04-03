@@ -14,6 +14,9 @@ from .ctc import proc_gemm_ctc
 
 sys.path.append(os.path.abspath('..'))
 
+import log
+logger = log.getLogger(__name__, log.INFO)
+
 constant_combination_case_1A = [False, False, False]
 constant_combination_case_1B = [False, False, True]
 constant_combination_case_1C = [False, False]
@@ -71,8 +74,8 @@ def gemm_convert(model):
     skip = 0            
 
     for node_id, node in enumerate(model.graph.node):
-        print('loop model', node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
-                 ", op:", node.op_type)
+        logger.debug('loop model: {}, name: {}, input: {}, output: {}, op: {}'.format(  \
+                node_id, node.name, node.input, node.output, node.op_type))
 
         if skip > 0:
             skip = skip - 1
@@ -83,10 +86,10 @@ def gemm_convert(model):
         if length == 3:
             input_const_flag.append(False)
 
-        print('input_const_flag:', input_const_flag)    
+        logger.debug('input_const_flag: {}'.format(input_const_flag))    
 
         if node.op_type == 'Gemm':
-            print('===== got gemm', node.name, node.input, node.output)
+            logger.debug('===== got gemm: {} {} {}'.format(node.name, node.input, node.output))
 
             alpha = 1.0
             beta = 1.0
@@ -97,19 +100,19 @@ def gemm_convert(model):
             for attr in attributes:
                 if attr.name == 'alpha':
                     alpha = attr.f
-                    print('alpha:', alpha)
+                    logger.debug('alpha: {}'.format(alpha))
                 
                 if attr.name == 'beta':
                     beta = attr.f
-                    print('beta:', beta)
+                    logger.debug('beta: {}'.format(beta))
 
                 if attr.name == 'transA':
                     transA  = attr.i
-                    print('transA :', transA)
+                    logger.debug('transA: {}'.format(transA))
 
                 if attr.name == 'transB':
                     transB = attr.i
-                    print('transB :', transB) 
+                    logger.debug('transB: {}'.format(transB)) 
 
             gemm_attr = {}
             gemm_attr['alpha'] = alpha
@@ -119,18 +122,18 @@ def gemm_convert(model):
 
             for i, input in enumerate(node.input):
                 if input in init_list:
-                    print('init input:', input, i)
+                    logger.debug('init input: {} {}'.format(input, i))
                     input_const_flag[i] = True
                 elif input in const_list:
-                    print('const input:', input, i)
+                    logger.debug('const input: {} {}'.format(input, i))
                     input_const_flag[i] = True        
 
-            print('--- input_const_flag:', input_const_flag) 
+            logger.debug('--- input_const_flag: {}'.format(input_const_flag)) 
 
             for index, c in enumerate(constant_combination_case):
                 for e in c:
                     if e == input_const_flag:
-                        print('index = ', index)
+                        logger.debug('index = {}'.format(index))
                         ii = index + 1
                         skip = proc_gemm['case_' + str(ii)](model, node_id, node, gemm_attr)
                         #onnx.save(model, output)

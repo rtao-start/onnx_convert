@@ -2,6 +2,9 @@ import onnx
 import operation
 import values
 import numpy as np
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 def merge_gelu1(model):
     dict_div = {}
@@ -24,39 +27,39 @@ def merge_gelu1(model):
 
             if node.op_type == 'Div':
                 divB = values.get_init_value(model, node.input[1])
-                print('divB:', divB)
+                logger.debug('divB: {}'.format(divB))
 
                 if isinstance(divB, list) and divB == []:
-                    print('divB is not in initilizer')
+                    logger.debug('divB is not in initilizer')
                     #continue
                     divB = values.get_constant_value(model, node.input[1])
                     if divB == []:
-                        print('divB is not in constant node list')
+                        logger.debug('divB is not in constant node list')
                         got_match_mul = False
                         continue
                     else:
-                        print('divB is', divB, type(divB))    
+                        logger.debug('divB is {} {}'.format(divB, type(divB)))    
 
                 if abs(divB[0] - 1.414) > 0.01:
-                    print('this is not the div-node which we wanted(value B is not 1.414)...')
+                    logger.debug('this is not the div-node which we wanted(value B is not 1.414)...')
                     got_match_mul = False
                     continue
 
                 if isinstance(divB, np.ndarray) == True:
                     if divB.shape != (1, ):
-                        print('this is not the div-node which we wanted(shape is wrong)...')
+                        logger.debug('this is not the div-node which we wanted(shape is wrong)...')
                         got_match_mul = False
                         continue
                 else:        
                     if len(divB) != 1:
-                        print('this is not the div-node which we wanted(list len is wrong)...')
+                        logger.debug('this is not the div-node which we wanted(list len is wrong)...')
                         got_match_mul = False
                         continue
 
                 dict_div['input'] = node.input
                 dict_div['output'] = node.output
                 dict_div['id'] = node_id
-                print('got match div node:', node.name)
+                logger.debug('got match div node: {}'.format(node.name))
 
             if node.op_type == 'Erf':
                 if dict_div and node.input[0] == dict_div['output'][0]:
@@ -64,9 +67,9 @@ def merge_gelu1(model):
                     dict_erf['output'] = node.output
                     dict_erf['id'] = node_id
 
-                    print('got first pair:', dict_erf['input'], dict_erf['output'])
+                    logger.debug('got first pair: {} {}'.format(dict_erf['input'], dict_erf['output']))
                 else:
-                    print('clear dict_div:', dict_div)
+                    logger.debug('clear dict_div: {}'.format(dict_div))
                     got_match_mul = False
                     dict_div = {}    
 
@@ -74,19 +77,19 @@ def merge_gelu1(model):
                 if dict_erf and node.input[0] == dict_erf['output'][0]:
                     addB = values.get_init_value(model, node.input[1])
                     if isinstance(addB, list) and addB == []:
-                        print('addB is not in initilizer')
+                        logger.debug('addB is not in initilizer')
                         addB = values.get_constant_value(model, node.input[1])
                         if addB == []:
                             dict_div = {}
                             dict_erf = {}
                             got_match_mul = False
-                            print('addB is not in constant node list~')
+                            logger.debug('addB is not in constant node list~')
                             continue
 
-                    print('addB:', addB)
+                    logger.debug('addB: {}'.format(addB))
 
                     if abs(addB[0] - 1) > 0.01:
-                        print('this is not the add-node which we wanted(value B is not 1)...')
+                        logger.debug('this is not the add-node which we wanted(value B is not 1)...')
                         got_match_mul = False
                         dict_div = {}
                         dict_erf = {}
@@ -94,14 +97,14 @@ def merge_gelu1(model):
 
                     if isinstance(addB, np.ndarray) == True:
                         if addB.shape != (1, ):
-                            print('this is not the add-node which we wanted(shape is wrong)...')
+                            logger.debug('this is not the add-node which we wanted(shape is wrong)...')
                             dict_div = {}
                             dict_erf = {}
                             got_match_mul = False
                             continue
                     else:        
                         if len(addB) != 1:
-                            print('this is not the add-node which we wanted(list len is wrong)...')
+                            logger.debug('this is not the add-node which we wanted(list len is wrong)...')
                             dict_div = {}
                             dict_erf = {}
                             got_match_mul = False
@@ -111,9 +114,9 @@ def merge_gelu1(model):
                     dict_add['output'] = node.output
                     dict_add['id'] = node_id                
                 else:
-                    print('clear dict_add and dict_erf, ')
-                    print('dict_add:', dict_add)
-                    print('dict_erf:', dict_erf)
+                    logger.debug('clear dict_add and dict_erf, ')
+                    logger.debug('dict_add: {}'.format(dict_add))
+                    logger.debug('dict_erf: {}'.format(dict_erf))
                     got_match_mul = False
                     dict_div = {}
                     dict_erf = {}
@@ -127,12 +130,12 @@ def merge_gelu1(model):
 
                     got_match_mul = True
 
-                    print('got second pair:', dict_mul['input'], dict_mul['output'])
+                    logger.debug('got second pair: {} {}'.format(dict_mul['input'], dict_mul['output']))
                 elif got_match_mul == True:
                     if node.input[0] == dict_mul['output'][0]:
                         mulB = values.get_init_value(model, node.input[1])
                         if isinstance(mulB, list) and mulB == []:
-                            print('mulB is not in initilizer')
+                            logger.debug('mulB is not in initilizer')
                             mulB = values.get_constant_value(model, node.input[1])
                             if mulB == []:
                                 dict_div = {}
@@ -140,13 +143,13 @@ def merge_gelu1(model):
                                 dict_add = {}
                                 dict_mul = {}
                                 got_match_mul = False
-                                print('mulB is not in constant node list~')
+                                logger.debug('mulB is not in constant node list~')
                                 continue
 
-                        print('mulB:', mulB)
+                        logger.debug('mulB: {}'.format(mulB))
 
                         if abs(mulB[0] - 0.5) > 0.01:
-                            print('this is not the mul-node which we wanted(value B is not 1)...')
+                            logger.debug('this is not the mul-node which we wanted(value B is not 1)...')
                             got_match_mul = False
                             dict_div = {}
                             dict_erf = {}
@@ -156,7 +159,7 @@ def merge_gelu1(model):
 
                         if isinstance(mulB, np.ndarray) == True:
                             if mulB.shape != (1, ):
-                                print('this is not the mul-node which we wanted(shape is wrong)...')
+                                logger.debug('this is not the mul-node which we wanted(shape is wrong)...')
                                 dict_div = {}
                                 dict_erf = {}
                                 dict_add = {}
@@ -165,7 +168,7 @@ def merge_gelu1(model):
                                 continue
                         else:        
                             if len(mulB) != 1:
-                                print('this is not the mul-node which we wanted(list len is wrong)...')
+                                logger.debug('this is not the mul-node which we wanted(list len is wrong)...')
                                 dict_div = {}
                                 dict_erf = {}
                                 dict_add = {}
@@ -207,13 +210,13 @@ def merge_gelu1(model):
                         search = True
                         break           
                     else:
-                        print('----clear dict_div, dict_erf, dict_mul')
+                        logger.debug('----clear dict_div, dict_erf, dict_mul')
                         dict_div = {}
                         dict_erf = {}
                         dict_add = {}
                         got_match_mul = False             
                 else:
-                    print('+++clear dict_div, dict_erf, dict_mul')
+                    logger.debug('+++clear dict_div, dict_erf, dict_mul')
                     dict_div = {}
                     dict_erf = {}
                     dict_add = {}
@@ -230,7 +233,7 @@ def merge_gelu1(model):
 
 class MergeGelu():
     def __init__(self, model):
-        print('MergeGelu Init--------------------------')
+        logger.debug('MergeGelu Init--------------------------')
         self.model = model
         self.got_gelu = False
         self.search = True
@@ -287,17 +290,17 @@ class MergeGelu():
                 if node.op_type == 'Pow':
                     powB = values.get_init_value(self.model, node.input[1])
                     if isinstance(powB, list) and powB == []:
-                        print('powB is not in initilizer')
+                        logger.debug('powB is not in initilizer')
                         powB = values.get_constant_value(self.model, node.input[1])
                         if powB == []:
-                            print('powB is not in constant node list')
+                            logger.debug('powB is not in constant node list')
                             self.clear()
                             continue
                         else:
-                            print('powB is', powB, type(powB))    
+                            logger.debug('powB is {} {}'.format(powB, type(powB)))    
 
                     if abs(powB[0] - 3.0) > 0.01:
-                        print('this is not the pow-node which we wanted(value B is not 3.0)...', powB[0])
+                        logger.debug('this is not the pow-node which we wanted(value B is not 3.0) {}'.format(powB[0]))
                         self.clear()
                         continue
 
@@ -305,26 +308,26 @@ class MergeGelu():
                     self.dict_pow['output'] = node.output
                     self.dict_pow['id'] = node_id
 
-                    print('got pow node:', node.name)
+                    logger.debug('got pow node: {}'.format(node.name))
 
                 if node.op_type == 'Mul':
                     if self.got_mul1 == False:
                         if self.dict_pow and node.input[1] == self.dict_pow['output'][0]:
                             mulA = values.get_init_value(self.model, node.input[0])
-                            print('mulA:', mulA)
+                            logger.debug('mulA: {}'.format(mulA))
 
                             if isinstance(mulA, list) and mulA == []:
-                                print('mulA is not in initilizer')
+                                logger.debug('mulA is not in initilizer')
                                 mulA = values.get_constant_value(self.model, node.input[1])
                                 if mulA == []:
-                                    print('mulA is not in constant node list')
+                                    logger.debug('mulA is not in constant node list')
                                     self.clear()
                                     continue
                                 else:
-                                    print('mulA is', mulA, type(mulA))    
+                                    logger.debug('mulA is {} {}'.format(mulA, type(mulA)))    
 
                             if abs(mulA[0] - 0.0447) > 0.01:
-                                print('this is not the mul-node which we wanted(value B is not 0.0447)...')
+                                logger.debug('this is not the mul-node which we wanted(value B is not 0.0447)...')
                                 self.clear()
                                 continue
 
@@ -332,30 +335,30 @@ class MergeGelu():
                             self.dict_mul1['output'] = node.output
                             self.dict_mul1['id'] = node_id
 
-                            print('got mul1 node:', node.name)
+                            logger.debug('got mul1 node: {}'.format(node.name))
 
                             self.got_mul1 = True
                         else:
-                            print('---self.clear 1')
+                            logger.debug('---self.clear 1')
                             self.clear()
                     else:
                         if self.got_mul2 == False:
                             if self.dict_add1 and node.input[1] == self.dict_add1['output'][0]:
                                 mulA = values.get_init_value(self.model, node.input[0])
-                                print('mulA:', mulA)
+                                logger.debug('mulA: {}'.format(mulA))
 
                                 if isinstance(mulA, list) and mulA == []:
-                                    print('mulA is not in initilizer')
+                                    logger.debug('mulA is not in initilizer')
                                     mulA = values.get_constant_value(self.model, node.input[1])
                                     if mulA == []:
-                                        print('mulA is not in constant node list')
+                                        logger.debug('mulA is not in constant node list')
                                         self.clear()
                                         continue
                                     else:
-                                        print('mulA is', mulA, type(mulA))    
+                                        logger.debug('mulA is {} {}'.format(mulA, type(mulA)))    
 
                                 if abs(mulA[0] - 0.79788) > 0.01:
-                                    print('this is not the mul-node which we wanted(value B is not 0.79788)...')
+                                    logger.debug('this is not the mul-node which we wanted(value B is not 0.79788)...')
                                     self.clear()
                                     continue
 
@@ -364,28 +367,28 @@ class MergeGelu():
                                 self.dict_mul2['id'] = node_id
                                 self.got_mul2 = True
 
-                                print('got mul2 node:', node.name)
+                                logger.debug('got mul2 node: {}'.format(node.name))
                             else:
-                                print('self.clear 2')
+                                logger.debug('self.clear 2')
                                 self.clear()
                         else:
                             if self.got_mul3 == False:
                                 if self.dict_add2 and node.input[1] == self.dict_add2['output'][0]:
                                     mulA = values.get_init_value(self.model, node.input[0])
-                                    print('mulA:', mulA)
+                                    logger.debug('mulA: {}'.format(mulA))
 
                                     if isinstance(mulA, list) and mulA == []:
-                                        print('mulA is not in initilizer')
+                                        logger.debug('mulA is not in initilizer')
                                         mulA = values.get_constant_value(self.model, node.input[1])
                                         if mulA == []:
-                                            print('mulA is not in constant node list')
+                                            logger.debug('mulA is not in constant node list')
                                             self.clear()
                                             continue
                                         else:
-                                            print('mulA is', mulA, type(mulA))    
+                                            logger.debug('mulA is {} {}'.format(mulA, type(mulA)))    
 
                                     if abs(mulA[0] - 0.5) > 0.01:
-                                        print('this is not the mul-node which we wanted(value B is not 0.5)...')
+                                        logger.debug('this is not the mul-node which we wanted(value B is not 0.5)...')
                                         self.clear()
                                         continue
 
@@ -394,15 +397,15 @@ class MergeGelu():
                                     self.dict_mul3['id'] = node_id
                                     self.got_mul3 = True
 
-                                    print('got mul3 node:', node.name)
+                                    logger.debug('got mul3 node: {}'.format(node.name))
                                 else: 
-                                    print('self.clear 3') 
+                                    logger.debug('self.clear 3') 
                                     self.clear()
                             elif self.got_mul4 == False:
                                 if self.dict_pow and self.dict_mul3 and node.input[0] == self.dict_pow['input'][0] and \
                                         node.input[1] == self.dict_mul3['output'][0]:
                                     
-                                    print('got gelu node, begin fusing...')
+                                    logger.debug('got gelu node, begin fusing...')
 
                                     self.dict_mul4['input'] = node.input
                                     self.dict_mul4['output'] = node.output
@@ -442,9 +445,9 @@ class MergeGelu():
                             self.dict_add1['output'] = node.output
                             self.dict_add1['id'] = node_id
                             self.got_add1 = True
-                            print('got add1 node:', node.name)
+                            logger.debug('got add1 node: {}'.format(node.name))
                         else:
-                            print('self.clear 4')
+                            logger.debug('self.clear 4')
                             self.clear()      
                     else:
                         if self.got_add2 == False:
@@ -452,17 +455,17 @@ class MergeGelu():
                                 addA = values.get_init_value(self.model, node.input[0])
 
                                 if isinstance(addA, list) and addA == []:
-                                    print('addA is not in initilizer')
+                                    logger.debug('addA is not in initilizer')
                                     addA = values.get_constant_value(self.model, node.input[1])
                                     if addA == []:
-                                        print('addA is not in constant node list')
+                                        logger.debug('addA is not in constant node list')
                                         self.clear()
                                         continue
                                     else:
-                                        print('addA is', addA, type(addA))    
+                                        logger.debug('addA is {} {}'.format(addA, type(addA)))    
 
                                 if abs(addA[0] - 1.0) > 0.01:
-                                    print('this is not the mul-node which we wanted(value B is not 1.0)...')
+                                    logger.debug('this is not the mul-node which we wanted(value B is not 1.0)...')
                                     self.clear()
                                     continue
 
@@ -471,12 +474,12 @@ class MergeGelu():
                                 self.dict_add2['id'] = node_id
                                 self.got_add2 = True
 
-                                print('got add2 node:', node.name)
+                                logger.debug('got add2 node: {}'.format(node.name))
                             else:
-                                print('self.clear 5')
+                                logger.debug('self.clear 5')
                                 self.clear()          
                         else:
-                            print('got add1 and add2 already----')
+                            logger.debug('got add1 and add2 already----')
 
                 if node.op_type == 'Tanh':
                     if self.got_add1 == True and self.got_mul1 == True and self.got_mul2 == True:
@@ -484,12 +487,12 @@ class MergeGelu():
                             self.dict_tanh['input'] = node.input
                             self.dict_tanh['output'] = node.output
                             self.dict_tanh['id'] = node_id
-                            print('got tanh node:', node.name)
+                            logger.debug('got tanh node: {}'.format(node.name))
                         else:
-                            print('self.clear 6')
+                            logger.debug('self.clear 6')
                             self.clear()      
                     else:
-                        print('self.clear 7')
+                        logger.debug('self.clear 7')
                         self.clear()
 
         if self.got_gelu == True:
