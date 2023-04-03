@@ -4,16 +4,19 @@ import argparse
 import values, sys
 import numpy as np       
 from onnx import onnx_pb as onnx_proto
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 def make_fp32_tensor_from_fp16(fp16_tensor, fp32_tensor_name):
     float_list = []
     if fp16_tensor.int32_data:
-        print('make_fp32_tensor_from_fp16, int32_data')
+        logger.debug('make_fp32_tensor_from_fp16, int32_data')
         num = np.array(fp16_tensor.int32_data)
         float_list = num.astype(np.float_).tolist()
 
     if fp16_tensor.raw_data:
-        print('make_fp32_tensor_from_fp16, raw_data')
+        logger.debug('make_fp32_tensor_from_fp16, raw_data')
         float_list = np.fromstring(fp16_tensor.raw_data, dtype='float16')
         num = np.array(float_list)
         float_list = num.astype(np.float_).tolist()
@@ -35,7 +38,7 @@ def is_unused_init(model, init):
 def remove_unused_initializer(model, unused_init_list):
     for init in unused_init_list:
         if is_unused_init(model, init):
-            print('remove unused init:', init.name)
+            logger.debug('remove unused init: {}'.format(init.name))
             model.graph.initializer.remove(init)
 
 def remove_invalid_sub_node(model):
@@ -64,7 +67,7 @@ def remove_invalid_sub_node(model):
 
 class MergeLNPattern1():
     def __init__(self, model):
-        print('MergeLNPattern1 Init--------------------------')
+        logger.debug('MergeLNPattern1 Init')
         self.model = model
         self.got_ln = False
         self.search = True
@@ -127,15 +130,15 @@ class MergeLNPattern1():
                             for attr in attributes:
                                 if attr.name == 'axes':
                                     self.rm2_axes = attr.ints
-                                    print('self.rm2_axes: ', self.rm2_axes)
+                                    logger.debug('self.rm2_axes: {}'.format(self.rm2_axes))
                                     if len(self.rm2_axes) != 1 or self.rm2_axes != self.rm1_axes:
-                                        print('--This ReduceMean IsNot we are looking for...')
+                                        logger.debug('--This ReduceMean IsNot we are looking for...')
                                         self.clear()
                         else: 
-                            print('self.clear ReduceMean Sub Pow')
-                            print('self.dict_rm:', self.dict_rm)
-                            print('self.dict_sub:', self.dict_sub)
-                            print('self.dict_pow:', self.dict_pow)
+                            logger.debug('self.clear ReduceMean Sub Pow')
+                            logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                            logger.debug('self.dict_sub: {}'.format(self.dict_sub))
+                            logger.debug('self.dict_pow: {}'.format(self.dict_pow))
                             self.clear()
     
                     else: 
@@ -147,9 +150,9 @@ class MergeLNPattern1():
                         for attr in attributes:
                             if attr.name == 'axes':
                                 self.rm1_axes = attr.ints
-                                print('self.rm1_axes: ', self.rm1_axes)
+                                logger.debug('self.rm1_axes: {}'.format(self.rm1_axes))
                                 if len(self.rm1_axes) != 1:
-                                    print('This ReduceMean IsNot we are looking for...')
+                                    logger.debug('This ReduceMean IsNot we are looking for...')
                                     self.clear()
 
                                 break
@@ -159,31 +162,31 @@ class MergeLNPattern1():
                         self.dict_sub['input'] = node.input
                         self.dict_sub['output'] = node.output
                         self.dict_sub['id'] = node_id
-                        print('got first pair:', self.dict_sub['input'], self.dict_sub['output'])
+                        logger.debug('got first pair: {} {}'.format(self.dict_sub['input'], self.dict_sub['output']))
                     else:
-                        print('self.clear ReduceMean, self.dict_rm:', self.dict_rm)
+                        logger.debug('self.clear ReduceMean, self.dict_rm: {}'.format(self.dict_rm))
                         self.clear()
 
                 if node.op_type == 'Pow':
                     if self.dict_rm and self.dict_sub and node.input[0] == self.dict_sub['output'][0]:
                         v = values.get_init_value(self.model, node.input[1])
-                        print('pow exp:', v, type(v))
+                        logger.debug('pow exp: {} {}'.format(v, type(v)))
                         if v == 2:
                             self.ready = True
                             self.dict_pow['input'] = node.input
                             self.dict_pow['output'] = node.output
                             self.dict_pow['id'] = node_id
 
-                            print('got second pair:', self.dict_pow['input'], self.dict_pow['output'])
+                            logger.debug('got second pair: {} {}'.format(self.dict_pow['input'], self.dict_pow['output']))
                         else:
-                            print('--self.clear ReduceMean and Sub')
-                            print('--self.dict_rm:', self.dict_rm)
-                            print('--self.dict_sub:', self.dict_sub)
+                            logger.debug('--self.clear ReduceMean and Sub')
+                            logger.debug('--self.dict_rm: {}'.format(self.dict_rm))
+                            logger.debug('--self.dict_sub: {}'.format(self.dict_sub))
                             self.clear()     
                     else:
-                        print('self.clear ReduceMean and Sub')
-                        print('self.dict_rm:', self.dict_rm)
-                        print('self.dict_sub:', self.dict_sub)
+                        logger.debug('self.clear ReduceMean and Sub')
+                        logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                        logger.debug('self.dict_sub: {}'.format(self.dict_sub))
                         self.clear()
 
                 if node.op_type == 'Add':
@@ -195,7 +198,7 @@ class MergeLNPattern1():
 
                             self.search = True
                             self.got_ln = True
-                            print('Got a LayerNorm op')
+                            logger.debug('Got a LayerNorm op')
                             ###
                             rm_node = self.model.graph.node[self.dict_rm['id']]
                             sub_node = self.model.graph.node[self.dict_sub['id']]
@@ -257,24 +260,24 @@ class MergeLNPattern1():
 
                             break
                         else:
-                            print('--self.clear ReduceMean Sub Pow ReduceMean2')
-                            print('--self.dict_rm:', self.dict_rm)
-                            print('--self.dict_sub:', self.dict_sub)
-                            print('--self.dict_pow:', self.dict_pow)
-                            print('--self.dict_rm2:', self.dict_rm2)
+                            logger.debug('--self.clear ReduceMean Sub Pow ReduceMean2')
+                            logger.debug('--self.dict_rm: {}'.format(self.dict_rm))
+                            logger.debug('--self.dict_sub: {}'.format(self.dict_sub))
+                            logger.debug('--self.dict_pow: {}'.format(self.dict_pow))
+                            logger.debug('--self.dict_rm2: {}'.format(self.dict_rm2))
                             self.clear()
                     else:
                         if self.dict_rm and self.dict_sub and self.dict_pow and self.dict_rm2 and node.input[0] == self.dict_rm2['output'][0]:
                             self.dict_add['input'] = node.input
                             self.dict_add['output'] = node.output
                             self.dict_add['id'] = node_id
-                            print('got third pair:', self.dict_add['input'], self.dict_add['output'])
+                            logger.debug('got third pair: {} {}'.format(self.dict_add['input'], self.dict_add['output']))
                         else:
-                            print('self.clear ReduceMean Sub Pow ReduceMean2')
-                            print('self.dict_rm:', self.dict_rm)
-                            print('self.dict_sub:', self.dict_sub)
-                            print('self.dict_pow:', self.dict_pow)
-                            print('self.dict_rm2:', self.dict_rm2)
+                            logger.debug('self.clear ReduceMean Sub Pow ReduceMean2')
+                            logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                            logger.debug('self.dict_sub: {}'.format(self.dict_sub))
+                            logger.debug('self.dict_pow: {}'.format(self.dict_pow))
+                            logger.debug('self.dict_rm2: {}'.format(self.dict_rm2))
                             self.clear()
 
                 if node.op_type == 'Sqrt':
@@ -283,14 +286,14 @@ class MergeLNPattern1():
                         self.dict_sqrt['input'] = node.input
                         self.dict_sqrt['output'] = node.output
                         self.dict_sqrt['id'] = node_id
-                        print('got forth pair:', self.dict_sqrt['input'], self.dict_sqrt['output'])
+                        logger.debug('got forth pair: {} {}'.format(self.dict_sqrt['input'], self.dict_sqrt['output']))
                     else:
-                        print('self.clear ReduceMean Sub Pow ReduceMean2 Add')
-                        print('self.dict_rm:', self.dict_rm)
-                        print('self.dict_sub:', self.dict_sub)
-                        print('self.dict_pow:', self.dict_pow)
-                        print('self.dict_rm2:', self.dict_rm2)
-                        print('self.dict_add:', self.dict_add)
+                        logger.debug('self.clear ReduceMean Sub Pow ReduceMean2 Add')
+                        logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                        logger.debug('self.dict_sub: {}'.format(self.dict_sub))
+                        logger.debug('self.dict_pow: {}'.format(self.dict_pow))
+                        logger.debug('self.dict_rm2: {}'.format(self.dict_rm2))
+                        logger.debug('self.dict_add: {}'.format(self.dict_add))
                         self.clear()
 
                 if node.op_type == 'Div':
@@ -300,15 +303,15 @@ class MergeLNPattern1():
                         self.dict_div['input'] = node.input
                         self.dict_div['output'] = node.output
                         self.dict_div['id'] = node_id
-                        print('got fifth pair:', self.dict_div['input'], self.dict_div['output'])
+                        logger.debug('got fifth pair: {} {}'.format(self.dict_div['input'], self.dict_div['output']))
                     else:
-                        print('-self.clear ReduceMean Sub Pow ReduceMean2 Add Sqrt')
-                        print('self.dict_rm:', self.dict_rm)
-                        print('self.dict_sub:', self.dict_sub)
-                        print('self.dict_pow:', self.dict_pow)
-                        print('self.dict_rm2:', self.dict_rm2)
-                        print('self.dict_add:', self.dict_add)
-                        print('self.dict_sqrt:', self.dict_sqrt)
+                        logger.debug('-self.clear ReduceMean Sub Pow ReduceMean2 Add Sqrt')
+                        logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                        logger.debug('self.dict_sub: {}'.format(self.dict_sub))
+                        logger.debug('self.dict_pow: {}'.format(self.dict_pow))
+                        logger.debug('self.dict_rm2: {}'.format(self.dict_rm2))
+                        logger.debug('self.dict_add: {}'.format(self.dict_add))
+                        logger.debug('self.dict_sqrt: {}'.format(self.dict_sqrt))
                         self.clear()
 
                 if node.op_type == 'Mul':
@@ -319,17 +322,17 @@ class MergeLNPattern1():
                         self.dict_mul['id'] = node_id
                         self.ready2 = True
 
-                        print('got sixth pair:', self.dict_mul['input'], self.dict_mul['output'])
+                        logger.debug('got sixth pair: {} {}'.format(self.dict_mul['input'], self.dict_mul['output']))
                         #print('got scale:', scale)
                     else:
-                        print('--self.clear ReduceMean Sub Pow ReduceMean2 Add Sqrt Div')
-                        print('self.dict_rm:', self.dict_rm)
-                        print('self.dict_sub:', self.dict_sub)
-                        print('self.dict_pow:', self.dict_pow)
-                        print('self.dict_rm2:', self.dict_rm2)
-                        print('self.dict_add:', self.dict_add)
-                        print('self.dict_sqrt:', self.dict_sqrt)
-                        print('self.dict_mul:', self.dict_mul)
+                        logger.debug('--self.clear ReduceMean Sub Pow ReduceMean2 Add Sqrt Div')
+                        logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                        logger.debug('self.dict_sub: {}'.format(self.dict_sub))
+                        logger.debug('self.dict_pow: {}'.format(self.dict_pow))
+                        logger.debug('self.dict_rm2: {}'.format(self.dict_rm2))
+                        logger.debug('self.dict_add: {}'.format(self.dict_add))
+                        logger.debug('self.dict_sqrt: {}'.format(self.dict_sqrt))
+                        logger.debug('self.dict_mul: {}'.format(self.dict_mul))
                         self.clear()                           
 
         if self.got_ln == True:
@@ -355,7 +358,7 @@ class MergeLNPattern1():
 
 class MergeLNPattern2():
     def __init__(self, model):
-        print('MergeLNPattern2 Init--------------------------')
+        logger.debug('MergeLNPattern2 Init--------------------------')
         self.model = model
         self.got_ln = False
         self.search = True
@@ -387,7 +390,7 @@ class MergeLNPattern2():
         self.ready2 =  False
 
     def clear(self):
-        print('MergeLNPattern2 clear--------------------------')
+        logger.debug('MergeLNPattern2 clear--------------------------')
         self.unused_init_list = []
 
         self.dict_rm = {}
@@ -438,17 +441,17 @@ class MergeLNPattern2():
                                 for attr in attributes:
                                     if attr.name == 'axes':
                                         self.rm2_axes = attr.ints
-                                        print('self.rm2_axes: ', self.rm2_axes)
+                                        logger.debug('self.rm2_axes: {}'.format(self.rm2_axes))
                                         if len(self.rm2_axes) != 1 or self.rm2_axes != self.rm1_axes:
-                                            print('--This ReduceMean IsNot we are looking for...')
+                                            logger.debug('--This ReduceMean IsNot we are looking for...')
                                             self.clear()
                                         else:
                                             self.got_rm_axes = True    
                         else: 
-                            print('self.clear ReduceMean Sub Pow')
-                            print('self.dict_rm:', self.dict_rm)
-                            print('self.dict_sub:', self.dict_sub)
-                            print('self.dict_mul:', self.dict_mul)
+                            logger.debug('self.clear ReduceMean Sub Pow')
+                            logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                            logger.debug('self.dict_sub: {}'.format(self.dict_sub))
+                            logger.debug('self.dict_mul: {}'.format(self.dict_mul))
                             self.clear()    
                     else: 
                         self.dict_rm['input'] = node.input
@@ -460,9 +463,9 @@ class MergeLNPattern2():
                             for attr in attributes:
                                 if attr.name == 'axes':
                                     self.rm1_axes = attr.ints
-                                    print('self.rm1_axes: ', self.rm1_axes)
+                                    logger.debug('self.rm1_axes: {}'.format(self.rm1_axes))
                                     if len(self.rm1_axes) != 1:
-                                        print('This ReduceMean IsNot we are looking for...')
+                                        logger.debug('This ReduceMean IsNot we are looking for...')
                                         self.clear()
 
                                     break
@@ -474,24 +477,24 @@ class MergeLNPattern2():
                             self.dict_sub2['output'] = node.output
                             self.dict_sub2['id'] = node_id
                             self.ready2 = True
-                            print('got eighth pair:', self.dict_sub2['input'], self.dict_sub2['output'])
+                            logger.debug('got eighth pair: {} {}'.format(self.dict_sub2['input'], self.dict_sub2['output']))
                         else:
-                            print('---self.clear ReduceMean Sub Pow ReduceMean2 Add Sqrt')
-                            print('self.dict_rm:', self.dict_rm)
-                            print('self.dict_sub:', self.dict_sub)
-                            print('self.dict_mul:', self.dict_mul)
-                            print('self.dict_rm2:', self.dict_rm2)
-                            print('self.dict_add:', self.dict_add)
-                            print('self.dict_sqrt:', self.dict_sqrt)
+                            logger.debug('---self.clear ReduceMean Sub Pow ReduceMean2 Add Sqrt')
+                            logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                            logger.debug('self.dict_sub: {}'.format(self.dict_sub))
+                            logger.debug('self.dict_mul: {}'.format(self.dict_mul))
+                            logger.debug('self.dict_rm2: {}'.format(self.dict_rm2))
+                            logger.debug('self.dict_add: {}'.format(self.dict_add))
+                            logger.debug('self.dict_sqrt: {}'.format(self.dict_sqrt))
                             self.clear()
                     else:    
                         if self.dict_rm and node.input[0] == self.dict_rm['input'][0] and node.input[1] == self.dict_rm['output'][0]:
                             self.dict_sub['input'] = node.input
                             self.dict_sub['output'] = node.output
                             self.dict_sub['id'] = node_id
-                            print('got first pair:', self.dict_sub['input'], self.dict_sub['output'])
+                            logger.debug('got first pair: {} {}'.format(self.dict_sub['input'], self.dict_sub['output']))
                         else:
-                            print('---self.clear ReduceMean, self.dict_rm:', self.dict_rm, node.name)
+                            logger.debug('---self.clear ReduceMean, self.dict_rm: {} {}'.format(self.dict_rm, node.name))
                             self.clear()  
 
                 if node.op_type == 'Mul':
@@ -501,17 +504,17 @@ class MergeLNPattern2():
                             self.dict_mul3['output'] = node.output
                             self.dict_mul3['id'] = node_id
                             self.ready_for_sub = True
-                            print('got seventh pair:', self.dict_mul3['input'], self.dict_mul3['output'])
+                            logger.debug('got seventh pair: {} {}'.format(self.dict_mul3['input'], self.dict_mul3['output']))
                         elif  node.input[0] == self.dict_rm['input'][0] and node.input[1] == self.dict_mul2['output'][0]:
                             self.dict_mul4['input'] = node.input
                             self.dict_mul4['output'] = node.output
                             self.dict_mul4['id'] = node_id
                             self.ready_for_mul_third = True
-                            print('got nineth pair:', self.dict_mul4['input'], self.dict_mul4['output'])    
+                            logger.debug('got nineth pair: {} {}'.format(self.dict_mul4['input'], self.dict_mul4['output']))    
                         else:
-                            print('---self.clear ReduceMean and Sub')
-                            print('self.dict_rm:', self.dict_rm)
-                            print('self.dict_sub:', self.dict_sub)
+                            logger.debug('---self.clear ReduceMean and Sub')
+                            logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                            logger.debug('self.dict_sub: {}'.format(self.dict_sub))
                             self.clear()  
                     elif self.ready_for_mul_first == True and self.ready_for_mul_second == False and self.ready_for_mul_third == False:
                         if  node.input[0] == self.dict_div['output'][0]:
@@ -519,11 +522,11 @@ class MergeLNPattern2():
                             self.dict_mul2['output'] = node.output
                             self.dict_mul2['id'] = node_id
                             self.ready_for_mul_second = True
-                            print('got sixth pair:', self.dict_mul2['input'], self.dict_mul2['output'])
+                            logger.debug('got sixth pair: {} {}'.format(self.dict_mul2['input'], self.dict_mul2['output']))
                         else:
-                            print('---self.clear ReduceMean and Sub')
-                            print('self.dict_rm:', self.dict_rm)
-                            print('self.dict_sub:', self.dict_sub)
+                            logger.debug('---self.clear ReduceMean and Sub')
+                            logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                            logger.debug('self.dict_sub: {}'.format(self.dict_sub))
                             self.clear() 
                     else:    
                         if self.dict_rm and self.dict_sub and node.input[0] == self.dict_sub['output'][0]  and node.input[1] == self.dict_sub['output'][0]:
@@ -532,11 +535,11 @@ class MergeLNPattern2():
                             self.dict_mul['output'] = node.output
                             self.dict_mul['id'] = node_id
 
-                            print('got second pair:', self.dict_mul['input'], self.dict_mul['output'])   
+                            logger.debug('got second pair: {} {}'.format(self.dict_mul['input'], self.dict_mul['output']))   
                         else:
-                            print('self.clear ReduceMean and Sub')
-                            print('self.dict_rm:', self.dict_rm)
-                            print('self.dict_sub:', self.dict_sub)
+                            logger.debug('self.clear ReduceMean and Sub')
+                            logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                            logger.debug('self.dict_sub: {}'.format(self.dict_sub))
                             self.clear()
 
                 if node.op_type == 'Add':
@@ -548,7 +551,7 @@ class MergeLNPattern2():
 
                             self.search = True
                             self.got_ln = True
-                            print('Got a LayerNorm op')
+                            logger.debug('Got a LayerNorm op')
                             ###
                             rm_node = self.model.graph.node[self.dict_rm['id']]
                             sub_node = self.model.graph.node[self.dict_sub['id']]
@@ -570,7 +573,7 @@ class MergeLNPattern2():
                             else:
                                 axis_ = -1
 
-                            print('get axis_ = ', axis_)
+                            logger.debug('get axis_ = {}'.format(axis_))
 
                             scale_name = self.dict_mul2['input'][1]
                             beta_name = self.dict_sub2['input'][0]
@@ -621,24 +624,24 @@ class MergeLNPattern2():
 
                             break
                         else:
-                            print('--self.clear ReduceMean Sub Pow ReduceMean2')
-                            print('--self.dict_rm:', self.dict_rm)
-                            print('--self.dict_sub:', self.dict_sub)
-                            print('--self.dict_pow:', self.dict_pow)
-                            print('--self.dict_rm2:', self.dict_rm2)
+                            logger.debug('--self.clear ReduceMean Sub Pow ReduceMean2')
+                            logger.debug('--self.dict_rm: {}'.format(self.dict_rm))
+                            logger.debug('--self.dict_sub: {}'.format(self.dict_sub))
+                            logger.debug('--self.dict_pow: {}'.format(self.dict_pow))
+                            logger.debug('--self.dict_rm2: {}'.format(self.dict_rm2))
                             self.clear()
                     else:
                         if self.dict_rm and self.dict_sub and self.dict_mul and self.dict_rm2 and node.input[0] == self.dict_rm2['output'][0]:
                             self.dict_add['input'] = node.input
                             self.dict_add['output'] = node.output
                             self.dict_add['id'] = node_id
-                            print('got third pair:', self.dict_add['input'], self.dict_add['output'])
+                            logger.debug('got third pair: {} {}'.format(self.dict_add['input'], self.dict_add['output']))
                         else:
-                            print('self.clear ReduceMean Sub Mul ReduceMean2')
-                            print('self.dict_rm:', self.dict_rm)
-                            print('self.dict_sub:', self.dict_sub)
-                            print('self.dict_mul:', self.dict_mul)
-                            print('self.dict_rm2:', self.dict_rm2)
+                            logger.debug('self.clear ReduceMean Sub Mul ReduceMean2')
+                            logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                            logger.debug('self.dict_sub: {}'.format(self.dict_sub))
+                            logger.debug('self.dict_mul: {}'.format(self.dict_mul))
+                            logger.debug('self.dict_rm2: {}'.format(self.dict_rm2))
                             self.clear()
 
                 if node.op_type == 'Sqrt':
@@ -647,14 +650,14 @@ class MergeLNPattern2():
                         self.dict_sqrt['input'] = node.input
                         self.dict_sqrt['output'] = node.output
                         self.dict_sqrt['id'] = node_id
-                        print('got forth pair:', self.dict_sqrt['input'], self.dict_sqrt['output'])
+                        logger.debug('got forth pair: {} {}'.format(self.dict_sqrt['input'], self.dict_sqrt['output']))
                     else:
-                        print('self.clear ReduceMean Sub Pow ReduceMean2 Add')
-                        print('self.dict_rm:', self.dict_rm)
-                        print('self.dict_sub:', self.dict_sub)
-                        print('self.dict_mul:', self.dict_mul)
-                        print('self.dict_rm2:', self.dict_rm2)
-                        print('self.dict_add:', self.dict_add)
+                        logger.debug('self.clear ReduceMean Sub Pow ReduceMean2 Add')
+                        logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                        logger.debug('self.dict_sub: {}'.format(self.dict_sub))
+                        logger.debug('self.dict_mul: {}'.format(self.dict_mul))
+                        logger.debug('self.dict_rm2: {}'.format(self.dict_rm2))
+                        logger.debug('self.dict_add: {}'.format(self.dict_add))
                         self.clear()
 
                 if node.op_type == 'Reciprocal':
@@ -664,15 +667,15 @@ class MergeLNPattern2():
                         self.dict_div['output'] = node.output
                         self.dict_div['id'] = node_id
                         self.ready_for_mul_first = True
-                        print('got fifth pair:', self.dict_div['input'], self.dict_div['output'])
+                        logger.debug('got fifth pair: {} {}'.format(self.dict_div['input'], self.dict_div['output']))
                     else:
-                        print('----self.clear ReduceMean Sub Pow ReduceMean2 Add Sqrt')
-                        print('self.dict_rm:', self.dict_rm)
-                        print('self.dict_sub:', self.dict_sub)
-                        print('self.dict_mul:', self.dict_mul)
-                        print('self.dict_rm2:', self.dict_rm2)
-                        print('self.dict_add:', self.dict_add)
-                        print('self.dict_sqrt:', self.dict_sqrt)
+                        logger.debug('----self.clear ReduceMean Sub Pow ReduceMean2 Add Sqrt')
+                        logger.debug('self.dict_rm: {}'.format(self.dict_rm))
+                        logger.debug('self.dict_sub: {}'.format(self.dict_sub))
+                        logger.debug('self.dict_mul: {}'.format(self.dict_mul))
+                        logger.debug('self.dict_rm2: {}'.format(self.dict_rm2))
+                        logger.debug('self.dict_add: {}'.format(self.dict_add))
+                        logger.debug('self.dict_sqrt: {}'.format(self.dict_sqrt))
                         self.clear()
                     
         if self.got_ln == True:
@@ -690,7 +693,7 @@ class MergeLNPattern2():
 
 class MergeRMSLn():
     def __init__(self, model):
-        print('MergeRMSLn Init--------------------------')
+        logger.debug('MergeRMSLn Init--------------------------')
         self.model = model
         self.got_ln = False
         self.search = True

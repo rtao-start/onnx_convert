@@ -970,7 +970,7 @@ def convert_gap_2_ap(model):
             dict2 = {'name':v.name, 'shape':input_shape}
             node_list2.append(dict2)
 
-         print("+++++++++++ name:", v.name, input_shape)
+         #print("+++++++++++ name:", v.name, input_shape)
 
       for d in node_list:
          if d['op'] == 'GlobalAveragePool':

@@ -2,6 +2,9 @@ import onnx
 import sys
 import values
 import numpy as np
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 def merge_swish(model):
     dict_sm = {}
@@ -24,8 +27,8 @@ def merge_swish(model):
                 dict_mul['output'] = node.output
                 dict_mul['id'] = node_id
 
-                print('got swish pair:', dict_sm['input'], dict_sm['output'])
-                print('got swish pair:', dict_mul['input'], dict_mul['output'])
+                logger.debug('got swish pair: {} {}'.format(dict_sm['input'], dict_sm['output']))
+                logger.debug('got swish pair: {} {}'.format(dict_mul['input'], dict_mul['output']))
 
                 got_swish = True
 
@@ -48,7 +51,7 @@ def merge_swish(model):
                 dict_sm = {}
                 dict_mul = {} 
             else:
-                print('clear Sigmoid and Tanh')
+                logger.debug('clear Sigmoid and Tanh')
                 dict_sm = {}
 
     if got_swish == True:
@@ -79,8 +82,8 @@ def merge_hard_swish(model):
                 dict_mul['output'] = node.output
                 dict_mul['id'] = node_id
 
-                print('got hard_swish pair:', dict_sm['input'], dict_sm['output'])
-                print('got hard_swish pair:', dict_mul['input'], dict_mul['output'])
+                logger.debug('got hard_swish pair: {} {}'.format(dict_sm['input'], dict_sm['output']))
+                logger.debug('got hard_swish pair: {} {}'.format(dict_mul['input'], dict_mul['output']))
 
                 got_hard_swish = True
 
@@ -103,7 +106,7 @@ def merge_hard_swish(model):
                 dict_sm = {}
                 dict_mul = {} 
             else:
-                print('clear HardSigmoid')
+                logger.debug('clear HardSigmoid')
                 dict_sm = {}
 
     if got_hard_swish == True:
@@ -132,70 +135,70 @@ def merge_hard_swish2(model):
             found_add = False
             if node.op_type == 'Add':
                 addB = values.get_init_value(model, node.input[1])
-                print('addB:', addB)
+                logger.debug('addB: {}'.format(addB))
 
                 if isinstance(addB, list) and addB == []:
-                    print('addB is not in initilizer')
+                    logger.debug('addB is not in initilizer')
                     continue
 
                 if addB[0] != 3:
-                    print('this is not the add-node which we wanted(value B is not 3)...')
+                    logger.debug('this is not the add-node which we wanted(value B is not 3)...')
                     continue
 
                 if isinstance(addB, np.ndarray) == True:
                     if addB.shape != (1, ):
-                        print('this is not the add-node which we wanted(shape is wrong)...')
+                        logger.debug('this is not the add-node which we wanted(shape is wrong)...')
                         continue
                 else:        
                     if len(addB) != 1:
-                        print('this is not the add-node which we wanted(list len is wrong)...')
+                        logger.debug('this is not the add-node which we wanted(list len is wrong)...')
                         continue
 
                 dict_add['input'] = node.input
                 dict_add['output'] = node.output
                 dict_add['id'] = node_id
-                print('got match add node:', node.name)
+                logger.debug('got match add node: {}'.format(node.name))
 
             if node.op_type == 'Clip':
                 if dict_add and node.input[0] == dict_add['output'][0] and len(node.input) >= 3:
                     clip_min = values.get_init_value(model, node.input[1])
-                    print('clip_min:', clip_min)
+                    logger.debug('clip_min: {}'.format(clip_min))
 
                     clip_max = values.get_init_value(model, node.input[2])
-                    print('clip_max:', clip_max)
+                    logger.debug('clip_max: {}'.format(clip_max))
 
                     if (isinstance(clip_min, list) and clip_min == []) or (isinstance(clip_max, list) and clip_max == []):
-                        print('clip_min or clip_max is not in initilizer')
+                        logger.debug('clip_min or clip_max is not in initilizer')
                         continue
 
                     if clip_min[0] != 0:
-                        print('this is not the clip-node which we wanted(min is not 0)...')
+                        logger.debug('this is not the clip-node which we wanted(min is not 0)...')
                         dict_add = {}
                         continue
 
                     if isinstance(clip_min, np.ndarray) == True:
                         if clip_min.shape != (1, ):
-                            print('this is not the clip-node which we wanted(shape is wrong)...')
+                            logger.debug('this is not the clip-node which we wanted(shape is wrong)...')
                             dict_add = {}
                             continue
                     else:        
                         if len(clip_min) != 1:
-                            print('this is not the clip-node which we wanted(list len is wrong)...')
+                            logger.debug('this is not the clip-node which we wanted(list len is wrong)...')
                             dict_add = {}
                             continue    
 
                     if clip_max[0] != 6:
-                        print('this is not the clip-node which we wanted(max is not 6)...')
+                        logger.debug('this is not the clip-node which we wanted(max is not 6)...')
                         continue
 
                     if isinstance(clip_max, np.ndarray) == True:
                         if clip_max.shape != (1, ):
-                            print('this is not the clip-node which we wanted(shape is wrong)...')
+                            logger.debug('this is not the clip-node which we wanted(shape is wrong)...')
                             dict_add = {}
                             continue
                     else:        
                         if len(clip_max) != 1:
-                            print('this is not the clip-node which we wanted(list len is wrong)...')
+                            logger.debug('this is not the clip-node which we wanted(list len is wrong)...')
                             dict_add = {}
                             continue           
 
@@ -203,9 +206,9 @@ def merge_hard_swish2(model):
                     dict_clip['output'] = node.output
                     dict_clip['id'] = node_id
 
-                    print('got first pair:', dict_clip['input'], dict_clip['output'])
+                    logger.debug('got first pair: {} {}'.format(dict_clip['input'], dict_clip['output']))
                 else:
-                    print('clear dict_add:', dict_add)
+                    logger.debug('clear dict_add: {}'.format(dict_add))
                     dict_add = {}    
 
             if node.op_type == 'Mul':
@@ -214,12 +217,12 @@ def merge_hard_swish2(model):
                     dict_mul['output'] = node.output
                     dict_mul['id'] = node_id
 
-                    print('got second pair:', dict_mul['input'], dict_mul['output'])
+                    logger.debug('got second pair: {} {}'.format(dict_mul['input'], dict_mul['output']))
 
                 else:
-                    print('clear dict_add and dict_clip')
-                    print('dict_add:', dict_add)
-                    print('dict_clip:', dict_clip)
+                    logger.debug('clear dict_add and dict_clip')
+                    logger.debug('dict_add: {}'.format(dict_add))
+                    logger.debug('dict_clip: {}'.format(dict_clip))
                     dict_add = {}
                     dict_clip = {} 
 
@@ -230,19 +233,19 @@ def merge_hard_swish2(model):
                     dict_div['id'] = node_id
 
                     divB = values.get_init_value(model, node.input[1])
-                    print('divB:', divB)
+                    logger.debug('divB: {}'.format(divB))
 
                     if divB[0] != 6:
-                        print('this is not the div-node which we wanted(value B is not 6)...')
+                        logger.debug('this is not the div-node which we wanted(value B is not 6)...')
                         continue
 
                     if isinstance(divB, np.ndarray) == True:
                         if divB.shape != (1, ):
-                            print('this is not the div-node which we wanted(shape is wrong)...')
+                            logger.debug('this is not the div-node which we wanted(shape is wrong)...')
                             continue
                     else:        
                         if len(divB) != 1:
-                            print('this is not the div-node which we wanted(list len is wrong)...')
+                            logger.debug('this is not the div-node which we wanted(list len is wrong)...')
                             continue
 
                     ###################################
@@ -277,10 +280,10 @@ def merge_hard_swish2(model):
                     search = True
                     break       
                 else:
-                    print('clear dict_add and dict_clip, ')
-                    print('dict_add:', dict_add)
-                    print('dict_clip:', dict_clip)
-                    print('dict_mul:', dict_mul)
+                    logger.debug('clear dict_add and dict_clip')
+                    logger.debug('dict_add: {}'.format(dict_add))
+                    logger.debug('dict_clip: {}'.format(dict_clip))
+                    logger.debug('dict_mul: {}'.format(dict_mul))
                     dict_add = {}
                     dict_clip = {}
                     dict_mul = {} 

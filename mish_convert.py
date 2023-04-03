@@ -1,6 +1,9 @@
 import onnx
 import sys
 import argparse
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 def merge_mish_old(onnxfile, export_onnx):
     model = onnx.load(onnxfile)
@@ -19,7 +22,7 @@ def merge_mish_old(onnxfile, export_onnx):
 
         if got_mish == True:
             if dict_mul['output'][0] in node.input:
-                print('got next node----')
+                logger.debug('got next node----')
                 dict_mish_next['input'] = node.input
                 dict_mish_next['output'] = node.output
                 dict_mish_next['id'] = node_id
@@ -39,14 +42,14 @@ def merge_mish_old(onnxfile, export_onnx):
                 dict_tanh['input'] = node.input
                 dict_tanh['output'] = node.output
                 dict_tanh['id'] = node_id
-                print('got first pair:', dict_tanh['input'], dict_tanh['output'])
+                logger.debug('got first pair: {} {}'.format(dict_tanh['input'], dict_tanh['output']))
             else:
-                print('clear Softplus')
+                logger.debug('clear Softplus')
                 dict_sp = {}    
 
         if node.op_type == 'Mul':
             if dict_sp and dict_tanh and node.input[1] == dict_tanh['output'][0] and node.input[0] == dict_sp['input'][0]:
-                print('got second pair:', dict_tanh['output'])
+                logger.debug('got second pair: {}'.format(dict_tanh['output']))
                 dict_mul['input'] = node.input
                 dict_mul['output'] = node.output
                 dict_mul['id'] = node_id
@@ -106,9 +109,9 @@ def merge_mish(model):
                     dict_tanh['input'] = node.input
                     dict_tanh['output'] = node.output
                     dict_tanh['id'] = node_id
-                    print('got first pair:', dict_tanh['input'], dict_tanh['output'])
+                    logger.debug('got first pair: {} {}'.format(dict_tanh['input'], dict_tanh['output']))
                 else:
-                    print('clear Softplus, dict_sp:', dict_sp)
+                    logger.debug('clear Softplus, dict_sp: {}'.format(dict_sp))
                     dict_sp = {}    
 
             if node.op_type == 'Mul':
@@ -117,7 +120,7 @@ def merge_mish(model):
                     dict_mul['output'] = node.output
                     dict_mul['id'] = node_id
 
-                    print('got second pair:', dict_mul['input'], dict_mul['output'])
+                    logger.debug('got second pair: {} {}'.format(dict_mul['input'], dict_mul['output']))
 
                     got_mish = True
 
@@ -151,9 +154,9 @@ def merge_mish(model):
                     search = True
                     break
                 else:
-                    print('clear Softplus and Tanh')
-                    print('dict_sp:', dict_sp)
-                    print('dict_tanh:', dict_tanh)
+                    logger.debug('clear Softplus and Tanh')
+                    logger.debug('dict_sp: {}'.format(dict_sp))
+                    logger.debug('dict_tanh: {}'.format(dict_tanh))
                     dict_sp = {}
                     dict_tanh = {} 
 
