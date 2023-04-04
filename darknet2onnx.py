@@ -5,7 +5,9 @@ from onnx import helper
 from onnx import TensorProto
 import numpy as np
 import argparse, sys
+import log
 
+logger = log.getLogger(__name__, log.INFO)
 
 class DarkNetParser(object):
     def __init__(self, supported_layers):
@@ -360,7 +362,7 @@ class WeightLoader(object):
         name = resize_params.generate_param_name()
         shape = resize_params.value.shape
         data = resize_params.value
-        print('load_resize_scales, shape:', shape, data)
+        logger.debug('load_resize_scales, shape: {} {}'.format(shape, data))
         scale_init = helper.make_tensor(
             name, TensorProto.FLOAT, shape, data)
         scale_input = helper.make_tensor_value_info(
@@ -387,7 +389,7 @@ class WeightLoader(object):
         roi_shape = resize_params.roi.shape
         roi_data = resize_params.roi
 
-        print('load_resize_scales, shape:', shape, data)
+        logger.debug('load_resize_scales, shape: {} {}'.format(shape, data))
 
         roi_init = helper.make_tensor(
             roi_name, TensorProto.FLOAT, roi_shape, roi_data)
@@ -865,7 +867,7 @@ class GraphBuilderONNX(object):
                 inputs = [layer_name_mish]
                 layer_name_output = layer_name_mish
             else: #qiuzy add for mish mapping
-                print('mish mapping------------------------')
+                logger.debug('mish mapping')
                 layer_name_mish = layer_name + '_mish'
 
                 mish_node = helper.make_node(
@@ -1020,7 +1022,7 @@ class GraphBuilderONNX(object):
         previous_node_specs = self._get_previous_node_specs()
         inputs = [previous_node_specs.name]
 
-        print('_make_resize_node, scales:', scales, ', shape:', scales.shape)
+        logger.debug('_make_resize_node, scales: {}, shape: {}'.format(scales, scales.shape))
 
         channels = previous_node_specs.channels
         assert channels > 0
@@ -1053,7 +1055,7 @@ class GraphBuilderONNX(object):
         previous_node_specs = self._get_previous_node_specs()
         inputs = [previous_node_specs.name]
 
-        print('_make_resize_node, scales:', scales, ', shape:', scales.shape)
+        logger.debug('_make_resize_node, scales: {}, shape: {}'.format(scales, scales.shape))
 
         channels = previous_node_specs.channels
         assert channels > 0
@@ -1127,7 +1129,7 @@ class GraphBuilderONNX(object):
         self._nodes.append(transpose_node)
         inputs = [transpose_name]
         output_name = layer_name + '_reshape_2'
-        print('Got Reshape shape:', layer_dict['output_dims'])
+        logger.debug('Got Reshape shape: {}'.format(layer_dict['output_dims']))
         #qiuzy modify for dynamic batch
         #shape = np.array([layer_dict['output_dims'][0], -1, self.classes + 5]).astype(np.int64)
         shape = np.array([layer_dict['output_dims'][0], 3*layer_dict['output_dims'][2]*layer_dict['output_dims'][3], self.classes + 5]).astype(np.int64)
@@ -1196,13 +1198,13 @@ def main(cfg_file='yolov4.cfg', weights_file='yolov4.weights', output_file='yolo
     try:
         onnx.checker.check_model(yolo_model_def)
     except onnx.checker.ValidationError as e:
-        print('The model cannot be saved for: %s' % e)
+        logger.warning('The model cannot be saved for: {}'.format(e))
         if 'No' in str(e):
-            print('ignore mish warning, continue saving~')
+            logger.warning('ignore mish warning, continue saving~')
         else:
             sys.exit()    
     else:
-        print('Begin saving model...')
+        logger.info('Begin saving model...')
 
     if support_mish == 1:
         op_set = yolo_model_def.opset_import.add()

@@ -53,7 +53,7 @@ inputs_as_nchw = ''
 
 logger = log.getLogger('[MacaConverter]', log.INFO)
 file_handler = logging.FileHandler('./convert.log')
-file_handler.setLevel(logging.INFO)
+file_handler.setLevel(logging.CRITICAL)
 logger.addHandler(file_handler)
 
 from onnx import shape_inference, TensorProto, version_converter, numpy_helper
@@ -390,20 +390,20 @@ def get_caffe_files(model_path):
       else:
          prototxt_file = model_path + '/' + prototxt_file
          caffemodel_file = model_path + '/' + caffemodel_file
-      print('got prototxt_file:{}, caffemodel_file:{}'.format(prototxt_file, caffemodel_file))
+      logger.info('got prototxt_file:{}, caffemodel_file:{}'.format(prototxt_file, caffemodel_file))
    elif prototxt_cnt > 1 or caffemodel_cnt > 1:
       prototxt_file = ''
       caffemodel_file = ''
-      print('ERROR: prototxt_cnt > 1 or caffemodel_cnt > 1')
+      logger.error('ERROR: prototxt_cnt > 1 or caffemodel_cnt > 1')
    elif prototxt_cnt == 0 or caffemodel_cnt == 0:
       prototxt_file = ''
       caffemodel_file = ''
-      print('ERROR: No .prototxt file or no .caffemodel file')       
+      logger.error('ERROR: No .prototxt file or no .caffemodel file')       
    
    return prototxt_file, caffemodel_file  
 
 def convert_caffe2onnx(model_path, output, op_set):
-      print('Begin converting caffe to onnx...')
+      logger.info('Begin converting caffe to onnx...')
       prototxt_file, caffemodel_file = get_caffe_files(model_path)
 
       if prototxt_file == '' or caffemodel_file == '':
@@ -418,7 +418,7 @@ def convert_caffe2onnx(model_path, output, op_set):
       saveonnxmodel(onnxmodel, onnxmodel_path)
 
 def convert_sm2onnx(model_path, output, op_set):
-      print('Begin converting tf-savemodel to onnx...')
+      logger.info('Begin converting tf-savemodel to onnx...')
 
       try:
          import tensorflow
@@ -439,14 +439,14 @@ def convert_sm2onnx(model_path, output, op_set):
       
       if inputs_as_nchw != '':
          cmd += ' --inputs-as-nchw ' + inputs_as_nchw
-      print('convert_tfsm2onnx: ', cmd)
+      logger.info('convert_tfsm2onnx: {}'.format(cmd))
       r = os.system(cmd)
       if r != 0:
-         print('ERROR: convert_sm2onnx failed')
+         logger.error('ERROR: convert_sm2onnx failed')
          sys.exit(exit_code_sm2onnx)
 
 def convert_h52onnx(model_path, output, op_set):
-      print('Begin converting tf-savemodel to onnx...')
+      logger.info('Begin converting tf-savemodel to onnx...')
 
       try:
          import tensorflow
@@ -467,14 +467,14 @@ def convert_h52onnx(model_path, output, op_set):
       
       if inputs_as_nchw != '':
          cmd += ' --inputs-as-nchw ' + inputs_as_nchw
-      print('convert_tfh52onnx: ', cmd)
+      logger.info('convert_tfh52onnx: {}'.format(cmd))
       r = os.system(cmd)
       if r != 0:
-         print('ERROR: convert_h52onnx failed')
+         logger.error('ERROR: convert_h52onnx failed')
          sys.exit(exit_code_h52onnx)     
 
 def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
-      print('Begin converting tf-ckpt to onnx...')
+      logger.info('Begin converting tf-ckpt to onnx...')
 
       try:
          import tensorflow
@@ -497,15 +497,15 @@ def convert_ckpt2onnx(model_path, output, op_set, inputs, outputs):
       if inputs_as_nchw != '':
          cmd += ' --inputs-as-nchw ' + inputs_as_nchw
 
-      print('convert_ckpt2onnx: ', cmd)
+      logger.info('convert_ckpt2onnx: {}'.format(cmd))
 
       r = os.system(cmd)
       if r != 0:
-         print('ERROR: convert_ckpt2onnx failed')
+         logger.error('ERROR: convert_ckpt2onnx failed')
          sys.exit(exit_code_ckpt2onnx)   
 
 def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
-      print('Begin converting tf-graph to onnx...')
+      logger.info('Begin converting tf-graph to onnx...')
 
       try:
          import tensorflow
@@ -529,11 +529,11 @@ def convert_graph2onnx(model_path, output, op_set, inputs, outputs):
       if inputs_as_nchw != '':
          cmd += ' --inputs-as-nchw ' + inputs_as_nchw
 
-      print('convert_graph2onnx: ', cmd)
+      logger.info('convert_graph2onnx: {}'.format(cmd))
       
       r = os.system(cmd)
       if r != 0:
-         print('ERROR: convert_graph2onnx failed')
+         logger.error('ERROR: convert_graph2onnx failed')
          sys.exit(exit_code_pb2onnx)         
 
 def get_darknet_files(model_path):
@@ -559,15 +559,15 @@ def get_darknet_files(model_path):
          cfg_file = model_path + '/' + cfg_file
          weights_file = model_path + '/' + weights_file
 
-      print('got cfg_file:{}, weights_file:{}'.format(cfg_file, weights_file))
+      logger.info('got cfg_file:{}, weights_file:{}'.format(cfg_file, weights_file))
    elif cfg_cnt > 1 or weights_cnt > 1:
       cfg_file = ''
       weights_file = ''
-      print('ERROR: cfg_cnt > 1 or weights_cnt > 1')
+      logger.error('ERROR: cfg_cnt > 1 or weights_cnt > 1')
    elif cfg_cnt == 0 or weights_cnt == 0:
       cfg_file = ''
       weights_file = ''
-      print('ERROR: No .cfg file or no .weights file')   
+      logger.error('ERROR: No .cfg file or no .weights file')   
      
    return cfg_file, weights_file  
 
@@ -590,7 +590,7 @@ def ckpt2h5(trained_checkpoint_prefix):
 
 def convert_dn2onnx(model_path, output, op_set):
    global support_mish
-   print('Begin converting darknet to onnx...... support_mish:', support_mish)
+   logger.info('Begin converting darknet to onnx...... support_mish: {}'.format(support_mish))
    cfg_file, weights_file = get_darknet_files(model_path)
    if cfg_file == '' or weights_file == '':
       sys.exit(exit_code_no_darknet_cfg_or_weights)
@@ -610,26 +610,26 @@ def convert_dn2onnx(model_path, output, op_set):
          cmd = 'python ./darknet2onnx.py --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output
       else:
          cmd = 'python -m maca_converter.darknet2onnx --cfg_file ' + cfg_file + ' --weights_file ' + weights_file + ' --strides 32 16 8 ' + ' --neck FPN ' + ' --output_file ' + output
-   print('convert_dn2onnx: ', cmd)
+   logger.info('convert_dn2onnx: {}'.format(cmd))
 
    r = os.system(cmd)
    if r != 0:
-      print('ERROR: convert_dn2onnx failed')
+      logger.error('ERROR: convert_dn2onnx failed')
       sys.exit(exit_code_convert_darknet2onnx) 
 
 def convert_mish(model_path, output, op_set):
    global support_mish
-   print('Begin converting mish')
+   logger.info('Begin converting mish')
 
    if using_wheel == False:
       cmd = 'python ./mish_convert.py --onnx_file ' + model_path + ' --output_file ' + output
    else:
       cmd = 'python -m maca_converter.mish_convert --onnx_file ' + model_path + ' --output_file ' + output
    
-   print('convert_mish: ', cmd)
+   logger.info('convert_mish: {}'.format(cmd))
    r = os.system(cmd)
    if r != 0:
-      print('ERROR: convert_mish failed')
+      logger.error('ERROR: convert_mish failed')
       sys.exit(exit_code_fuse_mish)      
 
 def convert(model_path, model_type, output, op_set, input_shape_list, inputs, outputs, 
@@ -686,15 +686,15 @@ def optimization_op(model):
          break
 
    if delete == True:     
-      print('delete: ', delete_node_id)
+      log.debug('delete: {}'.format(delete_node_id))
       delete_node = model.graph.node[delete_node_id]
-      print('delete node op:', delete_node.op_type)
+      log.debug('delete node op: {}'.format(delete_node.op_type))
       next_node = model.graph.node[delete_node_id+1]
 
       for i, n_ in enumerate(next_node.input):
          #print('next input:', n_)
          if n_ == delete_node.output[0]:
-               print('got it:', n_)
+               log.debug('got it: {]}'.format(n_))
                next_node.input[i] = delete_node.input[0]
 
       model.graph.node.remove(delete_node)
@@ -703,14 +703,14 @@ def optimization_op(model):
       try:
          onnx.checker.check_model(model)
       except onnx.checker.ValidationError as e:
-         print('---The model cannot be saved for: %s' % e)
+         logger.warning('The model cannot be saved for: {}'.format(e))
          if 'No Op registered for Mish' in str(e):
-               print('ignore mish warning, continue saving~')
+               logger.warning('ignore mish warning, continue saving~')
          else:
-               print('ERROR: check model failed')
+               logger.error('ERROR: check model failed')
                sys.exit(exit_code_check_optimization_op)    
       else:
-         print('---Begin saving model...')
+         logger.info('---Begin saving model...')
 
       ###################
       #onnx.checker.check_model(model)
@@ -726,14 +726,14 @@ def correct_output_shape(model):
 
          dynamic_output_shape_ = any(d==-1 or d==0 for d in output_shape)
          if dynamic_output_shape_ == True:
-            print('The model output is dynamic, output:', output.name, output_shape)
+            logger.info('The model output is dynamic, output: {} {}'.format(output.name, output_shape))
             output.type.tensor_type.shape.dim[0].dim_value = 1
 
    for output in model.graph.output:
       if len(output.type.tensor_type.shape.dim) > 0:
          output_shape = output.type.tensor_type.shape.dim
          output_shape = [x.dim_value for x in output_shape]
-         print('The model output is dynamic, output_shape:', output_shape)
+         logger.debug('The model output is dynamic, output_shape: {}'.format(output_shape))
 
 def reset_model_value_info(model):
    model_bak = copy.deepcopy(model)
@@ -743,7 +743,7 @@ def reset_model_value_info(model):
    try:
       new_model = onnx.shape_inference.infer_shapes(model_bak)
    except BaseException as e:
-      print('reset_model_value_info, the model cannot be inferenced for: %s' % e)
+      logger.warning('reset_model_value_info, the model cannot be inferenced for: {}'.format(e))
       return model    
    else:
       new_model = onnx.shape_inference.infer_shapes(model_bak)
@@ -766,7 +766,7 @@ def reset_batch_size(model, input_batch, output_batch):
    try:
       new_model = onnx.shape_inference.infer_shapes(model)
    except BaseException as e:
-      print('reset_batch_size, the model cannot be inferenced for: %s' % e)
+      logger.warning('reset_batch_size, the model cannot be inferenced for: {}'.format(e))
       new_model = model    
    else:
       new_model = onnx.shape_inference.infer_shapes(new_model)
@@ -798,13 +798,13 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
 
             dynamic_input_shape_ = any(d==-1 or d==0 for d in input_shape)
             if dynamic_input_shape_ == True:
-               print('The model input is dynamic, input:', input_.name, input_shape)
+               logger.info('The model input is dynamic, input: {} {}'.format(input_.name, input_shape))
                input_shape[0] = 1
                if simplify_hw != '':
                   hw_list = simplify_hw.split(',')
                   input_shape[-1] = int(hw_list[1])
                   input_shape[-2] = int(hw_list[0])
-                  print('input_shape',input_shape)
+                  logger.debug('input_shape: {}'.format(input_shape))
 
                input_shapes_[input_.name] = input_shape
                #break
@@ -831,8 +831,7 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
             try:
                model_simp = reset_model_value_info(model_simp)
             except Exception as e:
-               print(e)
-               print('Cannot do reset_value operation~')
+               logger.warning('Cannot do reset_value operation~')
       else:   
          model_simp, check = simplify(onnx_model, dynamic_input_shape=False)
    else:
@@ -851,7 +850,7 @@ def modify_onnx2dynamic(onnx_model):
 
    for idx in range(len(onnx_model.graph.value_info)):
       if len(onnx_model.graph.value_info[idx].type.tensor_type.shape.dim) > 0:
-         print('value info name:', onnx_model.graph.value_info[idx].name)
+         logger.debug('value info name: {}'.format(onnx_model.graph.value_info[idx].name))
          dim_proto_input = onnx_model.graph.value_info[idx].type.tensor_type.shape.dim[0]
          # dim_proto_input.dim_param = 'bs'
          dim_proto_input.dim_value = -1   
@@ -868,24 +867,23 @@ def modify_onnx2dynamic(onnx_model):
       #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
       #         ", op:", node.op_type, ', len(input):', len(node.input))
       if node.op_type == 'Reshape':
-         print('Reshape, input:', node.input)
+         logger.debug('Reshape, input: {}'.format(node.input))
          if node.input[1] not in reshape_param:
             reshape_param.append(node.input[1])
 
    for n in reshape_param:
       for init in onnx_model.graph.initializer:
-         print('loop init.name:', init.name)
+         logger.info('loop init.name: {}'.format(init.name))
          if n == init.name:
-            print('got it in initializer:', n, init.int64_data)
+            logger.info('got it in initializer: {} {}'.format(n, init.int64_data))
             #init.int64_data[0] = -1
             dtype = init.data_type
             np_dtype = convert_ort_type_2_np(dtype)
             if init.raw_data:
                params_list = np.fromstring(init.raw_data, dtype=np_dtype)
-               print('len(params_list):', len(params_list))
+               logger.debug('len(params_list): {}'.format(len(params_list)))
                adjust = True
                for val in params_list:
-                  print('------ val:', val)
                   if val == -1:
                      adjust = False
 
@@ -895,10 +893,9 @@ def modify_onnx2dynamic(onnx_model):
             else:
                data_list = get_data_list(dtype, init)
                adjust = True
-               print('len(data_list):', len(data_list))
+               logger.debug('len(data_list): {}'.format(len(data_list)))
 
                for val in data_list:
-                  print('++++++ val:', val)
                   if val == -1:
                      adjust = False
 
@@ -910,7 +907,7 @@ def modify_onnx2dynamic(onnx_model):
       for node in onnx_model.graph.node:
          if node.op_type == 'Constant':
             if node.output[0] == n:
-               print('got constant output:', node.output)
+               logger.info('got constant output: {}'.format(node.output))
                attributes = node.attribute
                for attr in attributes:
                      if attr.name == 'value':
@@ -938,12 +935,12 @@ def modify_onnx2dynamic(onnx_model):
    except onnx.checker.ValidationError as e:
       print('*** The model cannot be modified for: %s' % e)
       if 'No Op registered for Mish' in str(e):
-         print('ignore mish warning, continue saving~')
+         logger.warning('ignore mish warning, continue saving~')
       else:
-         print('ERROR: check model failed in modify_onnx2dynamic')
+         logger.error('ERROR: check model failed in modify_onnx2dynamic')
          sys.exit(exit_code_check_modify_onnx2dynamic)    
    else:
-      print('*** The model is modified!')
+      logger.info('*** The model is modified!')
 
    return onnx_model
     
@@ -979,14 +976,14 @@ def convert_gap_2_ap(model):
 
       for d in node_list:
          if d['op'] == 'GlobalAveragePool':
-               print('op id:', d['id'], ', op input:', d['input'])
+               logger.debug('op id: {}, op input: {}'.format(d['id'], d['input']))
                for v in node_list2:
                   #print('v.name:', v['name'])
                   if d['input'][0] == v['name']:
-                     print('got GlobalAveragePool, shape:', v['shape'], v['name'])
+                     logger.debug('got GlobalAveragePool, shape: {} {}'.format(v['shape'], v['name']))
                      if v['shape'][2] <= 15 and v['shape'][3] <= 15:
                            need_convert = True
-                           print('GlobalAveragePool===>AveragePool......') 
+                           logger.info('GlobalAveragePool===>AveragePool......') 
                            old_node = model.graph.node[d['id']] 
                            model.graph.node.remove(old_node)
                            new_node = onnx.helper.make_node(
@@ -1004,14 +1001,14 @@ def convert_gap_2_ap(model):
          try:
             onnx.checker.check_model(model)
          except onnx.checker.ValidationError as e:
-            print('+++ The model cannot be saved for: %s' % e)
+            print('The model cannot be saved for: %s' % e)
             if 'No Op registered for Mish' in str(e):
-                  print('ignore mish warning, continue saving~')
+                  logger.warning('ignore mish warning, continue saving~')
             else:
-                  print('ERROR: check model failed in convert_gap_2_ap')
+                  logger.error('ERROR: check model failed in convert_gap_2_ap')
                   sys.exit(exit_code_check_convert_gap_2_ap)    
          else:
-            print('+++ Begin saving model...')
+            logger.info('+++ Begin saving model...')
 
          #onnx.save(model, onnxfile)
 
@@ -1030,7 +1027,7 @@ def post_process(new_model, inference_success, gap_to_ap):
    end_time1 = time.time()
 
    if debug_print == True:
-      print('optimization_op cost', end_time1 - start_time, ' seconds')
+      logger.info('optimization_op cost {} seconds'.format(end_time1 - start_time))
 
    debug_print = False
 
@@ -1038,12 +1035,12 @@ def post_process(new_model, inference_success, gap_to_ap):
       if inference_success == True:
          debug_print = convert_gap_2_ap(new_model)
       else:
-         print('Cannot do inference, so skip global_average_pool-->average_pool')    
+         logger.warning('Cannot do inference, so skip global_average_pool-->average_pool')    
 
    end_time2 = time.time()
 
    if debug_print == True:
-      print('convert_gap_2_ap cost', end_time2 - end_time1, ' seconds')  
+      logger.info('convert_gap_2_ap cost {} seconds'.format(end_time2 - end_time1))  
 
 def my_extract_model(
         input_path,  # type: Text
@@ -1078,7 +1075,7 @@ def my_extract_model(
    except onnx.checker.ValidationError as e:
       print('Extract warning:: %s' % e)
    else:
-      print('~~~~ Begin extracting model...')
+      logger.info('~~~~ Begin extracting model...')
 
    model = onnx.load(input_path)
 
@@ -1092,12 +1089,12 @@ def my_extract_model(
    except onnx.checker.ValidationError as e:
       print('Extracted warning: %s' % e)
    else:
-      print('^^^^ Finish extracting model...')
+      logger.info('^^^^ Finish extracting model...')
 
    return True   
 
 def extract_sub_graph(input_path, output_path, input_names, output_names):
-   print('input_names:', input_names, ', output_names:', output_names)
+   logger.info('input_names: {}, output_names: {}'.format(input_names, output_names))
    input_list = input_names.split(',')
    output_list = output_names.split(',')
    #onnx.utils.extract_model(input_path, output_path, input_list, output_list)
@@ -1179,15 +1176,15 @@ def process(args):
       fuse_hard_sigmoid = 0 
       fuse_gelu = 0
 
-   print('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
+   logger.info('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
    if model_type == 'tf-ckpt' or model_type == 'tf-graph' :
-      print('checkpoint:', inputs, outputs)
+      logger.debug('checkpoint: {} {}'.format(inputs, outputs))
 
-   print('---input_shape:', input_shape)
+   logger.info('---input_shape: {}'.format(input_shape))
 
    input_shape_list = input_shape.split('/') 
-   print('---input_shape_list:', input_shape_list) 
+   logger.info('---input_shape_list: {}'.format(input_shape_list)) 
 
    #input_shape = input_shape_list[0]  
 
@@ -1205,12 +1202,12 @@ def process(args):
          can_ignore_model_path = True
 
    if dynamic_paddle == False and can_ignore_model_path == False and not os.path.exists(model_path):
-      print('ERROR: {} is not exist'.format(model_path))
+      logger.error('ERROR: {} is not exist'.format(model_path))
       sys.exit(exit_code_model_not_exist)
 
    if model_type not in valid_model_type:
-      print('Valid mode type is {}'.format(valid_model_type))
-      print('ERROR: {} is not valid mode type'.format(model_type))
+      logger.error('Valid mode type is {}'.format(valid_model_type))
+      logger.error('ERROR: {} is not valid mode type'.format(model_type))
       sys.exit(exit_code_invalid_model_type)
 
    op_set_default = 11
@@ -1219,30 +1216,30 @@ def process(args):
       op_set_default = op_set
 
    if model_type == 'pytorch' and args.input_shape == '':
-      print('WARNNIG: when converting pytorch model, you must tell the input shape(ex: --input_shape [1, 3, 32, 32])')
-      print('WARNNIG: also, you should provide model definition file')
+      logger.warning('WARNNIG: when converting pytorch model, you must tell the input shape(ex: --input_shape [1, 3, 32, 32])')
+      logger.warning('WARNNIG: also, you should provide model definition file')
       sys.exit(exit_code_pytorch_no_input_shape)
 
    if (model_type == 'tf-ckpt' or model_type == 'tf-graph') and (args.inputs == '' or args.outputs == ''):
-      print('WARNNIG: When converting checkpoint/graph, you must tell the inputs(ex: --inputs input0:0,input1:0) and outputs(ex: --outputs output0:0)')
+      logger.warning('WARNNIG: When converting checkpoint/graph, you must tell the inputs(ex: --inputs input0:0,input1:0) and outputs(ex: --outputs output0:0)')
       sys.exit(exit_code_tensorflow_no_inputs_or_outputs)
 
    if extract_sub == 1:
       if args.inputs == '' or args.outputs == '':
-         print('WARNNIG: When extract sub graph, you must tell the inputs(ex: --inputs input0:0,input1:0) and outputs(ex: --outputs output0:0)')
+         logger.warning('WARNNIG: When extract sub graph, you must tell the inputs(ex: --inputs input0:0,input1:0) and outputs(ex: --outputs output0:0)')
          sys.exit(exit_code_extract_sub_no_inputs_or_outputs)
 
       if model_type != 'onnx':
-         print('WARNNING: only onnx model supports extracting...')
+         logger.warning('WARNNING: only onnx model supports extracting...')
          sys.exit(exit_code_model_type_not_onnx)
 
       r = extract_sub_graph(model_path, output, inputs, outputs)
       if r == True:
-         logger.info('Convert Success!')
+         logger.critical('Convert Success!')
          
       sys.exit(exit_code_normal)                
 
-   print('begin convert..')
+   logger.info('begin convert..')
 
    begin_time = time.time()
 
@@ -1264,7 +1261,7 @@ def process(args):
 
    end_time1 = time.time()
   
-   print('finish convert, it cost', end_time1 - begin_time, ' seconds')
+   logger.info('finish convert, it cost {} seconds'.format(end_time1 - begin_time))
 
    if model_type != 'onnx':
       model = onnx.load(output)
@@ -1273,7 +1270,7 @@ def process(args):
 
    if op_set != None :
       if model_type == 'onnx':
-         print('ONNX, add_value_info_for_constants...')
+         logger.info('ONNX, add_value_info_for_constants...')
          correct_batch_for_opset_convert(model)
          operation.add_value_info_for_constants(model)
          model = version_converter.convert_version(model, op_set)
@@ -1294,31 +1291,31 @@ def process(args):
       print('The model cannot be inferenced for: %s' % e)
       new_model = model    
    else:
-      print('Inference success---')
+      logger.info('Inference success---')
       inference_success = True
 
    #onnx.checker.check_model(new_model)
    try:
       onnx.checker.check_model(new_model)
    except BaseException as e: #onnx.checker.ValidationError as e:
-      print('ignore warning(check_model), continue saving~')  
+      logger.warning('ignore warning(check_model), continue saving~')  
    else:
-      print('### Begin saving model...')
+      logger.info('### Begin saving model...')
 
    #onnx.save(new_model, output)
 
    if dynamic_batch == 1:
-      print('modify model to dynamic batch...')
+      logger.info('modify model to dynamic batch...')
       new_model = modify_onnx2dynamic(new_model)
 
    end_time2 = time.time()
 
-   print('generate inference shape model, it cost', end_time2 - end_time1, ' seconds')
+   logger.info('generate inference shape model, it cost {} seconds'.format(end_time2 - end_time1))
 
    #post_process(new_model, inference_success, gap_to_ap)
 
    if simplify_model == 1 or simplify_model == 2:
-      print('begin doing simplify...')
+      logger.info('begin doing simplify...')
       new_model = model_simplify(new_model, simplify_model, simplify_hw)
 
    post_process(new_model, inference_success, gap_to_ap)
@@ -1339,12 +1336,12 @@ def process(args):
       if output_batch == 0:
          output_batch = -1
 
-      print('got batchs:', batchs)            
+      logger.info('got batchs: {}'.format(batchs))            
 
       new_model = reset_batch_size(new_model, input_batch, output_batch)
 
    if fuse_pad_pool == 1:
-      print('begin doing fuse_pad_to_pool...')
+      logger.info('begin doing fuse_pad_to_pool...')
       new_model = fuse.fuse_pad_to_pool(new_model)   
 
    '''
@@ -1369,13 +1366,13 @@ def process(args):
       if os.path.exists(preproc_yaml):
          new_model = preproc(new_model, preproc_yaml)
       else:
-         print(preproc_yaml, 'is not exist')    
+         logger.warning('pre_proc yaml file {} is not exist'.format(preproc_yaml))    
 
    if model_type == 'onnx' and postproc_yaml != '':
       if os.path.exists(postproc_yaml):
          new_model = postproc(new_model, postproc_yaml)
       else:
-         print(postproc_yaml, 'is not exist')
+         logger.warning('post_proc yaml file {} is not exist'.format(postproc_yaml))
 
    if bn_to_conv == 1 and simplify_model != 0:
       new_model = bn2conv.bn2conv(new_model)
@@ -1405,7 +1402,7 @@ def process(args):
       new_model = fp32_to_uint8(new_model)
 
    if fp32_to_fp16 == 1:
-      print('begin doing fp32-->fp16...')
+      logger.info('begin doing fp32-->fp16...')
       new_model = convert_float_to_float16(new_model, keep_io_types=True)
 
    delete = operation.eliminate_redundant_reshape(new_model)
@@ -1420,9 +1417,9 @@ def process(args):
 
    end_time3 = time.time()
 
-   print('The whole progress cost', end_time3 - begin_time, ' seconds')
+   logger.info('The whole progress cost {} seconds'.format(end_time3 - begin_time))
 
-   logger.info('Convert Success!')
+   logger.critical('Convert Success!')
 
 def usage():
     print('python model_convert.py --model_path ./my_model --model_type caffe --output ./c2o.onnx')
