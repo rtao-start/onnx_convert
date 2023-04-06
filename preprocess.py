@@ -42,7 +42,7 @@ def parse_yaml(yaml_file):
                     mean_list_ = n['mean']
                     if len(mean_list_) == 3 or len(mean_list_) == 1:
                         for n in mean_list_:
-                            mean_list.append(int(n))
+                            mean_list.append(n)
 
                         print('got mean values:', mean_list) 
 
@@ -130,21 +130,21 @@ def insert_preproc_node(model, preproc_dict):
     print('type(preproc_dict[mean])', type(preproc_dict['mean']))
 
     const_mean_r = onnx.helper.make_tensor(name='const_mean_r',
-                            data_type=onnx.TensorProto.UINT8,
+                            data_type=onnx.TensorProto.FLOAT,
                             dims=[1],
                             vals=[preproc_dict['mean'][0]])
 
     graph.initializer.append(const_mean_r) 
 
     const_mean_g = onnx.helper.make_tensor(name='const_mean_g',
-                            data_type=onnx.TensorProto.UINT8,
+                            data_type=onnx.TensorProto.FLOAT,
                             dims=[1],
                             vals=[preproc_dict['mean'][1]])
 
     graph.initializer.append(const_mean_g) 
 
     const_mean_b = onnx.helper.make_tensor(name='const_mean_b',
-                            data_type=onnx.TensorProto.UINT8,
+                            data_type=onnx.TensorProto.FLOAT,
                             dims=[1],
                             vals=[preproc_dict['mean'][2]])
 
