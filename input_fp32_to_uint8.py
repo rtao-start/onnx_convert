@@ -11,8 +11,15 @@ def get_all_node_by_input(model, input_):
 
 def fp32_to_uint8(model):
     index = 0
+    init_name_list = []
+    for init in model.graph.initializer:
+        init_name_list.append(init.name)
+
     for input_ in model.graph.input:
-        if 1==1: #input_.type.tensor_type.elem_type == 1: #float
+        if input_.name in init_name_list:
+            continue
+
+        if input_.type.tensor_type.elem_type == 1: #float
             input_name = input_.name
             output_name = 'mx_cast_output_' + str(index)
 

@@ -84,7 +84,6 @@ def eliminate_unused_constant_node(model):
          for d in constant_idx_name:
             if d['output'] in node.input:
                d['del'] = False
-               break
 
    for output in model.graph.output:
       for d in constant_idx_name:
