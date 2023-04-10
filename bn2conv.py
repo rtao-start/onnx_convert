@@ -1,6 +1,10 @@
 import onnx
 import values
 import numpy as np
+import log
+
+logger = log.getLogger(__name__, log.INFO)
+
 
 def bn2conv(model):
     for node in model.graph.node:
@@ -11,7 +15,7 @@ def bn2conv(model):
                 if node.input[0] == vi.name:
                     input_type = vi.type.tensor_type.elem_type
                     input_dims = len(vi.type.tensor_type.shape.dim)
-                    print('+++++++++++++++bn2conv, node.name:', node.name, input_type, input_dims)
+                    logger.debug('bn2conv, node.name: {} {} {}'.format(node.name, input_type, input_dims))
 
                     break
 
@@ -23,9 +27,9 @@ def bn2conv(model):
             for attr in attributes:
                 if attr.name == 'epsilon':
                     epsilon = attr.f
-                    print('epsilon:', epsilon)
+                    logger.debug('epsilon: {}'.format(epsilon))
 
-            print('node.name:', node.name, ', node.input:', node.input, ', node.output:', node.output) 
+            logger.debug('node.name: {}, node.input: {}, node.output: {}'.format(node.name, node.input, node.output)) 
 
             input_dict = {}
             for init in model.graph.initializer:
@@ -45,7 +49,7 @@ def bn2conv(model):
             var = input_dict[node.input[4]]
 
             input_channel = alpha.shape[0]
-            print('input_channel is', input_channel)
+            logger.debug('input_channel is {}'.format(input_channel))
 
             d_type = np.float32
             if input_type == onnx.TensorProto.FLOAT16:
@@ -67,7 +71,7 @@ def bn2conv(model):
             else:
                 w = w * scale.reshape([-1, 1, 1])  
 
-            print('w.shape', w.shape)
+            logger.debug('w.shape: {}'.format(w.shape))
 
             b = alpha * (b - mean) / np.sqrt(var + epsilon) + beta
 

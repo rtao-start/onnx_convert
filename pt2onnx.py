@@ -3,6 +3,9 @@ import importlib
 import importlib.util
 import numpy as np
 import version_check
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 try:
     import torch
@@ -49,7 +52,6 @@ def convert_to_np_type(data_type):
 
     return types.get(data_type, np.float32)
 
-
 def check_module(module_name):
     """
     Checks if module can be imported without actually
@@ -57,15 +59,15 @@ def check_module(module_name):
     """
     module_spec = importlib.util.find_spec(module_name)
     if module_spec is None:
-        print("Module: {} not found".format(module_name))
+        logger.warn("Module: {} not found".format(module_name))
         return None
     else:
-        print("Module: {} can be imported".format(module_name))
+        logger.info("Module: {} can be imported".format(module_name))
         return module_spec
 
 def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_list,
                            model_def_file, model_class_name, output_num, model_input_type, keep_batch, params_file):
-    print('Begin converting pytorch to onnx...')
+    logger.info('Begin converting pytorch to onnx...')
 
     if model_def_file != '':
         index = model_def_file.rindex('/')
@@ -79,23 +81,23 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
 
         module_find = check_module(params_file_module)
         if module_find != None:
-            print('+++ get module: ', module_find)
+            logger.info('+++ get module: {}'.format(module_find))
             module = importlib.import_module(params_file_module)
             obj = getattr(module, 'param_dict', None)
             if obj != None:
                 params = obj
             else:
-                print('Cannot get params from file:', params_file)
+                logger.error('Cannot get params from file: {}'.format(params_file))
                 sys.exit(-1)       
         else:
-            print('Cannot load params file:', params_file)
+            logger.error('Cannot load params file: {}'.format(params_file))
             sys.exit(-1)    
 
     input_type_list = []
     if model_input_type != '':
         input_type_list = model_input_type.split(',')
 
-    print('got input_type_list:', input_type_list)    
+    logger.info('got input_type_list: {}'.format(input_type_list))    
 
     #input_num = len(input_shape_list)
     input_shape_list_ = []
@@ -104,10 +106,10 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
         input_shape=input_shape.strip('[')
         input_shape=input_shape.strip(']')
         input_shape=input_shape.split(',')
-        print('got shape:', input_shape)
+        logger.info('got shape: {}'.format(input_shape))
         input_shape_list_.append(input_shape)
 
-    print('got input_shape_list:', input_shape_list_)
+    logger.info('got input_shape_list: {}'.format(input_shape_list_))
 
     input_shape_list_int = []
 
@@ -116,10 +118,10 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
         shape = [int(s) for s in input_shape]
         input_shape_list_int.append(shape)
 
-    print('got input_shape_list_int:', input_shape_list_int)
+    logger.info('got input_shape_list_int: {}'.format(input_shape_list_int))
 
     if len(input_type_list) > 0 and len(input_type_list) != len(input_shape_list_int):
-        print('Error: len of input_type_list != len of input_shape_list')
+        logger.error('Error: len of input_type_list != len of input_shape_list')
         sys.exit(-1)
 
     input_tensor_list = []
@@ -135,7 +137,7 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
         data_type = np.float32
         if len(input_type_list) > 0:
             data_type = convert_to_np_type(input_type_list[idx])
-            print('get data_type:', data_type)
+            logger.info('get data_type: {}'.format(data_type))
 
         data_array = np.array(np.random.random(input_shape), dtype=data_type)
         input_tensor_list.append(torch.from_numpy(data_array))
@@ -145,7 +147,7 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
 
     input_tensor_tuple = tuple(input_tensor_list)
 
-    print('---input_name_list:', input_name_list)
+    logger.info('---input_name_list: {}'.format(input_name_list))
 
     dynamic_axes_dict = {}
     if keep_batch == 0:
@@ -179,11 +181,11 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
         target_module = model_def_file.split('/')[-1]
         target_module = target_module.split('.')[-2]
 
-    print('convert_pt_model_and_params_2_onnx, target_module:', target_module)
+    logger.info('convert_pt_model_and_params_2_onnx, target_module: {}'.format(target_module))
 
     module_find = check_module(target_module)
     if module_find != None:
-        print('----get module: ', module_find)
+        logger.info('----get module: {}'.format(module_find))
         module = importlib.import_module(target_module)
         cls = getattr(module, model_class_name, None)
         if cls != None:
@@ -208,15 +210,15 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
                 dynamic_axes=dynamic_axes_dict #{'input_0':{0:'-1'}, 'output':{0:'-1'}}
             )
         else:
-            print('There is no', model_class_name, ' in', model_def_file)   
+            logger.warn('There is no {} in {}'.format(model_class_name, model_def_file))   
     else:
-        print('Cound not find', model_def_file)
+        logger.info('Cound not find {}'.format(model_def_file))
 
     #sys.exit() 
 
 def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
                            model_def_file, model_class_name, model_weights_file, output_num, model_input_type, keep_batch, params_file):
-    print('Begin converting pytorch state dict to onnx...')
+    logger.info('Begin converting pytorch state dict to onnx...')
 
     if model_def_file != '':
         index = model_def_file.rindex('/')
@@ -229,16 +231,16 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
         params_file_module = params_file_module.split('.')[-2]
         module_find = check_module(params_file_module)
         if module_find != None:
-            print('----get module: ', module_find)
+            logger.info('----get module: {}'.format(module_find))
             module = importlib.import_module(params_file_module)
             obj = getattr(module, 'param_dict', None)
             if obj != None:
                 params = obj
             else:
-                print('convert_pt_state_dict_2_onnx, Cannot get params from file:', params_file)
+                logger.info('convert_pt_state_dict_2_onnx, Cannot get params from file: {}'.format(params_file))
                 sys.exit(-1)       
         else:
-            print('convert_pt_state_dict_2_onnx, Cannot load params file:', params_file)
+            logger.error('convert_pt_state_dict_2_onnx, Cannot load params file: {}'.format(params_file))
             sys.exit(-1)    
 
     input_type_list = []
@@ -252,10 +254,10 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
         input_shape=input_shape.strip('[')
         input_shape=input_shape.strip(']')
         input_shape=input_shape.split(',')
-        print('got shape:', input_shape)
+        logger.info('got shape: {}'.format(input_shape))
         input_shape_list_.append(input_shape)
 
-    print('convert_pt_state_dict_2_onnx, got input_shape_list:', input_shape_list_)
+    logger.info('convert_pt_state_dict_2_onnx, got input_shape_list: {}'.format(input_shape_list_))
 
     input_shape_list_int = []
 
@@ -264,10 +266,10 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
         shape = [int(s) for s in input_shape]
         input_shape_list_int.append(shape)
 
-    print('convert_pt_state_dict_2_onnx, got input_shape_list_int:', input_shape_list_int)
+    logger.info('convert_pt_state_dict_2_onnx, got input_shape_list_int: {}'.format(input_shape_list_int))
 
     if len(input_type_list) > 0 and len(input_type_list) != len(input_shape_list_int):
-        print('Error:: len of input_type_list != len of input_shape_list')
+        logger.error('Error:: len of input_type_list != len of input_shape_list')
         sys.exit(-1)
 
     input_tensor_list = []
@@ -292,7 +294,7 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
 
     input_tensor_tuple = tuple(input_tensor_list)
 
-    print('convert_pt_state_dict_2_onnx, input_name_list:', input_name_list)
+    logger.info('convert_pt_state_dict_2_onnx, input_name_list: {}'.format(input_name_list))
 
     dynamic_axes_dict = {}
     if keep_batch == 0:
@@ -325,11 +327,11 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
         target_module = model_def_file.split('/')[-1]
         target_module = target_module.split('.')[-2]
 
-    print('convert_pt_state_dict_2_onnx, target_module:', target_module)
+    logger.info('convert_pt_state_dict_2_onnx, target_module: {}'.format(target_module))
 
     module_find = check_module(target_module)
     if module_find != None:
-        print('----get module: ', module_find)
+        logger.info('----get module: {}'.format(module_find))
         module = importlib.import_module(target_module)
         cls = getattr(module, model_class_name, None)
         if cls != None:
@@ -352,10 +354,9 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
                 dynamic_axes=dynamic_axes_dict #{'input':{0:'-1'}, 'output':{0:'-1'}}
             )
         else:
-            print('There is no', model_class_name, ' in', 
-            )   
+            print('There is no {} in {}'.format(model_class_name, model_def_file))   
     else:
-        print('Cound not find', model_def_file)
+        logger.warn('Cound not find {}'.format(model_def_file))
 
 def convert_pt2onnx(model_path, output, op_set, input_shape_list,
                            model_def_file, model_class_name, model_weights_file, output_num, 

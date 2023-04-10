@@ -3,6 +3,9 @@ import importlib.util
 import sys, os
 import version_check
 import subprocess
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 try:
     import paddle
@@ -57,14 +60,14 @@ def get_paddle_files(model_path):
                 pdmodel = model_path + '/' + pdmodel
                 pdiparams = model_path + '/' + pdiparams
 
-            print('got pdmodel:{}, pdiparams:{}'.format(pdmodel, pdiparams))
+            logger.info('got pdmodel:{}, pdiparams:{}'.format(pdmodel, pdiparams))
 
             break        
     
     return pdmodel, pdiparams  
 
 def convert_pdstatic2onnx(model_path, output, op_set):
-    print('Begin converting static paddle to onnx...')
+    logger.info('Begin converting static paddle to onnx...')
     if model_path.startswith('./'):
         cwd = os.getcwd()
         model_path = cwd + model_path[1:]    
@@ -77,7 +80,7 @@ def convert_pdstatic2onnx(model_path, output, op_set):
     cmd = 'paddle2onnx --model_dir ' + model_path + ' --opset_version ' + str(op_set) + ' --save_file ' + output \
             + ' --model_filename '  + pdmodel + ' --params_filename ' + pdiparams
 
-    print('convert_paddle2onnx: ', cmd)
+    logger.info('convert_paddle2onnx: {}'.format(cmd))
 
     os.system(cmd)
 
@@ -88,15 +91,15 @@ def check_module(module_name):
     """
     module_spec = importlib.util.find_spec(module_name)
     if module_spec is None:
-        print("Module: {} not found".format(module_name))
+        logger.warn("Module: {} not found".format(module_name))
         return None
     else:
-        print("Module: {} can be imported".format(module_name))
+        logger.warn("Module: {} can be imported".format(module_name))
         return module_spec
 
 def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
                            model_def_file, model_class_name, model_input_type, model_weights_file):
-    print('Begin converting dynamin paddle to onnx...')
+    logger.info('Begin converting dynamin paddle to onnx...')
     
     if model_def_file != '':
         index = model_def_file.rindex('/')
@@ -109,10 +112,10 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
         input_shape=input_shape.strip('[')
         input_shape=input_shape.strip(']')
         input_shape=input_shape.split(',')
-        print('convert_pddynamic2onnx, got shape:', input_shape)
+        logger.info('convert_pddynamic2onnx, got shape: {}'.format(input_shape))
         input_shape_list_.append(input_shape)
 
-    print('convert_pddynamic2onnx, got input_shape_list:', input_shape_list_)
+    logger.info('convert_pddynamic2onnx, got input_shape_list: {}'.format(input_shape_list_))
 
     input_shape_list_int = []
 
@@ -121,16 +124,16 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
         shape = [int(s) for s in input_shape]
         input_shape_list_int.append(shape)
 
-    print('convert_pddynamic2onnx, got input_shape_list_int:', input_shape_list_int)
+    logger.info('convert_pddynamic2onnx, got input_shape_list_int: {}'.format(input_shape_list_int))
 
     input_type_list = []
     if model_input_type != '':
         input_type_list = model_input_type.split(',')
 
-    print('convert_pddynamic2onnx, input_type_list', input_type_list)
+    logger.info('convert_pddynamic2onnx, input_type_list: {}'.format(input_type_list))
 
     if len(input_type_list) > 0 and len(input_type_list) != len(input_shape_list_int):
-        print('Error, len of input_type_list != len of input_shape_list')
+        logger.error('Error, len of input_type_list != len of input_shape_list')
         sys.exit(-1)
 
     input_spec_list = []
@@ -144,7 +147,7 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
         input_spec_list.append(input_spec)
 
     out=output.split('.onnx')[-2]
-    print('out is ', out)
+    logger.info('out is {}'.format(out))
 
     target_module = ''
     
@@ -165,11 +168,11 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
         target_module = model_def_file.split('/')[-1]
         target_module = target_module.split('.')[-2]
 
-    print('convert_pddynamic2onnx, target_module:', target_module)
+    logger.info('convert_pddynamic2onnx, target_module: {}'.format(target_module))
 
     module_find = check_module(target_module)
     if module_find != None:
-        print('----get module: ', module_find)
+        logger.info('----get module: {}'.format(module_find))
         module = importlib.import_module(target_module)
         cls = getattr(module, model_class_name, None)
         if cls != None:
@@ -179,9 +182,9 @@ def convert_pddynamic2onnx(model_path, output, op_set, input_shape_list,
             #input_spec = paddle.static.InputSpec(shape=in_shape, dtype=model_input_type, name='input')
             paddle.onnx.export(model, out, input_spec=input_spec_list, opset_version=op_set)
         else:
-            print('There is no', model_class_name, ' in', model_def_file)   
+            logger.warn('There is no {} in {}'.format(model_class_name, model_def_file))   
     else:
-        print('Cound not find', model_def_file)
+        logger.warn('Cound not find {}'.format(model_def_file))
 
     #sys.exit()    
 

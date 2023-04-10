@@ -1,12 +1,15 @@
 import onnx
 import values 
 import numpy as np
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 def remove_node(model, inputs, outputs):
     for node in model.graph.node:
         if node.input == inputs and node.output == outputs:
             model.graph.node.remove(node)
-            print('remove node:', node.name)
+            logger.debug('remove node: {}'.format(node.name))
             break
 
 def is_unused_init(model, init):
@@ -19,13 +22,13 @@ def is_unused_init(model, init):
 def remove_unused_initializer_list(model, unused_init_list):
     for init in unused_init_list:
         if is_unused_init(model, init):
-            print('remove unused init:', init.name)
+            logger.debug('remove unused init: {}'.format(init.name))
             model.graph.initializer.remove(init) 
 
 def remove_unused_initializer(model):
     for init in model.graph.initializer:
         if is_unused_init(model, init):
-            print('---remove unused init:', init.name)
+            logger.debug('---remove unused init: {}'.format(init.name))
             model.graph.initializer.remove(init)                        
 
 def eliminate_unused_input_initializer(model):
@@ -60,20 +63,20 @@ def eliminate_unused_input_initializer(model):
          need_eliminate = True
 
    if need_eliminate == True:
-      print('Now eliminate invalid initializer in input')
+      logger.debug('Now eliminate invalid initializer in input')
 
       del model.graph.input[:]
 
       model.graph.input.extend(vip)
 
       for input in model.graph.input:
-         print('last input:', input.name)
+         logger.debug('last input: {}'.format(input.name))
 
 def eliminate_unused_constant_node(model):
    constant_idx_name = []
    for node in model.graph.node:
       if node.op_type == 'Constant':
-         print('eliminate_unused_constant_node, node.name:', node.name)
+         logger.debug('eliminate_unused_constant_node, node.name: {}'.format(node.name))
          dict_ = {}
          dict_['output'] = node.output[0]
          dict_['del'] = True
@@ -113,7 +116,7 @@ def eliminate_redundant_reshape(model):
       #   ", op:", node.op_type, ', len(input):', len(node.input))
 
       if node.op_type == 'Reshape':
-         print('eliminate_redundant_reshape, got Reshape node:', node.input)
+         logger.debug('eliminate_redundant_reshape, got Reshape node: {}'.format(node.input))
          reshape_input.extend(node.input)
          reshape_output.extend(node.output)
          delete_node_id = node_id
@@ -125,7 +128,7 @@ def eliminate_redundant_reshape(model):
 
       for v in model.graph.value_info:
          if v.name == reshape_input[0]:
-               print('got value info:', reshape_input) 
+               logger.debug('got value info: {}'.format(reshape_input)) 
                got_value = True
                for d in v.type.tensor_type.shape.dim:
                   reshape_input_shape.append(d.dim_value)
@@ -152,20 +155,20 @@ def eliminate_redundant_reshape(model):
                            shape_list.append(p)
 
                   if reshape_input_shape == shape_list and len(shape_list) > 0:
-                     print('need eliminate_reshape')
+                     logger.debug('need eliminate_reshape')
                      delete = True
 
                   break            
 
    if delete == True:     
-      print('eliminate_redundant_reshape, delete: ', delete_node_id)
+      logger.debug('eliminate_redundant_reshape, delete: {}'.format(delete_node_id))
       delete_node = model.graph.node[delete_node_id]
 
       last_node = True
 
       for node_id, node in enumerate(model.graph.node):
          if len(node.input) > 0 and node.input[0] == reshape_output[0]:
-            print('got reshape next node:', node.name)
+            logger.debug('got reshape next node: {}'.format(node.name))
             next_node = model.graph.node[node_id]
             next_node.input[0] = delete_node.input[0]
             last_node = False
@@ -180,7 +183,7 @@ def eliminate_redundant_reshape(model):
          for node_id, node in enumerate(model.graph.node):
                #print('+++++====', node.input[0], reshape_output[0])
                if node.output[0] == reshape_input[0]:
-                  print('eliminate_redundant_reshape, got reshape prev node:', node.name)
+                  logger.debug('eliminate_redundant_reshape, got reshape prev node: {}'.format(node.name))
                   prev_node = model.graph.node[node_id]
                   prev_node.output[0] = reshape_output[0]
                   break
@@ -257,6 +260,6 @@ def insert_onnx_node(model, insert_node, follow_up_node):
     # 找到后续Node的索引位置，并将插入节点插入到graph中
     for follow_up_node_index, _follow_up_node in enumerate(model.graph.node):
         if _follow_up_node == follow_up_node:
-            print("follow_up_node_index: ", follow_up_node_index)
+            logger.debug("follow_up_node_index: {}".format(follow_up_node_index))
             model.graph.node.insert(follow_up_node_index, insert_node)
             break    

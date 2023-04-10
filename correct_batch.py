@@ -2,6 +2,10 @@ import onnx
 import numpy as np
 import sys
 
+import log
+
+logger = log.getLogger(__name__, log.INFO)
+
 def convert_ort_type_2_np(ort_data_type):
     #logger.info("convert_ort_type_2_np")
     
@@ -77,7 +81,7 @@ def correct_batch_for_opset_convert(model):
     if input_batch != -1:
         return 
         
-    print('correct_batch_for_opset_convert, input_batch:', input_batch)
+    logger.debug('correct_batch_for_opset_convert, input_batch: {}'.format(input_batch))
 
     init_list = []
     for init in model.graph.initializer:
@@ -88,9 +92,7 @@ def correct_batch_for_opset_convert(model):
             if len(model.graph.value_info[idx].type.tensor_type.shape.dim) > 0:
                 dim_proto_input = model.graph.value_info[idx].type.tensor_type.shape.dim[0]
                 if dim_proto_input.dim_value != input_batch:
-                    #print('$$$', dim_proto_input.dim_value, input_batch)
                     dim_proto_input.dim_value = input_batch
-                    #print('---name:', model.graph.value_info[idx].name)
 
     reshape_input_list = []
     for node in model.graph.node:
@@ -102,23 +104,19 @@ def correct_batch_for_opset_convert(model):
         for reshape_input in reshape_input_list:
             for id, init in enumerate(model.graph.initializer):
                 if init.name == reshape_input:
-                    print('init.name', init.name)
+                    logger.debug('init.name: {}'.format(init.name))
                     dtype = init.data_type
                     np_dtype = convert_ort_type_2_np(dtype)
                     if init.raw_data:
                         params_list = np.fromstring(init.raw_data, dtype=np_dtype)
                         if -1 not in params_list and params_list[0] != input_batch:
-                            print('correct reshape batch:', params_list[0], input_batch)
+                            logger.debug('correct reshape batch: {} {}'.format(params_list[0], input_batch))
                             params_list[0] = input_batch
                             init.raw_data = params_list.tostring()
                     else:
-                        #print('Only support modify initializer raw data for now, cannot correct this model!!!')    
-                        #sys.exit()
-                        #break
                         data_list = get_data_list(dtype, init)
-                        #print('#####', data_list[0], input_batch)
                         if len(data_list) > 0 and -1 not in data_list and data_list[0] != input_batch:
-                            print('--correct reshape batch:', data_list[0], input_batch)
+                            logger.debug('correct reshape batch: {} {}'.format(data_list[0], input_batch))
                             data_list[0] = input_batch
 
     output_shape = model.graph.output[0].type.tensor_type.shape.dim

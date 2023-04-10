@@ -3,6 +3,9 @@ import sys
 import argparse
 import values
 import numpy as np
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 def got_input_shape(model, tensor):
     for input_ in model.graph.input:
@@ -11,7 +14,7 @@ def got_input_shape(model, tensor):
                 return -777, False
 
             dim_proto_input = input_.type.tensor_type.shape.dim[0]
-            print('++++++got input shape: ', dim_proto_input.dim_value)
+            logger.debug('got input shape: {}'.format(dim_proto_input.dim_value))
             return dim_proto_input.dim_value, True
 
     for vi in model.graph.value_info:
@@ -20,7 +23,7 @@ def got_input_shape(model, tensor):
                 return -777, False
 
             dim_proto_input = vi.type.tensor_type.shape.dim[0]
-            print('------got input shape: ', dim_proto_input.dim_value)
+            logger.debug('------got input shape: {}'.format(dim_proto_input.dim_value))
             return dim_proto_input.dim_value, True
 
     return -777, False      

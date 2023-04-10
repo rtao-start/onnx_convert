@@ -4,6 +4,9 @@ import onnx
 from onnx import helper
 from onnx import TensorProto
 import sys
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 #rgb-->rgba: taanspose(1, 2, 0) + padding
 
@@ -20,10 +23,10 @@ def parse_postproc_yaml(yaml_file):
         print(type(data))
 
         if 'norm' in data.keys():
-            print('got norm---')
+            logger.debug('got norm---')
             norm_list = data['norm']
             for n in norm_list:
-                print('n:', n)
+                logger.debug('n: {}'.format(n))
                 if 'std' in n.keys():
                     std_list_ = n['std']
                     if len(std_list_) == 3 or len(std_list_) == 1:
@@ -33,7 +36,7 @@ def parse_postproc_yaml(yaml_file):
                             else:
                                 std_list.append(1.0/1e-6)    
 
-                        print('got std values:', std_list)
+                        logger.debug('got std values: {}'.format(std_list))
 
                     continue    
 
@@ -43,23 +46,23 @@ def parse_postproc_yaml(yaml_file):
                         for n in mean_list_:
                             mean_list.append(int(n))
 
-                        print('got mean values:', mean_list) 
+                        logger.debug('got mean values: {}'.format(mean_list)) 
 
                     continue        
 
         if 'postproc' in data.keys():
-            print('got postproc---')
+            logger.debug('got postproc---')
             postproc_list = data['postproc']
             for p in postproc_list:
                 if 'alpha' in p.keys():
                     alpha_list_ = p['alpha']
                     #if len(alpha_list_) == 3:
                     alpha_list = alpha_list_
-                    print('got alpha values:', alpha_list) 
+                    logger.debug('got alpha values: {}'.format(alpha_list)) 
                 
                 if 'control' in p.keys():
                     control_list = p['control']
-                    print('got control values:', control_list)
+                    logger.debug('got control values: {}'.format(control_list))
 
     if len(std_list) == 0 or len(mean_list) == 0 or len(std_list) != len(mean_list):
         return {}
@@ -85,7 +88,7 @@ def insert_postproc_node(model, postproc_dict):
     #input_name = ''
     last_id = 0
 
-    print('output_name:', output_name)
+    logger.debug('output_name: {}'.format(output_name))
 
     '''
     const_mean = onnx.helper.make_tensor(name='const_mean',
@@ -108,7 +111,7 @@ def insert_postproc_node(model, postproc_dict):
         if node.output[0] == output_name:
             last_id = node_id
             #input_name = node.input[0]
-            print('last_id:', last_id, ', name:', node.name)
+            logger.debug('last_id: {}, name: {}'.format(last_id, node.name))
 
     #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
     #        ", op:", node.op_type, ', len(input):', len(node.input))

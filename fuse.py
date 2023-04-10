@@ -2,6 +2,9 @@ import onnx
 import correct_batch
 import numpy as np
 import values
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 def get_constant_value(model, name):
     shape = []
@@ -12,7 +15,7 @@ def get_constant_value(model, name):
                 if attr.name == 'value':
                     v = values.get_tensor_value(attr.t)
                     dims = len(v)
-                    print('get_constant_value:', v, dims)
+                    logger.debug('get_constant_value: {} {}'.format(v, dims))
                     shape = v
                     break
             break
@@ -56,8 +59,8 @@ def fuse_pad_to_pool(model):
                     dict_pool['input'] = node.input
                     dict_pool['output'] = node.output
                     dict_pool['id'] = node_id
-                    print('got pad+pool pair, pad:', dict_pad['input'], dict_pad['output'])
-                    print('got pad+pool pair, pool:', dict_pool['input'], dict_pool['output'])
+                    logger.debug('got pad+pool pair, pad: {} {}'.format(dict_pad['input'], dict_pad['output']))
+                    logger.debug('got pad+pool pair, pool: {} {}'.format(dict_pool['input'], dict_pool['output']))
                     #pads = []
 
                     got_pad_pool = True
@@ -65,7 +68,7 @@ def fuse_pad_to_pool(model):
                     if len(pads) == 0:
                         for init in model.graph.initializer:
                             if init.name == dict_pad['input'][1]:
-                                print('got init(pads):', init.name)
+                                logger.debug('got init(pads): {}'.format(init.name))
                                 dtype = init.data_type
                                 np_dtype = correct_batch.convert_ort_type_2_np(dtype)
                                 if init.raw_data:
@@ -84,10 +87,10 @@ def fuse_pad_to_pool(model):
                         if pads == []:
                             pads = get_constant_value(model, dict_pad['input'][1])
 
-                    print('got pads:', pads)
+                    logger.debug('got pads: {}'.format(pads))
 
                     if len(pads) != 8:
-                        print('skip pad+pool~~~~')
+                        logger.debug('skip pad+pool~~~~')
                         dict_pad = {}
                         dict_pool = {}
                         continue
@@ -136,6 +139,6 @@ def fuse_pad_to_pool(model):
                     pads = []    
 
     if got_pad_pool == True:
-        print('got pad+pool node------------')
+        logger.debug('got pad+pool node------------')
 
     return model    
