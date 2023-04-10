@@ -35,7 +35,6 @@ def merge_mish_old(onnxfile, export_onnx):
             dict_sp['input'] = node.input
             dict_sp['output'] = node.output
             dict_sp['id'] = node_id
-            node.op_type = 'Mish'
 
         if node.op_type == 'Tanh':
             if dict_sp and node.input == dict_sp['output']:
