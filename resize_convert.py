@@ -2,6 +2,9 @@ import onnx
 import values
 import sys
 import numpy as np
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 def is_unused_init(model, init):
     for node in model.graph.node:
@@ -13,7 +16,7 @@ def is_unused_init(model, init):
 def remove_unused_initializer(model, unused_init_list):
     for init in unused_init_list:
         if is_unused_init(model, init):
-            print('remove unused init:', init.name)
+            logger.debug('remove unused init: {}'.format(init.name))
             model.graph.initializer.remove(init)
 
 def merge_resize(model):
@@ -40,7 +43,7 @@ def merge_resize(model):
                         dict_reshape2['id'] = node_id
 
                         shape = values.get_init_value(model, node.input[1])
-                        print('got Second Reshape shape:', shape)
+                        logger.debug('got Second Reshape shape: {}'.format(shape))
                         shape_list = shape
                         shape_dims = []
 
@@ -91,10 +94,10 @@ def merge_resize(model):
                         search = True
                         break       
                     else:
-                        print('clear dict_reshape and dict_expand, dict_reshapes')
-                        print('dict_reshape:', dict_reshape)
-                        print('dict_expand:', dict_expand)
-                        print('dict_reshape2:', dict_reshape2)
+                        logger.debug('clear dict_reshape and dict_expand, dict_reshapes')
+                        logger.debug('dict_reshape: {}'.format(dict_reshape))
+                        logger.debug('dict_expand: {}'.format(dict_expand))
+                        logger.debug('dict_reshape2: {}'.format(dict_reshape2))
                         dict_reshape = {}
                         dict_expand = {}
                         dict_reshape2 = {} 
@@ -109,7 +112,7 @@ def merge_resize(model):
                             if init not in unused_init_list:
                                 unused_init_list.append(init)
 
-                    print('got match Reshape node:', node.name)
+                    logger.debug('got match Reshape node: {}'.format(node.name))
                 
             if node.op_type == 'Expand':
                 if dict_reshape and node.input[0] == dict_reshape['output'][0]:
@@ -124,9 +127,9 @@ def merge_resize(model):
 
                     ready = True
 
-                    print('got match Expand node:', node.name)
+                    logger.debug('got match Expand node: {}'.format(node.name))
                 else:
-                    print('clear dict_reshape:', dict_reshape)
+                    logger.debug('clear dict_reshape: {}'.format(dict_reshape))
                     dict_reshape = {}
                     unused_init_list = []           
 
