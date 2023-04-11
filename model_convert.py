@@ -40,7 +40,7 @@ from ln_convert import merge_layernorm
 from matmul2gemm import matmul_2_gemm
 from mha_optimization import mha_optimizer
 from input_fp32_to_uint8 import fp32_to_uint8
-from version import maca_converter_version
+from version import maca_converter_version, last_modified
 
 using_wheel = False
 
@@ -1156,6 +1156,7 @@ def process(args):
 
    if args.version:
       print('maca_converter version:', maca_converter_version)
+      print('last modified:', last_modified)
       exit(0)
 
    if model_path == None or model_type == None or output == None:

@@ -4,7 +4,7 @@ import values
 import numpy as np
 import log
 
-logger = log.getLogger(__name__, log.INFO)
+logger = log.getLogger(__name__, log.DEBUG)
 
 transpose_node_map = {}
 
@@ -1277,7 +1277,7 @@ def get_matmul_block_two(model, matmul_node):
 
                                 input_nnnnnext, ok = get_next_node_by_output(model, input_nnnnext.output[0])
                                 if ok == 0 and input_nnnnnext.op_type == 'Add':
-                                    logger.debug('++++ got Add2 node: {}'.debug(input_nnnnnext.name))
+                                    logger.debug('++++ got Add2 node: {}'.format(input_nnnnnext.name))
                                     #addA_name = input_nnnnnext.input[0]
                                     #if len(shapeA) == 1:
                                     node_dict['Add2'] = input_nnnnnext
@@ -1423,7 +1423,7 @@ def handle_mul_add_block_two(model):
             A = v.reshape(*old_dims)
             A = A.transpose()
             A = A.reshape(*dims_)
-            logger.debug('+++A.shape:', A.shape)
+            logger.debug('+++A.shape: {}'.format(A.shape))
             A = A.flatten()
         else:    
             A = np.array(v).reshape(*old_dims)
@@ -2767,7 +2767,7 @@ def mha_optimizer(model):
 
     if pattern == -1:
         logger.debug('This is not a mha model---')
-        return    
+        return model    
 
     matmul_list = []
 
