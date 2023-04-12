@@ -397,7 +397,7 @@ def proc_gemm_ctc_matmul(model, node_id, node, attr):
                 if c_name == init.name:
                     beta_proc = True
                     v = values.get_init_value(model, init.name)
-
+  
                     if isinstance(v, np.ndarray) == True:
                         C = v * beta
                     else:    
