@@ -4,6 +4,9 @@ import numpy as np
 
 sys.path.append(os.path.abspath('..'))
 import values
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 def is_shared_init(model, init, node_name):
     for node in model.graph.node:
@@ -28,19 +31,19 @@ def got_input_shape(model, tensor):
     for vi in model.graph.input:
         if vi.name == tensor:
             dim_proto_input = vi.type.tensor_type.shape.dim[0]
-            print('+++++ got input shape: ', dim_proto_input.dim_value)
+            logger.debug('+++++ got input shape: {}'.format(dim_proto_input.dim_value))
             return dim_proto_input.dim_value, True
 
     for vi in model.graph.value_info:
         if vi.name == tensor:
             if len(vi.type.tensor_type.shape.dim) > 0:
                 dim_proto_input = vi.type.tensor_type.shape.dim[0]
-                print('got input shape: ', dim_proto_input.dim_value)
+                logger.debug('got input shape: {}'.format(dim_proto_input.dim_value))
                 return dim_proto_input.dim_value, True
 
     for init in model.graph.initializer:
         if tensor == init.name:
-            print('---got input shape: ', init.dims[0])
+            logger.debug('---got input shape: {}'.format(init.dims[0]))
             return init.dims[0], True 
 
     '''

@@ -7,6 +7,9 @@ from .utils import got_input_shape, is_shared_init, is_shared_constant
 
 sys.path.append(os.path.abspath('..'))
 import values
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 def proc_gemm_ttc_ttt(model, node_id, node, attr):
     alpha = attr['alpha']
@@ -16,10 +19,10 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
 
     in_shape, _ = got_input_shape(model, node.input[0])
 
-    print('proc_gemm_ttc_ttt, got input shape:', in_shape)
+    logger.debug('proc_gemm_ttc_ttt, got input shape: {}'.format(in_shape))
 
     if in_shape < 32 and transA == 0 and transB == 1:
-        print('in_shape < 32, goto proc_gemm_ttc_ttt_fc')
+        logger.debug('in_shape < 32, goto proc_gemm_ttc_ttt_fc')
         return proc_gemm_ttc_ttt_fc(model, node_id, node, attr)
 
     length = len(node.input)
@@ -34,7 +37,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
     outputB = ''
 
     if transA != 0:
-        print('proc_gemm_case_1, Do TransA', node_id)
+        logger.debug('proc_gemm_case_1, Do TransA: {}'.format(node_id))
         skip = skip + 1
         outputA = node.input[0] + '_transpose_'
         transpose_output = onnx.helper.make_tensor_value_info(outputA, TensorProto.UNDEFINED, ['a', 'b'])      
@@ -53,7 +56,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
         node_index = node_index + 1
 
     if transB != 0:
-        print('proc_gemm_case_1, Do TransB', node_id)
+        logger.debug('proc_gemm_case_1, Do TransB: {}'.format(node_id))
         skip = skip + 1
         outputB = node.input[1] + '_transpose_'
         transpose_output = onnx.helper.make_tensor_value_info(outputB, TensorProto.UNDEFINED, ['a', 'b'])      
@@ -100,14 +103,14 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
         if vi.name == input_0:
             input_type = vi.type.tensor_type.elem_type
             got_type = True
-            print('+++ get type', input_type, input_0)
+            logger.debug('+++ get type: {} {}'.format(input_type, input_0))
 
     if got_type == False:
         for vi in model.graph.input:
             if vi.name == input_0:
                 input_type = vi.type.tensor_type.elem_type
                 got_type = True
-                print('--- get type', input_type, input_0)        
+                logger.debug('--- get type {} {}'.format(input_type, input_0))        
 
     if alpha != 1.0:
         node.output[0] = matmul_output_name
@@ -167,10 +170,10 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
                         if isinstance(v, np.ndarray) == True:
                             C = v * beta
                         else:    
-                            print('---init shape:', init.dims[0])
+                            logger.debug('---init shape: {}'.format(init.dims[0]))
                             #print('---init value:', init.name, v)
                             C = np.array(v) * beta
-                            print('C.shape:', C.shape)
+                            logger.debug('C.shape: {}'.format(C.shape))
                             C = C.tolist()
 
                         if  is_shared_init(model, init.name, node.name) == True: 
@@ -268,7 +271,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
 
                             if len(vi.type.tensor_type.shape.dim) > 0:
                                 shape_ = [s.dim_value for s in vi.type.tensor_type.shape.dim]
-                                print('c_name: ', c_name, ', shape: ', shape_)
+                                logger.debug('c_name: {}, shape: {}'.format(c_name, shape_))
 
                                 mul_c_output = mul_name_c + '_output_'
 
@@ -353,7 +356,7 @@ def proc_gemm_ttc_ttt(model, node_id, node, attr):
     return skip
 
 def proc_gemm_ttc_ttt_fc(model, node_id, node, attr):
-    print('######## proc_gemm_ttc_ttt_fc, node.name:', node.name)
+    logger.debug('######## proc_gemm_ttc_ttt_fc, node.name: {}'.format(node.name))
 
     alpha = attr['alpha']
     beta = attr['beta']
@@ -374,7 +377,7 @@ def proc_gemm_ttc_ttt_fc(model, node_id, node, attr):
     for vi in model.graph.value_info:
         if vi.name == node.input[0]:
             input_type = vi.type.tensor_type.elem_type
-            print('XXX get type', input_type, node.input[0])
+            logger.debug('XXX get type {} {}'.format(input_type, node.input[0]))
             got_type = True
 
     if got_type == False:
@@ -382,7 +385,7 @@ def proc_gemm_ttc_ttt_fc(model, node_id, node, attr):
             if vi.name == input_0:
                 input_type = vi.type.tensor_type.elem_type
                 got_type = True
-                print('--- get type', input_type, input_0)      
+                logger.debug('--- get type {} {}'.format(input_type, input_0))      
 
     if alpha != 1.0:
         mul_node_name = node.input[0] + '_mul_'
@@ -428,10 +431,10 @@ def proc_gemm_ttc_ttt_fc(model, node_id, node, attr):
                     if isinstance(v, np.ndarray) == True:
                         C = v * beta
                     else:    
-                        print('---init shape:', init.dims[0])
+                        logger.debug('---init shape: {}'.format(init.dims[0]))
                         #print('---init value:', init.name, v)
                         C = np.array(v) * beta
-                        print('C.shape:', C.shape)
+                        logger.debug('C.shape: {}'.format(C.shape))
                         C = C.tolist()
 
                     if is_shared_init(model, init.name, node.name) == True: 
@@ -501,7 +504,7 @@ def proc_gemm_ttc_ttt_fc(model, node_id, node, attr):
 
                         if len(vi.type.tensor_type.shape.dim) > 0:
                             shape_ = [s.dim_value for s in vi.type.tensor_type.shape.dim]
-                            print('c_name: ', c_name, ', shape: ', shape_)
+                            logger.debug('c_name: {}, shape: {}'.format(c_name, shape_))
 
                             const_beta = onnx.helper.make_tensor(name=beta_name,
                                                 data_type=type_,

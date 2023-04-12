@@ -7,16 +7,19 @@ from onnx import TensorProto
 
 sys.path.append(os.path.abspath('..'))
 import values
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 def proc_gemm_tct(model, node_id, node, attr):
-    print('proc_gemm_tct-----------', node.name)
+    logger.debug('proc_gemm_tct {}'.format(node.name))
 
     in_shape, _ = got_input_shape(model, node.input[0])
 
-    print('proc_gemm_tct, got input shape:', in_shape)
+    logger.debug('proc_gemm_tct, got input shape: {}'.format(in_shape))
 
     if in_shape > 32:
-        print('in_shape > 32, goto proc_gemm_tct_matmul')
+        logger.debug('in_shape > 32, goto proc_gemm_tct_matmul')
         return proc_gemm_tct_matmul(model, node_id, node, attr)
 
     alpha = attr['alpha']
@@ -31,7 +34,7 @@ def proc_gemm_tct(model, node_id, node, attr):
     skip = 0
 
     if transA != 0:
-        print('transA != 0, goto proc_gemm_tct_matmul')
+        logger.debug('transA != 0, goto proc_gemm_tct_matmul')
         return proc_gemm_tct_matmul(model, node_id, node, attr)
 
     node_index = node_id
@@ -43,19 +46,19 @@ def proc_gemm_tct(model, node_id, node, attr):
                 alpha_proc = True
 
                 v = values.get_init_value(model, init.name)
-                print('000 init shape:', init.dims[0], init.dims[1])
-                print('000 init value:', init.name)
+                logger.debug('000 init shape: {} {}'.format(init.dims[0], init.dims[1]))
+                logger.debug('000 init value: {}'.format(init.name))
 
                 if isinstance(v, np.ndarray) == True:
                     B = v.reshape(init.dims[0], init.dims[1])
                     B = B.transpose()
-                    print('+++B.shape:', B.shape)
+                    logger.debug('+++B.shape: {}'.format(B.shape))
                     B = B.flatten()
                     B = B * alpha
                 else:    
                     B = np.array(v).reshape(init.dims[0], init.dims[1])
                     B = B.transpose()
-                    print('---B.shape:', B.shape)
+                    logger.debug('---B.shape: {}'.format(B.shape))
                     B = B.flatten()
                     B = B * alpha
                     #B = B.tolist()
@@ -97,15 +100,15 @@ def proc_gemm_tct(model, node_id, node, attr):
                 alpha_proc = True
 
                 v = values.get_init_value(model, init.name)
-                print('111 init shape:', init.dims[0], init.dims[1])
-                print('111 init value:', init.name)
+                logger.debug('111 init shape: {} {}'.format(init.dims[0], init.dims[1]))
+                logger.debug('111 init value: {}'.format(init.name))
 
                 if isinstance(v, np.ndarray) == True:
                     B = v * alpha
                 else:    
                     B = np.array(v) * alpha
                     #B = B.reshape(init.dims[0], init.dims[1])
-                    print('B.shape:', B.shape)
+                    logger.debug('B.shape: {}'.format(B.shape))
                     B = B.tolist()
 
                 if is_shared_init(model, init.name, node.name) == True:
@@ -133,7 +136,7 @@ def proc_gemm_tct(model, node_id, node, attr):
                     for attr in attributes:
                         if attr.name == 'value':
                             value = attr.t.dims
-                            print('value:', value)
+                            logger.debug('value: {}'.format(value))
                             #TBD
                     break
     elif transB != 1:
@@ -143,18 +146,18 @@ def proc_gemm_tct(model, node_id, node, attr):
                 alpha_proc = True
 
                 v = values.get_init_value(model, init.name)
-                print('222 init shape:', init.dims[0], init.dims[1])
-                print('222 init value:', init.name)
+                logger.debug('222 init shape: {} {}'.format(init.dims[0], init.dims[1]))
+                logger.debug('222 init value: {}'.format(init.name))
 
                 if isinstance(v, np.ndarray) == True:
                     B = v.reshape(init.dims[0], init.dims[1])
                     B = B.transpose()
-                    print('=== B.shape:', B.shape)
+                    logger.debug('=== B.shape: {}'.format(B.shape))
                     B = B.flatten()
                 else:    
                     B = np.array(v).reshape(init.dims[0], init.dims[1])
                     B = B.transpose()
-                    print('!!!! B.shape:', B.shape)
+                    logger.debug('!!!! B.shape: {}'.format(B.shape))
                     B = B.flatten()
                     #B = B.tolist()
 
@@ -198,7 +201,7 @@ def proc_gemm_tct(model, node_id, node, attr):
 
                     if len(vi.type.tensor_type.shape.dim) > 0:
                         shape_ = [s.dim_value for s in vi.type.tensor_type.shape.dim]
-                        print('c_name: ', c_name, ', shape: ', shape_)
+                        logger.debug('c_name: {}, shape: {}'.format(c_name, shape_))
 
                         mul_c_output = mul_name_c + '_output_'
 
@@ -253,7 +256,7 @@ def proc_gemm_tct_matmul(model, node_id, node, attr):
     skip = 0
 
     if transA != 0:
-        print('proc_gemm_tct_matmul, Do TransA', node_id)
+        logger.debug('proc_gemm_tct_matmul, Do TransA: {}'.format(node_id))
         skip = skip + 1
         outputA = node.input[0] + '_transpose_'
         transpose_output = onnx.helper.make_tensor_value_info(outputA, TensorProto.UNDEFINED, ['a', 'b'])      
@@ -275,19 +278,19 @@ def proc_gemm_tct_matmul(model, node_id, node, attr):
                 alpha_proc = True
 
                 v = values.get_init_value(model, init.name)
-                print('000 init shape:', init.dims[0], init.dims[1])
-                print('000 init value:', init.name)
+                logger.debug('000 init shape: {} {}'.format(init.dims[0], init.dims[1]))
+                logger.debug('000 init value: {}'.format(init.name))
 
                 if isinstance(v, np.ndarray) == True:
                     B = v.reshape(init.dims[0], init.dims[1])
                     B = B.transpose()
-                    print('+++B.shape:', B.shape)
+                    logger.debug('+++B.shape: {}'.format(B.shape))
                     B = B.flatten()
                     B = B * alpha
                 else:    
                     B = np.array(v).reshape(init.dims[0], init.dims[1])
                     B = B.transpose()
-                    print('---B.shape:', B.shape)
+                    logger.debug('---B.shape: {}'.format(B.shape))
                     B = B.flatten()
                     B = B * alpha
                     #B = B.tolist()
@@ -315,15 +318,15 @@ def proc_gemm_tct_matmul(model, node_id, node, attr):
                 alpha_proc = True
 
                 v = values.get_init_value(model, init.name)
-                print('111 init shape:', init.dims[0], init.dims[1])
-                print('111 init value:', init.name)
+                logger.debug('111 init shape: {} {}'.format(init.dims[0], init.dims[1]))
+                logger.debug('111 init value: {}'.format(init.name))
 
                 if isinstance(v, np.ndarray) == True:
                     B = v * alpha
                 else:    
                     B = np.array(v) * alpha
                     #B = B.reshape(init.dims[0], init.dims[1])
-                    print('B.shape:', B.shape)
+                    logger.debug('B.shape: {}'.format(B.shape))
                     B = B.tolist()
 
                 if is_shared_init(model, init.name, node.name) == True:
@@ -347,7 +350,7 @@ def proc_gemm_tct_matmul(model, node_id, node, attr):
                     for attr in attributes:
                         if attr.name == 'value':
                             value = attr.t.dims
-                            print('value:', value)
+                            logger.debug('value: {}'.format(value))
 
                     break
     elif transB == 1:
@@ -357,18 +360,18 @@ def proc_gemm_tct_matmul(model, node_id, node, attr):
                 alpha_proc = True
 
                 v = values.get_init_value(model, init.name)
-                print('222 init shape:', init.dims[0], init.dims[1])
-                print('222 init value:', init.name)
+                logger.debug('222 init shape: {} {}'.format(init.dims[0], init.dims[1]))
+                logger.debug('222 init value: {}'.format(init.name))
 
                 if isinstance(v, np.ndarray) == True:
                     B = v.reshape(init.dims[0], init.dims[1])
                     B = B.transpose()
-                    print('=== B.shape:', B.shape)
+                    logger.debug('=== B.shape: {}'.format(B.shape))
                     B = B.flatten()
                 else:    
                     B = np.array(v).reshape(init.dims[0], init.dims[1])
                     B = B.transpose()
-                    print('!!!! B.shape:', B.shape)
+                    logger.debug('!!!! B.shape: {}'.format(B.shape))
                     B = B.flatten()
                     B = B.tolist()
 
@@ -421,7 +424,7 @@ def proc_gemm_tct_matmul(model, node_id, node, attr):
 
                     if len(vi.type.tensor_type.shape.dim) > 0:
                         shape_ = [s.dim_value for s in vi.type.tensor_type.shape.dim]
-                        print('c_name: ', c_name, ', shape: ', shape_)
+                        logger.debug('c_name: {}, shape_: {}'.format(c_name,shape_))
 
                         mul_c_output = mul_name_c + '_output_'
 

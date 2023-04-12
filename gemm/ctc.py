@@ -7,6 +7,9 @@ from onnx import TensorProto
 
 sys.path.append(os.path.abspath('..'))
 import values
+import log
+
+logger = log.getLogger(__name__, log.INFO)
 
 def handle_constant_node(model, node, transpose, alpha):
     for n in model.graph.node:
@@ -84,19 +87,19 @@ def handle_common(model, node, attr, replace=True):
                 alpha_proc = True
 
                 v = values.get_init_value(model, init.name)
-                print('000 init shape:', init.dims[0], init.dims[1])
-                print('000 init value:', init.name)
+                logger.debug('000 init shape: {} {}'.format(init.dims[0], init.dims[1]))
+                logger.debug('000 init value: {}'.format(init.name))
 
                 if isinstance(v, np.ndarray) == True:
                     A = v.reshape(init.dims[0], init.dims[1])
                     A = A.transpose()
-                    print('+++A.shape:', A.shape)
+                    logger.debug('+++A.shape: {}'.format(A.shape))
                     A = A.flatten()
                     A = A * alpha
                 else:    
                     A = np.array(v).reshape(init.dims[0], init.dims[1])
                     A = A.transpose()
-                    print('---B.shape:', B.shape)
+                    logger.debug('---B.shape: {}'.format(B.shape))
                     A = A.flatten()
                     A = A * alpha
                     #A = A.tolist()
@@ -142,15 +145,15 @@ def handle_common(model, node, attr, replace=True):
                 alpha_proc = True
 
                 v = values.get_init_value(model, init.name)
-                print('111 init shape:', init.dims[0], init.dims[1])
-                print('111 init value:', init.name)
+                logger.debug('111 init shape: {} {}'.format(init.dims[0], init.dims[1]))
+                logger.debug('111 init value: {}'.format(init.name))
 
                 if isinstance(v, np.ndarray) == True:
                     A = v * alpha
                 else:    
                     A = np.array(v) * alpha
                     #B = B.reshape(init.dims[0], init.dims[1])
-                    print('A.shape:', A.shape)
+                    logger.debug('A.shape: {}'.format(A.shape))
                     #A = A.tolist()
 
                 A_name = node.input[0] + '__'
@@ -183,18 +186,18 @@ def handle_common(model, node, attr, replace=True):
                 alpha_proc = True
 
                 v = values.get_init_value(model, init.name)
-                print('222 init shape:', init.dims[0], init.dims[1])
-                print('222 init value:', init.name)
+                logger.debug('222 init shape: {} {}'.format(init.dims[0], init.dims[1]))
+                logger.debug('222 init value: {}'.format(init.name))
 
                 if isinstance(v, np.ndarray) == True:
                     A = v.reshape(init.dims[0], init.dims[1])
                     A = A.transpose()
-                    print('=== A.shape:', A.shape)
+                    logger.debug('=== A.shape: {}'.format(A.shape))
                     A = A.flatten()
                 else:    
                     A = np.array(v).reshape(init.dims[0], init.dims[1])
                     A = A.transpose()
-                    print('!!!! B.shape:', A.shape)
+                    logger.debug('!!!! B.shape: {}'.format(A.shape))
                     A = A.flatten()
                     #A = A.tolist()
 
@@ -231,10 +234,10 @@ def handle_common(model, node, attr, replace=True):
 def proc_gemm_ctc(model, node_id, node, attr):
     in_shape, _ = got_input_shape(model, node.input[0])
 
-    print('proc_gemm_ctc, got input shape:', in_shape)
+    logger.debug('proc_gemm_ctc, got input shape: {}'.format(in_shape))
 
     if in_shape > 32:
-        print('in_shape > 32, goto proc_gemm_ctc_matmul')
+        logger.debug('in_shape > 32, goto proc_gemm_ctc_matmul')
         return proc_gemm_ctc_matmul(model, node_id, node, attr)
 
     alpha = attr['alpha']
@@ -243,7 +246,7 @@ def proc_gemm_ctc(model, node_id, node, attr):
     transB = attr['transB']
 
     if transB != 1:
-        print('transB != 1, goto proc_gemm_ctc_matmul')
+        logger.debug('transB != 1, goto proc_gemm_ctc_matmul')
         return proc_gemm_ctc_matmul(model, node_id, node, attr)
 
     length = len(node.input)
@@ -268,10 +271,10 @@ def proc_gemm_ctc(model, node_id, node, attr):
                     if isinstance(v, np.ndarray) == True:
                         C = v * beta
                     else:    
-                        print('---init shape:', init.dims[0])
+                        logger.debug('---init shape: {}'.format(init.dims[0]))
                         #print('---init value:', init.name, v)
                         C = np.array(v) * beta
-                        print('C.shape:', C.shape)
+                        logger.debug('C.shape: {}'.format(C.shape))
                         #C = C.tolist()
 
                     if is_shared_init(model, init.name, node.name) == True:    
@@ -347,7 +350,7 @@ def proc_gemm_ctc_matmul(model, node_id, node, attr):
     skip = 0
 
     if transB != 0:
-        print('proc_gemm_ctc_matmul, Do TransB', node_id)
+        logger.debug('proc_gemm_ctc_matmul, Do TransB : {}'.format(node_id))
         skip = skip + 1
         outputB = node.input[1] + '_transpose_'
         transpose_output = onnx.helper.make_tensor_value_info(outputB, TensorProto.UNDEFINED, ['a', 'b'])      
@@ -398,10 +401,10 @@ def proc_gemm_ctc_matmul(model, node_id, node, attr):
                     if isinstance(v, np.ndarray) == True:
                         C = v * beta
                     else:    
-                        print('---init shape:', init.dims[0])
+                        logger.debug('---init shape: {}'.format(init.dims[0]))
                         #print('---init value:', init.name, v)
                         C = np.array(v) * beta
-                        print('C.shape:', C.shape)
+                        logger.debug('C.shape: {}'.format(C.shape))
 
                     if is_shared_init(model, init.name, node.name) == True: 
                         new_name = c_name + '__'   
@@ -488,7 +491,7 @@ def proc_gemm_ctc_matmul(model, node_id, node, attr):
                         break
         elif beta == 1.0:
             node.output[0] = matmul_output_name
-            print('proc_gemm_ctc_matmul, beta is 1.0')
+            logger.debug('proc_gemm_ctc_matmul, beta is 1.0')
             beta_proc = False 
             for init in model.graph.initializer:
                 if c_name == init.name:
