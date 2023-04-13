@@ -3957,6 +3957,7 @@ def handle_last_group_pattern_four(model):
         insert_node(model, ts2_node, rs_node)
         rs_node.input[0] = ts2_output_name
 
+'''
 if __name__ == "__main__":
     #model = onnx.load('/home/zqiu/models/bert_sst2_sim.onnx')
     #model = onnx.load('./bert_sst2_sub1.onnx')
@@ -3968,5 +3969,5 @@ if __name__ == "__main__":
     mha_optimizer(model)
 
     onnx.save(model, './hs3.onnx')
-
+'''
     
