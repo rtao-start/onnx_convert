@@ -56,6 +56,16 @@ def merge_resize(model):
                         if isinstance(shape, np.ndarray):
                             shape_list = shape.tolist()
 
+                        input_shape = values.get_tensor_shape_by_name(model, dict_reshape['input'][0])
+
+                        if len(input_shape) != len(shape_list):
+                            logger.info('ignore Reshape+Expand+Reshape==>Resize, because input dim {} is not equal sizes dim {}'.format(len(input_shape), len(shape_list)))
+                            dict_reshape = {}
+                            dict_expand = {}
+                            dict_reshape2 = {}
+                            ready = False 
+                            continue    
+
                         ###################################
                         old_node = model.graph.node[dict_reshape['id']] 
                         old_node_reshape2 = model.graph.node[dict_reshape2['id']]
@@ -63,9 +73,15 @@ def merge_resize(model):
 
                         model.graph.node.remove(old_node)
 
-                        empty0 = onnx.helper.make_tensor('empty0', onnx.TensorProto.FLOAT, [0], [])
-                        empty1 = onnx.helper.make_tensor('empty1', onnx.TensorProto.FLOAT, [0], [])
-                        const_sizes = onnx.helper.make_tensor(name='const_sizes',
+                        empty0_name = f'empty0_{node_id}'
+                        empty1_name = f'empty1_{node_id}'
+
+                        empty0 = onnx.helper.make_tensor(empty0_name, onnx.TensorProto.FLOAT, [0], [])
+                        empty1 = onnx.helper.make_tensor(empty1_name, onnx.TensorProto.FLOAT, [0], [])
+                        
+                        const_sizes_name = f'const_sizes_{node_id}'
+
+                        const_sizes = onnx.helper.make_tensor(name=const_sizes_name,
                                                                 data_type=onnx.TensorProto.INT64,
                                                                 dims=shape_dims,
                                                                 vals=shape_list)
@@ -75,9 +91,9 @@ def merge_resize(model):
                         model.graph.initializer.append(const_sizes)    
 
                         resize_node = onnx.helper.make_node(
-                                                name = 'Resize_',
+                                                name = f'Resize_{node_id}',
                                                 op_type='Resize',
-                                                inputs=[dict_reshape['input'][0], 'empty0', 'empty1', 'const_sizes'],
+                                                inputs=[dict_reshape['input'][0], empty0_name, empty1_name, const_sizes_name],
                                                 outputs=dict_reshape2['output']
                                                 )
 
@@ -88,7 +104,8 @@ def merge_resize(model):
 
                         dict_reshape = {}
                         dict_expand = {}
-                        dict_reshape2 = {} 
+                        dict_reshape2 = {}
+                        ready = False 
                         ###############################
 
                         search = True

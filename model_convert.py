@@ -793,6 +793,9 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
             input_shape = input_.type.tensor_type.shape.dim
             input_shape = [x.dim_value for x in input_shape]
 
+            if len(input_shape) < 2:
+               continue
+
             h = input_shape[-2]
             w = input_shape[-1]
 
