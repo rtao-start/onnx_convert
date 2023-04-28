@@ -3292,13 +3292,16 @@ def mha_optimizer(model):
             matm['mm2'].input[0] = matm['Add'].output[0]
             matm['mm3'].input[0] = matm['Add'].output[0]
 
-            del model.graph.value_info[:]
             model.graph.node.remove(matm['Tp'])
-            
-            model = onnx.shape_inference.infer_shapes(model)
-            model = onnx.shape_inference.infer_shapes(model)
             #onnx.save(model, './ss.onnx')
             #sys.exit()       
+
+    if pattern == 5:
+        del model.graph.value_info[:]
+        model = onnx.shape_inference.infer_shapes(model)
+        model = onnx.shape_inference.infer_shapes(model)
+        #onnx.save(model, './ss.onnx')
+        #sys.exit()
 
     matmul_list = []
 
