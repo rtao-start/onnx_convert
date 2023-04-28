@@ -2069,6 +2069,7 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
                         logger.debug('------ found transpose_node_map, key: {}'.format(map_key))
                         model.graph.node.remove(node)
                         reuse_transpose = True
+                        bert_mode = 0
                     else:
                         orig_matmul_name = node.name
                         logger.debug('---matmul+add-->conv, need same channel: {} {}, node.name: {}'.format(inputA_shape[1], inputB_shape[0], node.name))
@@ -2103,16 +2104,12 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
                 model.graph.node.remove(node)
                 '''
 
-                if reuse_transpose == False:
-                    node.input[0] = matmul_output0
-                else:
-                    node.input[0] = transpose_node_map[map_key].output[0]
-
                 logger.debug('reuse Add to Reshape')
                 orig_reshape_name = node.name
                 node.op_type = 'Reshape'
                 const_shape_name = node.name + '_to_reshape_'
-                rs_output_shape = [inputA_shape[2], inputA_shape[1], 1, inputA_shape[0]]
+                print('DDDDD inputA_shape:', inputA_shape)
+                rs_output_shape = [inputA_shape[1], inputA_shape[2], 1, inputA_shape[0]]
                 if remove_matmul == True:
                     rs_output_shape = [matmul_input0_shape[1], matmul_input0_shape[2], 1, matmul_input0_shape[0]]  
                 
@@ -2122,14 +2119,22 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
                                     vals=rs_output_shape)
 
                 model.graph.initializer.append(const_shape_tensor)
-                node.input[0] = node.input[1]
-                if remove_matmul == True:
-                    node.input[0] = matmul_input0
+
+                #node.input[0] = node.input[1]
+                #if remove_matmul == True:
+                #    node.input[0] = matmul_input0
+
+                if reuse_transpose == False:
+                    print('KKKKKKKKKKKKKKKKK matmul_output0: ', matmul_output0, node.name)
+                    node.input[0] = matmul_output0
+                else:
+                    print('KKKKKKKKKKKKKKKKK: ', transpose_node_map[map_key].output[0], node.name)
+                    node.input[0] = transpose_node_map[map_key].output[0]
 
                 node.input[1] = const_shape_name 
                 update_tensor_shape(model, node.output[0], rs_output_shape)
                 
-            if node.op_type == 'Reshape':
+            if node.op_type == 'Reshape' and node.name != orig_reshape_name:
                 rs1_output_shape = values.get_tensor_shape_by_name(model, node.output[0])
 
                 logger.debug('-----reuse Reshape to Conv')
@@ -2652,18 +2657,46 @@ def do_convert_pattern_two(model, matmul_dict):
 
             if node.op_type == 'Add':
                 logger.debug('----delete add node: {}'.format(node.name))
-                add_input1 = node.input[1]
-                model.graph.node.remove(node)
+                #add_input1 = node.input[1]
+                #model.graph.node.remove(node)
+
+                print('GGGGGGGGGGGGGG matmul_input0_shape: ', inputA_shape, matmul_input0_shape)
+
+                #'''
+                orig_reshape_name = node.name
+                node.op_type = 'Reshape'
+                const_shape_name = node.name + '_to_reshape_'
+                rs_output_shape = [inputA_shape[1], inputA_shape[2], 1, inputA_shape[0]] 
+                if remove_matmul == True:
+                    rs_output_shape = [matmul_input0_shape[1], matmul_input0_shape[2], 1, matmul_input0_shape[0]]  
+                
+                const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                                    data_type=onnx.TensorProto.INT64,
+                                    dims=[len(rs_output_shape)],
+                                    vals=rs_output_shape)
+
+                model.graph.initializer.append(const_shape_tensor)
+                if remove_matmul == True:
+                    node.input[0] = matmul_input0
+                else:
+                    if reuse_transpose == False:
+                        node.input[0] = node.input[1]
+                    else:
+                        node.input[0] = transpose_node_map[map_key].output[0]
+
+                node.input[1] = const_shape_name 
+                update_tensor_shape(model, node.output[0], rs_output_shape)
+                #'''
 
             if node.op_type == 'Reshape' and node.name != orig_reshape_name:
                 logger.debug('reuse Reshape to Conv')
                 node.op_type = 'Conv'
-                node.input[0] = add_input1
+                #node.input[0] = add_input1
 
-                if reuse_transpose == False:
-                    node.input[0] = add_input1
-                else:
-                    node.input[0] = transpose_node_map[map_key].output[0]
+                #if reuse_transpose == False:
+                #    node.input[0] = add_input1
+                #else:
+                #    node.input[0] = transpose_node_map[map_key].output[0]
 
                 const_x_name = node.name + '_to_conv_x_'
 
@@ -2674,20 +2707,20 @@ def do_convert_pattern_two(model, matmul_dict):
                 if isinstance(v, np.ndarray) == True:
                     A = v.reshape(matmul_dict['B_matmul_BShape'][0], matmul_dict['B_matmul_BShape'][1])
                     A = A.transpose()
-                    A = A.reshape(matmul_dict['B_matmul_BShape'][1], matmul_dict['B_matmul_BShape'][0], 1)
+                    A = A.reshape(matmul_dict['B_matmul_BShape'][1], matmul_dict['B_matmul_BShape'][0], 1, 1)
                     logger.debug('+++A.shape: {}'.format(A.shape))
                     A = A.flatten()
                 else:    
                     A = np.array(v).reshape(matmul_dict['B_matmul_BShape'][0], matmul_dict['B_matmul_BShape'][1])
                     A = A.transpose()
-                    A = A.reshape(matmul_dict['B_matmul_BShape'][1], matmul_dict['B_matmul_BShape'][0], 1)
+                    A = A.reshape(matmul_dict['B_matmul_BShape'][1], matmul_dict['B_matmul_BShape'][0], 1, 1)
                     logger.debug('---A.shape: {}'.format(A.shape))
                     A = A.flatten()
 
                 A = A.tolist()  
                 const_x_tensor = onnx.helper.make_tensor(name=const_x_name,
                                     data_type=onnx.TensorProto.FLOAT,
-                                    dims=[matmul_dict['B_matmul_BShape'][1], matmul_dict['B_matmul_BShape'][0],1],
+                                    dims=[matmul_dict['B_matmul_BShape'][1], matmul_dict['B_matmul_BShape'][0],1, 1],
                                     vals=A)
 
                 model.graph.initializer.append(const_x_tensor)
@@ -2695,19 +2728,19 @@ def do_convert_pattern_two(model, matmul_dict):
 
                 del node.attribute[:]
 
-                attr = onnx.helper.make_attribute('dilations', [1])
+                attr = onnx.helper.make_attribute('dilations', [1, 1])
                 node.attribute.append(attr)
 
                 attr = onnx.helper.make_attribute('group', 1)
                 node.attribute.append(attr)
 
-                attr = onnx.helper.make_attribute('kernel_shape', [1])
+                attr = onnx.helper.make_attribute('kernel_shape', [1, 1])
                 node.attribute.append(attr)
 
-                attr = onnx.helper.make_attribute('pads', [0,0])
+                attr = onnx.helper.make_attribute('pads', [0,0,0,0])
                 node.attribute.append(attr)
 
-                attr = onnx.helper.make_attribute('strides', [1])
+                attr = onnx.helper.make_attribute('strides', [1,1])
                 node.attribute.append(attr)        
 
                 node.input.append(matmul_dict['B_addA'])
