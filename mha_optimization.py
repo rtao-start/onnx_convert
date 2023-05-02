@@ -2161,7 +2161,6 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
                 orig_reshape_name = node.name
                 node.op_type = 'Reshape'
                 const_shape_name = node.name + '_to_reshape_'
-                print('DDDDD inputA_shape:', inputA_shape)
                 rs_output_shape = [inputA_shape[0], inputA_shape[2], 1, inputA_shape[1]]
                 if remove_matmul == True:
                     rs_output_shape = [matmul_input0_shape[1], matmul_input0_shape[2], 1, matmul_input0_shape[0]]  
@@ -2178,10 +2177,8 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
                 #    node.input[0] = matmul_input0
 
                 if reuse_transpose == False:
-                    print('KKKKKKKKKKKKKKKKK matmul_output0: ', matmul_output0, node.name)
                     node.input[0] = matmul_output0
                 else:
-                    print('KKKKKKKKKKKKKKKKK: ', transpose_node_map[map_key].output[0], node.name)
                     node.input[0] = transpose_node_map[map_key].output[0]
 
                 node.input[1] = const_shape_name 
@@ -2718,8 +2715,6 @@ def do_convert_pattern_two(model, matmul_dict):
                 logger.debug('----delete add node: {}'.format(node.name))
                 #add_input1 = node.input[1]
                 #model.graph.node.remove(node)
-
-                print('GGGGGGGGGGGGGG matmul_input0_shape: ', inputA_shape, matmul_input0_shape)
 
                 #'''
                 orig_reshape_name = node.name
