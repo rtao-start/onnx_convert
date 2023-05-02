@@ -906,10 +906,20 @@ def get_mul_add_block(model):
                                     #print('got node dict:', node_dict)
                                     node_dict['currentAdd'] = next_node
                                     node_list.append(node_dict)
+                        elif len(next_node_list) == 1: #for telecom transform model
+                            if next_node_list[0].op_type == 'MatMul':
+                                logger.debug('got Add~~')
+
+                                matmul_node = next_node_list[0]
+                                node_dict, ret = get_matmul_block_one(model, matmul_node)
+                                if ret == 0:
+                                    #print('got node dict:', node_dict)
+                                    node_dict['currentAdd'] = next_node
+                                    node_list.append(node_dict)
 
     return node_list
 
-def handle_mul_add_block(model):
+def handle_mul_add_block(model, pattern):
     node_list = get_mul_add_block(model)
 
     #if len(node_list) > 0:
@@ -978,10 +988,11 @@ def handle_mul_add_block(model):
 
         insert_node(model, ts_node, rs_node)
 
-        if nextAddInput1 == True:
-            nextAdd.input[1] = ts_output_name
-        else:    
-            nextAdd.input[0] = ts_output_name
+        if pattern != 5:
+            if nextAddInput1 == True:
+                nextAdd.input[1] = ts_output_name
+            else:    
+                nextAdd.input[0] = ts_output_name
 
         #MatMul1--->Conv
         matmul1.op_type = 'Conv'
@@ -1035,7 +1046,10 @@ def handle_mul_add_block(model):
             matmul1.input.append(add1.input[1])   
 
         output_shape = values.get_tensor_shape_by_name(model, matmul1.output[0])
-        conv_output_shape = [output_shape[0], output_shape[2], 1, output_shape[1]] 
+        conv_output_shape = [output_shape[0], output_shape[2], 1, output_shape[1]]
+
+        if pattern == 5:
+            conv_output_shape = [output_shape[1], output_shape[2], 1, output_shape[0]]
 
         update_tensor_shape(model, matmul1.output[0], conv_output_shape) 
 
@@ -1150,7 +1164,10 @@ def handle_mul_add_block(model):
         matmul2.input.append(B)
 
         output_shape = values.get_tensor_shape_by_name(model, matmul2.output[0])
-        conv_output_shape = [output_shape[0], output_shape[2], 1, output_shape[1]] 
+        conv_output_shape = [output_shape[0], output_shape[2], 1, output_shape[1]]
+
+        if pattern == 5:
+            conv_output_shape = [output_shape[1], output_shape[2], 1, output_shape[0]] 
 
         update_tensor_shape(model, matmul2.output[0], conv_output_shape) 
 
@@ -1184,64 +1201,101 @@ def handle_mul_add_block(model):
         ######update tensor shape
         div_output_shape = values.get_tensor_shape_by_name(model, div_node.output[0])
         new_shape = [div_output_shape[0], div_output_shape[2], div_output_shape[1]]
+        if pattern == 5:
+            new_shape = [div_output_shape[1], div_output_shape[2], div_output_shape[0]]
+
         update_tensor_shape(model, div_node.output[0], new_shape)
 
         erf_node, ok = get_next_node_by_output(model, div_node.output[0])
         if ok == 0 and erf_node.op_type == 'Erf':
             erf_output_shape = values.get_tensor_shape_by_name(model, erf_node.output[0])
             new_shape = [erf_output_shape[0], erf_output_shape[2], erf_output_shape[1]]
+            if pattern == 5:
+                new_shape = [erf_output_shape[1], erf_output_shape[2], erf_output_shape[0]]
+
             update_tensor_shape(model, erf_node.output[0], new_shape)
 
             add_node_internal, ok = get_next_node_by_output(model, erf_node.output[0])
             if ok == 0 and add_node_internal.op_type == 'Add':
                 addi_output_shape = values.get_tensor_shape_by_name(model, add_node_internal.output[0])
                 new_shape = [addi_output_shape[0], addi_output_shape[2], addi_output_shape[1]]
+
+                if pattern == 5:
+                    new_shape = [addi_output_shape[1], addi_output_shape[2], addi_output_shape[0]]
+
                 update_tensor_shape(model, add_node_internal.output[0], new_shape)
         
             mul_node1, ok = get_next_node_by_output(model, add_node_internal.output[0])
             if ok == 0 and mul_node1.op_type == 'Mul':
                 mul1_output_shape = values.get_tensor_shape_by_name(model, mul_node1.output[0])
                 new_shape = [mul1_output_shape[0], mul1_output_shape[2], mul1_output_shape[1]]
+
+                if pattern == 5:
+                    new_shape = [mul1_output_shape[1], mul1_output_shape[2], mul1_output_shape[0]]
+
                 update_tensor_shape(model, mul_node1.output[0], new_shape)
 
             mul_node2, ok = get_next_node_by_output(model, mul_node1.output[0])
             if ok == 0 and mul_node2.op_type == 'Mul':    
                 mul2_output_shape = values.get_tensor_shape_by_name(model, mul_node2.output[0])
                 new_shape = [mul2_output_shape[0], mul2_output_shape[2], mul2_output_shape[1]]
+
+                if pattern == 5:
+                    new_shape = [mul2_output_shape[1], mul2_output_shape[2], mul2_output_shape[0]]
+
                 update_tensor_shape(model, mul_node2.output[0], new_shape)
 
         ######insert Transpose before ReduceMean and Sub
-        update_tensor_shape(model, nextAdd.output[0], rs2_output_shape)
-
-        rm_sub, ok = get_all_next_node_by_output(model, nextAdd.output[0])
-        if ok == 0 and len(rm_sub) == 2:
-            logger.debug('got reducemean and sub node---')
-            sub_node = rm_sub[0]
-            rm_node = rm_sub[1]
-
-            if rm_sub[0].op_type == 'ReduceMean':
-                sub_node = rm_sub[1]
-                rm_node = rm_sub[0]
-
+        if pattern == 5:
             ###add transpose
             ts3_name = nextAdd.name + '_transpose_'
             ts3_output_name = ts3_name + '_output_'
-            add3_output_shape = values.get_tensor_shape_by_name(model, nextAdd.output[0])
-            ts3_output_shape = [add3_output_shape[0], add3_output_shape[2], add3_output_shape[1]]
+            ts3_output_shape = [rs2_output_shape[0], rs2_output_shape[2], rs2_output_shape[1]]
             ts3_output = onnx.helper.make_tensor_value_info(ts3_output_name, onnx.TensorProto.FLOAT, ts3_output_shape)
             
             ts3_node = onnx.helper.make_node(
                                                 'Transpose',
                                                 name=ts3_name,
-                                                inputs=[nextAdd.output[0]],
+                                                inputs=[add2.output[0]],
                                                 outputs=[ts3_output_name],
                                                 perm=[0,2,1])
 
             model.graph.value_info.append(ts3_output)
 
-            insert_node(model, ts3_node, sub_node) 
-            sub_node.input[0] = ts3_output_name
-            rm_node.input[0] = ts3_output_name
+            insert_node(model, ts3_node, add2) 
+            nextAdd.input[1] = ts3_output_name
+        else:    
+            update_tensor_shape(model, nextAdd.output[0], rs2_output_shape)
+
+            rm_sub, ok = get_all_next_node_by_output(model, nextAdd.output[0])
+            if ok == 0 and len(rm_sub) == 2:
+                logger.debug('got reducemean and sub node---')
+                sub_node = rm_sub[0]
+                rm_node = rm_sub[1]
+
+                if rm_sub[0].op_type == 'ReduceMean':
+                    sub_node = rm_sub[1]
+                    rm_node = rm_sub[0]
+
+                ###add transpose
+                ts3_name = nextAdd.name + '_transpose_'
+                ts3_output_name = ts3_name + '_output_'
+                add3_output_shape = values.get_tensor_shape_by_name(model, nextAdd.output[0])
+                ts3_output_shape = [add3_output_shape[0], add3_output_shape[2], add3_output_shape[1]]
+                ts3_output = onnx.helper.make_tensor_value_info(ts3_output_name, onnx.TensorProto.FLOAT, ts3_output_shape)
+                
+                ts3_node = onnx.helper.make_node(
+                                                    'Transpose',
+                                                    name=ts3_name,
+                                                    inputs=[nextAdd.output[0]],
+                                                    outputs=[ts3_output_name],
+                                                    perm=[0,2,1])
+
+                model.graph.value_info.append(ts3_output)
+
+                insert_node(model, ts3_node, sub_node) 
+                sub_node.input[0] = ts3_output_name
+                rm_node.input[0] = ts3_output_name
 
 def get_matmul_block_two(model, matmul_node):
     logger.debug('into get_matmul_block_two')
@@ -3261,6 +3315,98 @@ def get_mul_add_transpose_matmul_block(model):
 
     return matm_list                    
 
+#TBD
+def gen_mul_add_block_by_rm_transpose(model):
+    logger.debug('into gen_mul_add_block_by_rm_transpose')
+
+    node_list = []
+    for node in model.graph.node:
+        node_dict = {}
+        if node.op_type == 'Mul':
+            #print('got mul:', node.name)
+
+            is_init = False
+
+            for init in model.graph.initializer:
+                if init.name == node.input[0] or init.name == node.input[1]:
+                    is_init = True
+                    break
+
+            if is_init == False:
+                dataA = values.get_constant_value(model, node.input[0])
+                if len(dataA) == 0:
+                    dataA = values.get_constant_value(model, node.input[1])
+
+                if dataA != []:
+                    is_init = True
+
+            if is_init == True:
+                #print('----got mul:', node.name)
+                next_node, ok = get_next_node_by_output(model, node.output[0])
+                if ok == 0 and next_node.op_type == 'Add':
+                    ##############
+                    #print('----got add:', next_node.name)
+                    is_init = False
+
+                    for init in model.graph.initializer:
+                        if init.name == next_node.input[1]:
+                            is_init = True
+                            break
+
+                    if is_init == False:
+                        dataA = values.get_constant_value(model, next_node.input[1])
+                        if dataA != []:
+                            is_init = True
+
+                if is_init == True:
+                    #print('get_all_next_node_by_output---', next_node.output, node.name)
+                    tp_node, ok = get_next_node_by_output(model, next_node.output[0])
+                    if ok == 0 and tp_node.op_type== 'Transpose':
+                        mm_node1, ok = get_next_node_by_output(model, tp_node.output[0])
+                        if ok == 0 and mm_node1.op_type == 'MatMul':
+                            add_node1, ok = get_next_node_by_output(model, mm_node1.output[0])
+                            if ok == 0 and add_node1.op_type == 'Add':
+                                next_node_list, ok = get_all_next_node_by_output(model, add_node1.output[0])
+                                #print('next_node_list:', len(next_node_list))
+                                if len(next_node_list) == 2:
+                                    #print('got next_node_list:', next_node_list[0].op_type, next_node_list[1].op_type)
+
+                                    if (next_node_list[0].op_type == 'Div' and next_node_list[1].op_type == 'Mul') or \
+                                        (next_node_list[0].op_type == 'Mul' and next_node_list[1].op_type == 'Div'):
+                                        logger.debug('---got it~')
+                                        mul_node1 = next_node_list[0]
+                                        if next_node_list[1].op_type == 'Mul':
+                                            mul_node1 = next_node_list[1]
+
+                                        mul_node2, ok = get_next_node_by_output(model, mul_node1.output[0])
+                                        if ok == 0 and mul_node2.op_type == 'Mul':
+                                            mm_node2, ok = get_next_node_by_output(model, mul_node2.output[0])
+                                            if ok == 0 and mm_node2.op_type == 'MatMul':
+                                                add_node2, ok = get_next_node_by_output(model, mm_node2.output[0])
+                                                if ok == 0 and add_node2.op_type == 'Add':
+                                                    tp_node2, ok = get_next_node_by_output(model, add_node2.output[0])
+                                                    if ok == 0 and tp_node2.op_type == 'Transpose':
+                                                        add_node3, ok = get_next_node_by_output(model, tp_node2.output[0])
+                                                        if ok == 0 and add_node3.op_type == 'Add':
+                                                            logger.debug('got match transpose block')
+                                                            node_dict['Add'] = add_node3
+                                                            node_dict['Transpose2'] = tp_node2
+                                                            node_dict['MatMul'] = mm_node1
+                                                            node_dict['Transpose'] = tp_node
+                                                            node_list.append(node_dict)
+
+    for nd in node_list:
+        tp_node = nd['Transpose']
+        tp_node2 = nd['Transpose2']
+        add_node = nd['Add']
+        mm_node = nd['MatMul']
+
+        mm_node.input[0] = tp_node.input[0]
+        model.graph.node.remove(tp_node)
+
+        add_node.input[1] = tp_node2.input[0]
+        model.graph.node.remove(tp_node2)
+
 def mha_optimizer(model):
     pattern = -1
     ret1 = match_mha_block_pattern_one(model) #for decoder_model_bs10.onnx
@@ -3300,6 +3446,8 @@ def mha_optimizer(model):
         del model.graph.value_info[:]
         model = onnx.shape_inference.infer_shapes(model)
         model = onnx.shape_inference.infer_shapes(model)
+        gen_mul_add_block_by_rm_transpose(model)
+
         #onnx.save(model, './ss.onnx')
         #sys.exit()
 
@@ -3314,7 +3462,7 @@ def mha_optimizer(model):
         handle_add_combination_pattern_two_three(model)
 
     if pattern != 4:   
-        handle_mul_add_block(model)
+        handle_mul_add_block(model, pattern)
     else:
         logger.debug('handle pattern 4')
         handle_add_combination_pattern_four(model)    
