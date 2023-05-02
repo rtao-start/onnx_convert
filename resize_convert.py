@@ -1,5 +1,5 @@
 import onnx
-import values
+import values,operation
 import sys
 import numpy as np
 import log
@@ -19,7 +19,7 @@ def remove_unused_initializer(model, unused_init_list):
             logger.debug('remove unused init: {}'.format(init.name))
             model.graph.initializer.remove(init)
 
-def merge_resize(model):
+def merge_resize_old(model):
     dict_reshape = {}
     dict_expand = {}
     dict_reshape2 = {}
@@ -150,6 +150,99 @@ def merge_resize(model):
                     dict_reshape = {}
                     unused_init_list = []           
 
+    remove_unused_initializer(model, unused_init_list)
+
+    return model
+
+def merge_resize(model):
+    unused_init_list = []
+
+    #while search == True:
+    if True:
+        search = False
+        ready = False
+
+        rer_list = []
+
+        for node in model.graph.node:
+            #print(node_id, ", name:", node.name, ", input:", node.input, ", output:", node.output,  \
+            #        ", op:", node.op_type, ', len(input):', len(node.input))
+
+            rer_dict = {}
+
+            if node.op_type == 'Reshape':
+                expand_node, ok = values.get_next_node_by_output(model, node.output[0])
+                if ok == 0 and expand_node.op_type == 'Expand':
+                    reshape_node2, ok = values.get_next_node_by_output(model, expand_node.output[0])
+                    if ok == 0 and reshape_node2.op_type == 'Reshape':
+                        rer_dict['Reshape'] = node
+                        rer_dict['Reshape2'] = reshape_node2
+                        rer_dict['Expand'] = expand_node
+
+                        rer_list.append(rer_dict)
+
+        for idx, rer in enumerate(rer_list):
+            rs_node = rer['Reshape']
+            rs_node2 = rer['Reshape2']
+            expand_node = rer['Expand']
+
+            shape = values.get_init_value(model, rs_node2.input[1])
+            shape_list = shape
+            shape_dims = []
+
+            if isinstance(shape, np.ndarray):
+                shape_list = shape.tolist()
+
+            input_shape = values.get_tensor_shape_by_name(model, rs_node.input[0])
+
+            if len(input_shape) != len(shape_list):
+                logger.info('ignore Reshape+Expand+Reshape==>Resize, because input dim {} is not equal sizes dim {}'.format(len(input_shape), len(shape_list)))
+                continue   
+
+            for init in model.graph.initializer:
+                if init.name == rs_node2.input[1]:
+                    shape_dims = init.dims
+                    if init not in unused_init_list:
+                        unused_init_list.append(init)
+
+            for init in model.graph.initializer:
+                if init.name == rs_node.input[1] or init.name == expand_node.input[1]:
+                    if init not in unused_init_list:
+                        unused_init_list.append(init)
+
+            prev_node, _ = values.get_prev_node_by_input(model, rs_node.input[0])
+            next_node, _ = values.get_next_node_by_output(model, rs_node2.output[0])
+
+            empty0_name = f'empty0_{idx}'
+            empty1_name = f'empty1_{idx}'
+
+            empty0 = onnx.helper.make_tensor(empty0_name, onnx.TensorProto.FLOAT, [0], [])
+            empty1 = onnx.helper.make_tensor(empty1_name, onnx.TensorProto.FLOAT, [0], [])
+            
+            const_sizes_name = f'const_sizes_{idx}'
+
+            const_sizes = onnx.helper.make_tensor(name=const_sizes_name,
+                                                    data_type=onnx.TensorProto.INT64,
+                                                    dims=shape_dims,
+                                                    vals=shape_list)
+
+            model.graph.initializer.append(empty0)
+            model.graph.initializer.append(empty1)
+            model.graph.initializer.append(const_sizes)    
+
+            resize_node = onnx.helper.make_node(
+                                    name = f'Resize_{idx}',
+                                    op_type='Resize',
+                                    inputs=[rs_node.input[0], empty0_name, empty1_name, const_sizes_name],
+                                    outputs=rs_node2.output
+                                    )
+
+            operation.insert_onnx_node(model, resize_node, prev_node)
+
+            model.graph.node.remove(rs_node2)
+            model.graph.node.remove(expand_node)
+            model.graph.node.remove(rs_node)                        
+      
     remove_unused_initializer(model, unused_init_list)
 
     return model

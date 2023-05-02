@@ -172,4 +172,21 @@ def get_tensor_shape_by_name(model, name):
                     logger.debug('----got tensor shape{} for {}'.format(shape, name))
                     break    
 
-    return shape        
+    return shape
+
+
+def get_next_node_by_output(model, output):
+    n = model.graph.node[0]
+    for node in model.graph.node:
+        if output in node.input:
+            return node, 0
+
+    return n, -1            
+
+def get_prev_node_by_input(model, input_):
+    n = model.graph.node[0]
+    for node in model.graph.node:
+        if input_ in node.output:
+            return node, 0
+
+    return n, -1

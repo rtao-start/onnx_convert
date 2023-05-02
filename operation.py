@@ -19,6 +19,13 @@ def is_unused_init(model, init):
 
     return True
 
+def is_unused_init2(model, init, node_):
+    for node in model.graph.node:
+        if init.name in node.input and node != node_:
+            return False
+
+    return True
+
 def remove_unused_initializer_list(model, unused_init_list):
     for init in unused_init_list:
         if is_unused_init(model, init):
@@ -26,10 +33,11 @@ def remove_unused_initializer_list(model, unused_init_list):
             model.graph.initializer.remove(init) 
 
 def remove_unused_initializer(model):
-    for init in model.graph.initializer:
-        if is_unused_init(model, init):
-            logger.debug('---remove unused init: {}'.format(init.name))
-            model.graph.initializer.remove(init)                        
+   for init in model.graph.initializer:
+      print('====got init: ', init.name)
+      if is_unused_init(model, init):
+         logger.debug('---remove unused init: {}'.format(init.name))
+         model.graph.initializer.remove(init)                        
 
 def eliminate_unused_input_initializer(model):
    init_list = []
@@ -262,4 +270,25 @@ def insert_onnx_node(model, insert_node, follow_up_node):
         if _follow_up_node == follow_up_node:
             logger.debug("follow_up_node_index: {}".format(follow_up_node_index))
             model.graph.node.insert(follow_up_node_index, insert_node)
-            break    
+            break
+
+def remove_onnx_node(model, node):
+   init_name_list = []
+   init_name_map = {}
+
+   for init in model.graph.initializer:
+      init_name_list.append(init.name)
+      init_name_map[init.name] = init
+
+   for input_ in node.input:
+      if input_ in init_name_list:
+         if is_unused_init2(model, init_name_map[input_], node):
+            model.graph.initializer.remove(init_name_map[input_])
+
+   model.graph.node.remove(node)
+
+def remove_initializer_if_necessary(model, init, node):
+   if is_unused_init2(model, init, node):
+      model.graph.initializer.remove(init)
+
+

@@ -1,6 +1,6 @@
 import onnx
 import sys
-import values
+import values, operation
 import numpy as np
 import log
 
@@ -2120,7 +2120,8 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
                     if map_key in transpose_node_map.keys():
                         #transpose_node_map[map_key]
                         logger.debug('------ found transpose_node_map, key: {}'.format(map_key))
-                        model.graph.node.remove(node)
+                        #model.graph.node.remove(node)
+                        operation.remove_onnx_node(model, node)
                         reuse_transpose = True
                         bert_mode = 0
                     else:
@@ -2139,7 +2140,8 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
                     #matmul_input0 = node.input[0]
                     #matmul_input0_shape = values.get_tensor_shape_by_name(model, matmul_input0)
 
-                    model.graph.node.remove(node)
+                    #model.graph.node.remove(node)
+                    operation.remove_onnx_node(model, node)
                     remove_matmul = True
                     bert_mode = 0
 
@@ -2344,7 +2346,8 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
                     matmul_input0 = node.input[0]
                     matmul_input0_shape = values.get_tensor_shape_by_name(model, matmul_input0)
 
-                    model.graph.node.remove(node)
+                    #model.graph.node.remove(node)
+                    operation.remove_onnx_node(model, node)
                     remove_matmul = True
                     bert_mode = 0
 
@@ -2528,7 +2531,8 @@ def do_convert_pattern_four(model, matmul_dict, isInputA):
                 matmul_input0 = node.input[0]
                 matmul_input0_shape = values.get_tensor_shape_by_name(model, matmul_input0)
 
-                model.graph.node.remove(node)
+                #model.graph.node.remove(node)
+                operation.remove_onnx_node(model, node)
                 remove_matmul = True
                 bert_mode = 0
 
@@ -2695,7 +2699,8 @@ def do_convert_pattern_two(model, matmul_dict):
                     if map_key in transpose_node_map.keys():
                         #transpose_node_map[map_key]
                         logger.debug('found transpose_node_map, key: {}'.format(map_key))
-                        model.graph.node.remove(node)
+                        #model.graph.node.remove(node)
+                        operation.remove_onnx_node(model, node)
                         reuse_transpose = True
                     else:     
                         orig_matmul_name = node.name
@@ -2708,7 +2713,8 @@ def do_convert_pattern_two(model, matmul_dict):
                 else:
                     logger.debug('###### Delete MatMul node: {}'.format(node.name))
 
-                    model.graph.node.remove(node)
+                    #model.graph.node.remove(node)
+                    operation.remove_onnx_node(model, node)
                     remove_matmul = True
 
             if node.op_type == 'Add':
@@ -2854,7 +2860,8 @@ def do_convert_pattern_two(model, matmul_dict):
                     map_key = node.input[0]
                     if map_key in transpose_node_map.keys():
                         #transpose_node_map[map_key]
-                        model.graph.node.remove(node)
+                        #model.graph.node.remove(node)
+                        operation.remove_onnx_node(model, node)
                         reuse_transpose = True
                     else:     
                         orig_matmul_name = node.name
@@ -2869,7 +2876,8 @@ def do_convert_pattern_two(model, matmul_dict):
                     matmul_input0 = node.input[0]
                     matmul_input0_shape = values.get_tensor_shape_by_name(model, matmul_input0)
 
-                    model.graph.node.remove(node)
+                    #model.graph.node.remove(node)
+                    operation.remove_onnx_node(model, node)
                     remove_matmul = True
 
 
@@ -3395,10 +3403,12 @@ def gen_mul_add_block_by_rm_transpose(model):
         mm_node = nd['MatMul']
 
         mm_node.input[0] = tp_node.input[0]
-        model.graph.node.remove(tp_node)
+        #model.graph.node.remove(tp_node)
+        operation.remove_onnx_node(model, tp_node)
 
         add_node.input[1] = tp_node2.input[0]
-        model.graph.node.remove(tp_node2)
+        #model.graph.node.remove(tp_node2)
+        operation.remove_onnx_node(model, tp_node2)
 
 def correct_reshape_expand_reshape_pattern(model):
     logger.debug('into correct_reshape_expand_reshape_pattern')
@@ -3457,6 +3467,86 @@ def correct_reshape_expand_reshape_pattern(model):
                 insert_node(model, rs_node, prev_node)
                 rs_node1.input[0] = output_tensor_name
 
+def correct_reshape_expand_reshape_pattern2(model):
+    logger.debug('into correct_reshape_expand_reshape_pattern2')
+
+    node_list = []
+
+    for node in model.graph.node:
+        node_dict = {}
+        if node.op_type == 'Reshape':
+            expend_node, ok = get_next_node_by_output(model, node.output[0])
+            if ok == 0 and expend_node.op_type == 'Expand':
+                reshape_node, ok = get_next_node_by_output(model, expend_node.output[0])
+                if ok == 0 and reshape_node.op_type == 'Reshape':
+                    node_dict['Reshape1'] = node
+                    node_dict['Expand'] = expend_node
+                    node_dict['Reshape2'] = reshape_node
+
+                    node_list.append(node_dict)
+
+    for index, nd in enumerate(node_list):
+        rs_node1 = nd['Reshape1']
+        rs_node2 = nd['Reshape2']
+        expand_node = nd['Expand']
+
+        len_reshape1_input = len(values.get_tensor_shape_by_name(model, rs_node1.input[0]))
+        len_reshape2_output = len(values.get_tensor_shape_by_name(model, rs_node2.output[0]))
+
+        if len_reshape1_input < 4:
+            diff = 4 - len_reshape1_input
+            logger.info('Corrent Reshape+Expand+Reshape {}'.format(len_reshape1_input))
+
+            input_shape = values.get_tensor_shape_by_name(model, rs_node1.input[0])
+            new_shape = [1,1,1,1]
+
+            for idx, v in enumerate(input_shape):
+                new_shape[idx+diff] = v
+
+            logger.debug('got new_shape: {}'.format(new_shape))
+
+            if True:
+                shape_tensor_name = rs_node1.name + '_reshape_data_' + str(index)
+                const_shape = onnx.helper.make_tensor(shape_tensor_name, onnx.TensorProto.INT64, [4], new_shape)
+                model.graph.initializer.append(const_shape)
+
+                output_tensor_name = rs_node1.name + '_reshape_' + str(index)
+                output_tensor = onnx.helper.make_tensor_value_info(output_tensor_name, onnx.TensorProto.FLOAT, new_shape)
+
+                model.graph.value_info.append(output_tensor)
+
+                prev_node, _ = get_prev_node_by_input(model, rs_node1.input[0])
+
+                rs_node = onnx.helper.make_node(
+                    name=rs_node1.name+'__Reshape__'+ str(index),
+                    op_type='Reshape', 
+                    inputs=[rs_node1.input[0], shape_tensor_name],
+                    outputs=[output_tensor_name]
+                    )
+
+                insert_node(model, rs_node, prev_node)
+                rs_node1.input[0] = output_tensor_name
+                ###############################################
+                shape_tensor_name = rs_node2.name + '_reshape_data_' + str(index)
+                new_shape = values.get_tensor_shape_by_name(model, expand_node.output[0])
+                const_shape = onnx.helper.make_tensor(shape_tensor_name, onnx.TensorProto.INT64, [4], new_shape)
+                model.graph.initializer.append(const_shape)
+
+                output_tensor_name = rs_node2.name + '_reshape_' + str(index)
+                output_tensor = onnx.helper.make_tensor_value_info(output_tensor_name, onnx.TensorProto.FLOAT, new_shape)
+
+                model.graph.value_info.append(output_tensor)
+
+                rs_node = onnx.helper.make_node(
+                    name=rs_node2.name+'__Reshape__'+ str(index),
+                    op_type='Reshape', 
+                    inputs=[expand_node.output[0], shape_tensor_name],
+                    outputs=[output_tensor_name]
+                    )
+
+                insert_node(model, rs_node, expand_node)
+                rs_node2.input[0] = output_tensor_name
+
 def mha_optimizer(model):
     pattern = -1
     ret1 = match_mha_block_pattern_one(model) #for decoder_model_bs10.onnx
@@ -3488,14 +3578,15 @@ def mha_optimizer(model):
             matm['mm2'].input[0] = matm['Add'].output[0]
             matm['mm3'].input[0] = matm['Add'].output[0]
 
-            model.graph.node.remove(matm['Tp'])  
+            #model.graph.node.remove(matm['Tp'])
+            operation.remove_onnx_node(model, matm['Tp'])  
 
     if pattern == 5:
         del model.graph.value_info[:]
         model = onnx.shape_inference.infer_shapes(model)
         model = onnx.shape_inference.infer_shapes(model)
         gen_mul_add_block_by_rm_transpose(model)
-        correct_reshape_expand_reshape_pattern(model)
+        #correct_reshape_expand_reshape_pattern2(model)
 
         #onnx.save(model, './ss.onnx')
         #sys.exit()
