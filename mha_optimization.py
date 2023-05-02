@@ -794,7 +794,6 @@ def get_matmul_block_one(model, matmul_node):
 
                             input_nnnnext, ok = get_next_node_by_output(model, mul_node.output[0])
                             if ok == 0 and input_nnnnext.op_type == 'Mul':
-                                #print('AAAAAAAAAAAAAAAAAAAA', input_nnnnext.name)
                                 mulB, shapeB = values.get_init_value_and_shape(model, input_nnnnext.input[1])
                                 if len(mulB) > 0:
                                     #######################
@@ -3315,7 +3314,6 @@ def get_mul_add_transpose_matmul_block(model):
 
     return matm_list                    
 
-#TBD
 def gen_mul_add_block_by_rm_transpose(model):
     logger.debug('into gen_mul_add_block_by_rm_transpose')
 
@@ -3407,6 +3405,63 @@ def gen_mul_add_block_by_rm_transpose(model):
         add_node.input[1] = tp_node2.input[0]
         model.graph.node.remove(tp_node2)
 
+def correct_reshape_expand_reshape_pattern(model):
+    logger.debug('into correct_reshape_expand_reshape_pattern')
+
+    node_list = []
+
+    for node in model.graph.node:
+        node_dict = {}
+        if node.op_type == 'Reshape':
+            expend_node, ok = get_next_node_by_output(model, node.output[0])
+            if ok == 0 and expend_node.op_type == 'Expand':
+                reshape_node, ok = get_next_node_by_output(model, expend_node.output[0])
+                if ok == 0 and reshape_node.op_type == 'Reshape':
+                    node_dict['Reshape1'] = node
+                    node_dict['Reshape2'] = reshape_node
+
+                    node_list.append(node_dict)
+
+    for index, nd in enumerate(node_list):
+        rs_node1 = nd['Reshape1']
+        rs_node2 = nd['Reshape2']
+
+        len_reshape1_input = len(values.get_tensor_shape_by_name(model, rs_node1.input[0]))
+        len_reshape2_output = len(values.get_tensor_shape_by_name(model, rs_node2.output[0]))
+
+        if len_reshape1_input < len_reshape2_output:
+            logger.info('Corrent Reshape+Expand+Reshape {} {}'.format(len_reshape1_input, len_reshape2_output))
+
+            shape1 = values.get_tensor_shape_by_name(model, rs_node1.input[0])
+            diff = len_reshape2_output - len_reshape1_input
+
+            new_shape = [1]*len_reshape2_output
+
+            for idx, v in enumerate(shape1):
+                new_shape[idx+diff] = v
+
+            #print('new_shape:', new_shape)
+
+            shape_tensor_name = rs_node1.name + '_reshape_data_' + str(index)
+            const_shape = onnx.helper.make_tensor(shape_tensor_name, onnx.TensorProto.INT64, [len_reshape2_output], new_shape)
+            model.graph.initializer.append(const_shape)
+
+            output_tensor_name = rs_node1.name + '_reshape_' + str(index)
+            output_tensor = onnx.helper.make_tensor_value_info(output_tensor_name, onnx.TensorProto.FLOAT, new_shape)
+
+            model.graph.value_info.append(output_tensor)
+
+            prev_node, ok = get_prev_node_by_input(model, rs_node1.input[0])
+            if ok == 0:
+                rs_node = onnx.helper.make_node(
+                    'Reshape', 
+                    [rs_node1.input[0], shape_tensor_name],
+                    [output_tensor_name]
+                    )
+
+                insert_node(model, rs_node, prev_node)
+                rs_node1.input[0] = output_tensor_name
+
 def mha_optimizer(model):
     pattern = -1
     ret1 = match_mha_block_pattern_one(model) #for decoder_model_bs10.onnx
@@ -3438,15 +3493,14 @@ def mha_optimizer(model):
             matm['mm2'].input[0] = matm['Add'].output[0]
             matm['mm3'].input[0] = matm['Add'].output[0]
 
-            model.graph.node.remove(matm['Tp'])
-            #onnx.save(model, './ss.onnx')
-            #sys.exit()       
+            model.graph.node.remove(matm['Tp'])  
 
     if pattern == 5:
         del model.graph.value_info[:]
         model = onnx.shape_inference.infer_shapes(model)
         model = onnx.shape_inference.infer_shapes(model)
         gen_mul_add_block_by_rm_transpose(model)
+        correct_reshape_expand_reshape_pattern(model)
 
         #onnx.save(model, './ss.onnx')
         #sys.exit()
