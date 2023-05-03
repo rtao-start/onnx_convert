@@ -760,6 +760,7 @@ def get_matmul_block_one(model, matmul_node):
             node_dict['MatMul1'] = input_next
             node_dict['matmulA1_Shape'] = shapeA
             node_dict['inputB1'] = inputB
+            node_dict['inputB1_name'] = input_next.input[1]
             node_dict['matmulB1_Shape'] = shapeB
 
             input_nnext, ok = get_next_node_by_output(model, input_next.output[0])
@@ -815,6 +816,7 @@ def get_matmul_block_one(model, matmul_node):
                                             node_dict['MatMul2'] = input_nnnnnext
                                             node_dict['matmulA2_Shape'] = shapeA
                                             node_dict['inputB2'] = inputB
+                                            node_dict['inputB2_name'] = input_nnnnnext.input[1]
                                             node_dict['matmulB2_Shape'] = shapeB
 
                                             input_nnnnnnext, ok = get_next_node_by_output(model, input_nnnnnext.output[0])
@@ -1001,6 +1003,8 @@ def handle_mul_add_block(model, pattern):
         v = node_dict['inputB1']
         old_dims = [node_dict['matmulB1_Shape'][0], node_dict['matmulB1_Shape'][1]]
         dims_ = [node_dict['matmulB1_Shape'][1], node_dict['matmulB1_Shape'][0],1,1]
+
+        operation.remove_initializer_if_necessary_by_name(model, node_dict['inputB1_name'], matmul1)
         
         if isinstance(v, np.ndarray) == True:
             A = v.reshape(*old_dims)
@@ -1117,6 +1121,8 @@ def handle_mul_add_block(model, pattern):
         v = node_dict['inputB2']
         old_dims = [node_dict['matmulB2_Shape'][0], node_dict['matmulB2_Shape'][1]]
         dims_ = [node_dict['matmulB2_Shape'][1], node_dict['matmulB2_Shape'][0],1,1]
+
+        operation.remove_initializer_if_necessary_by_name(model, node_dict['inputB2_name'], matmul2)
         
         if isinstance(v, np.ndarray) == True:
             A = v.reshape(*old_dims)
@@ -2196,6 +2202,8 @@ def do_convert_pattern_one(model, matmul_dict, isInputA):
                 v = matmul_dict['A_inputB']
                 old_dims = [matmul_dict['A_matmul_BShape'][0], matmul_dict['A_matmul_BShape'][1]]
                 dims_ = [matmul_dict['A_matmul_BShape'][1], matmul_dict['A_matmul_BShape'][0],1,1]
+
+                operation.remove_initializer_if_necessary_by_name(model, node.input[1], node)
                 
                 if isInputA == False:
                     v = matmul_dict['B_inputB']

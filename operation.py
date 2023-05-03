@@ -26,6 +26,13 @@ def is_unused_init2(model, init, node_):
 
     return True
 
+def is_unused_init_by_name(model, init_name, node_):
+    for node in model.graph.node:
+        if init_name in node.input and node != node_:
+            return False
+
+    return True    
+
 def remove_unused_initializer_list(model, unused_init_list):
     for init in unused_init_list:
         if is_unused_init(model, init):
@@ -291,4 +298,9 @@ def remove_initializer_if_necessary(model, init, node):
    if is_unused_init2(model, init, node):
       model.graph.initializer.remove(init)
 
-
+def remove_initializer_if_necessary_by_name(model, init_name, node):
+   if is_unused_init_by_name(model, init_name, node):
+      for init in model.graph.initializer:
+         if init.name == init_name:
+            model.graph.initializer.remove(init)
+            break
