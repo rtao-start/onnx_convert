@@ -3252,10 +3252,16 @@ def cvt_matmul_add_to_conv(model, matmul_dict, pattern):
 
                 insert_node(model, ts_node, matmul_dict['nnext'][0])
 
-                if bert_mode == 0:
-                    matmul_dict['nnext'][0].input[0] = ts_output_name
-                else:    
-                    matmul_dict['nnext'][0].input[1] = ts_output_name
+                if matmul_dict['nnext'][0].op_type == 'Add':
+                    if matmul_dict['nnext'][0].input[0] == next_node.output[0]:
+                        matmul_dict['nnext'][0].input[0] = ts_output_name
+                    else:
+                        matmul_dict['nnext'][0].input[1] = ts_output_name
+                else:
+                    if bert_mode == 0:
+                        matmul_dict['nnext'][0].input[0] = ts_output_name
+                    else:    
+                        matmul_dict['nnext'][0].input[1] = ts_output_name
             else:    
                 update_tensor_shape(model, next_node.output[0], [shape[0], shape[1], shape[3], shape[2]])
 
@@ -3442,6 +3448,7 @@ def gen_mul_add_block_by_rm_transpose(model):
                                                             node_list.append(node_dict)
 
     for nd in node_list:
+        logger.debug('gen_mul_add_block_by_rm_transpose working...')
         tp_node = nd['Transpose']
         tp_node2 = nd['Transpose2']
         add_node = nd['Add']
@@ -3449,11 +3456,49 @@ def gen_mul_add_block_by_rm_transpose(model):
 
         mm_node.input[0] = tp_node.input[0]
         #model.graph.node.remove(tp_node)
+        logger.debug('gen_mul_add_block_by_rm_transpose, remove transpose node: {}'.format(tp_node.name))
         operation.remove_onnx_node(model, tp_node)
 
         add_node.input[1] = tp_node2.input[0]
+        logger.debug('gen_mul_add_block_by_rm_transpose, remove transpose node2: {}'.format(tp_node2.name))
         #model.graph.node.remove(tp_node2)
         operation.remove_onnx_node(model, tp_node2)
+
+def gen_mul_add_block_by_rm_transpose2(model):
+    tramt_list = []
+
+    for node in model.graph.node:
+        if node.op_type == 'Transpose':
+            rs_node, ok = get_prev_node_by_input(model, node.input[0])
+            if ok == 0 and rs_node.op_type == 'Reshape':
+                add_node, ok = get_prev_node_by_input(model, rs_node.input[0])
+                if ok == 0 and add_node.op_type == 'Add':
+                    mm_node, ok = get_prev_node_by_input(model, add_node.input[1])
+                    if ok == 0 and mm_node.op_type == 'MatMul':
+                        tp_node2, ok = get_prev_node_by_input(model, mm_node.input[0])
+                        if ok == 0 and tp_node2.op_type == 'Transpose':
+                            logger.debug('got tramt {}'.format(mm_node.name))
+                            tramt = {}
+                            tramt['Transpose'] = tp_node2
+                            '''
+                            tramt['Reshape'] = rs_node
+                            tramt['Add'] = add_node
+                            tramt['MatMul'] = mm_node
+                            tramt['Transpose2'] = tp_node2
+                            '''
+                            if tramt not in tramt_list:
+                                tramt_list.append(tramt)
+
+    for tramt in tramt_list:
+        tp_node = tramt['Transpose']
+
+        tp_next_node_list, _ = get_all_next_node_by_output(model, tp_node.output[0])
+
+        for node in tp_next_node_list:
+            node.input[0] = tp_node.input[0]
+
+        logger.debug('gen_mul_add_block_by_rm_transpose2, remove transpose node: {}'.format(tp_node.name))
+        model.graph.node.remove(tp_node)    
 
 def correct_reshape_expand_reshape_pattern(model):
     logger.debug('into correct_reshape_expand_reshape_pattern')
@@ -3537,23 +3582,23 @@ def correct_reshape_expand_reshape_pattern(model):
 
 #Transpose-->Reshape-->MatMul-->Add-->Reshape-->Transpose
 def handle_matmul_add_child_block(model):
-    logger.debug('into gen_mul_add_block_by_rm_transpose')
+    logger.debug('into handle_matmul_add_child_block')
 
     node_list = []
 
     for node in model.graph.node:
         node_dict = {}
         if node.op_type == 'Transpose':
-            logger.debug('into gen_mul_add_block_by_rm_transpose, step 1')
+            logger.debug('into handle_matmul_add_child_block, step 1')
             rs_node, ok = get_next_node_by_output(model, node.output[0])
             if ok == 0 and rs_node.op_type == 'Reshape':
-                logger.debug('into gen_mul_add_block_by_rm_transpose, step 2')
+                logger.debug('into handle_matmul_add_child_block, step 2')
                 mm_node, ok = get_next_node_by_output(model, rs_node.output[0])
                 if ok == 0 and mm_node.op_type == 'MatMul':
-                    logger.debug('into gen_mul_add_block_by_rm_transpose, step 3')
+                    logger.debug('into handle_matmul_add_child_block, step 3')
                     add_node, ok = get_next_node_by_output(model, mm_node.output[0])
                     if ok == 0 and add_node.op_type == 'Add':
-                        logger.debug('into gen_mul_add_block_by_rm_transpose, step 4')
+                        logger.debug('into handle_matmul_add_child_block, step 4')
                         rs_node2, ok = get_next_node_by_output(model, add_node.output[0])
                         if ok == 0 and rs_node2.op_type == 'Reshape':
                             tp_node2, ok = get_next_node_by_output(model, rs_node2.output[0])
@@ -3718,6 +3763,203 @@ def handle_matmul_add_child_block(model):
         attr = onnx.helper.make_attribute('perm', [1, 2, 0])
         tp_node2.attribute.append(attr)
 
+#Transpose-->Reshape-->Gemm-->Reshape-->Transpose
+def handle_matmul_add_child_block2(model):
+    logger.debug('into handle_matmul_add_child_block2')
+
+    node_list = []
+
+    for node in model.graph.node:
+        node_dict = {}
+        if node.op_type == 'Transpose':
+            logger.debug('into handle_matmul_add_child_block2, step 1')
+            rs_node, ok = get_next_node_by_output(model, node.output[0])
+            if ok == 0 and rs_node.op_type == 'Reshape':
+                logger.debug('into handle_matmul_add_child_block2, step 2')
+                gemm_node, ok = get_next_node_by_output(model, rs_node.output[0])
+                if ok == 0 and gemm_node.op_type == 'Gemm':
+                    logger.debug('into handle_matmul_add_child_block2, step 3')
+                    rs_node2, ok = get_next_node_by_output(model, gemm_node.output[0])
+                    if ok == 0 and rs_node2.op_type == 'Reshape':
+                        tp_node2, ok = get_next_node_by_output(model, rs_node2.output[0])
+                        if ok == 0 and tp_node2.op_type == 'Transpose':  
+                            logger.debug('got match matmul+add child block~~')
+                            node_dict['Transpose'] = node
+                            node_dict['Transpose2'] = tp_node2
+                            node_dict['Gemm'] = gemm_node
+                            node_dict['Reshape'] = rs_node
+                            node_dict['Reshape2'] = rs_node2
+                            node_list.append(node_dict)
+
+    for nd in node_list:
+        tp_node = nd['Transpose']
+        tp_node2 = nd['Transpose2']
+        gemm_node = nd['Gemm']
+        rs_node = nd['Reshape']
+        rs_node2 = nd['Reshape2']
+
+        ###add transpose
+        ts_name = tp_node.name + '_transpose_'
+        ts_output_name = ts_name + '_output_'
+        shape = values.get_tensor_shape_by_name(model, rs_node.output[0])
+        ts_output_shape = [shape[1], shape[0]]
+        transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.FLOAT, ts_output_shape)
+        
+        ts_node = onnx.helper.make_node(
+                                            'Transpose',
+                                            name=ts_name,
+                                            inputs=[rs_node.output[0]],
+                                            outputs=[ts_output_name],
+                                            perm=[1,0])
+
+        model.graph.value_info.append(transpose_output)
+
+        ###add reshape-1
+        rs2_name = rs_node.name + '_reshape_1_'
+        rs2_output_name = rs2_name + '_output_'
+        shape = values.get_tensor_shape_by_name(model, rs_node.output[0])
+        rs2_output_shape = [1, shape[1], 1, shape[0]]
+
+        rs_output = onnx.helper.make_tensor_value_info(rs2_output_name, onnx.TensorProto.FLOAT, rs2_output_shape)
+
+        const_shape_name = rs_node.name + '_reshape_data_'
+        
+        const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs2_output_shape)],
+                            vals=rs2_output_shape)
+
+        model.graph.initializer.append(const_shape_tensor)
+
+        rs_node_insert1 = onnx.helper.make_node(
+                                            'Reshape',
+                                            name=rs2_name,
+                                            inputs=[ts_output_name, const_shape_name],
+                                            outputs=[rs2_output_name])
+
+        model.graph.value_info.append(rs_output)
+
+        insert_node(model, ts_node, rs_node)
+        insert_node(model, rs_node_insert1, ts_node)
+        
+        gemm_node.input[0] = rs2_output_name
+
+        ###Gemm-->Conv
+        inputB, shapeB = values.get_init_value_and_shape(model, gemm_node.input[1])
+        if isinstance(inputB, list) and inputB == []:
+            logger.debug('-- inputB is not in initilizer')
+            inputB = values.get_constant_value(model, input_next.input[1])
+
+        gemm_node.op_type = 'Conv'
+        logger.debug('=== reuse MatMul to Conv')
+        const_x_name = gemm_node.name + '_to_conv_x_'
+
+        transB = 0
+        attributes = gemm_node.attribute
+        for attr in attributes:
+            #TBD
+            '''
+            if attr.name == 'alpha':
+                alpha = attr.f
+                logger.debug('alpha: {}'.format(alpha))
+            
+            if attr.name == 'beta':
+                beta = attr.f
+                logger.debug('beta: {}'.format(beta))
+
+            if attr.name == 'transA':
+                transA  = attr.i
+                logger.debug('transA: {}'.format(transA))
+            '''    
+
+            if attr.name == 'transB':
+                transB = attr.i
+                logger.debug('got transB: {}'.format(transB)) 
+
+
+        del gemm_node.attribute[:]
+
+        v = inputB
+        old_dims = [shapeB[0], shapeB[1]]
+        dims_ = [shapeB[1], shapeB[0],1,1]
+
+        if isinstance(v, np.ndarray) == True:
+            A = v.reshape(*old_dims)
+
+            if transB == 0:
+                A = A.transpose()
+
+            A = A.reshape(*dims_)
+            logger.debug('+++--- A.shape: {}'.format(A.shape))
+            A = A.flatten()
+        else:    
+            A = np.array(v).reshape(*old_dims)
+
+            if transB == 0:
+                A = A.transpose()
+
+            A = A.reshape(*dims_)
+            logger.debug('---+++ A.shape: {}'.format(A.shape))
+            A = A.flatten()
+
+        A = A.tolist()  
+        const_x_tensor = onnx.helper.make_tensor(name=const_x_name,
+                            data_type=onnx.TensorProto.FLOAT,
+                            dims=dims_,
+                            vals=A)
+
+        operation.remove_initializer_if_necessary_by_name(model, gemm_node.input[1], gemm_node)                    
+
+        model.graph.initializer.append(const_x_tensor)
+        gemm_node.input[1] = const_x_name
+
+        attr = onnx.helper.make_attribute('dilations', [1, 1])
+        gemm_node.attribute.append(attr)
+
+        attr = onnx.helper.make_attribute('group', 1)
+        gemm_node.attribute.append(attr)
+
+        attr = onnx.helper.make_attribute('kernel_shape', [1,1])
+        gemm_node.attribute.append(attr)
+
+        attr = onnx.helper.make_attribute('pads', [0,0,0,0])
+        gemm_node.attribute.append(attr)
+
+        attr = onnx.helper.make_attribute('strides', [1,1])
+        gemm_node.attribute.append(attr)        
+
+        #B = gemm_node.input[2]   
+        #gemm_node.input.append(B)
+
+        conv_output_shape = rs2_output_shape
+
+        update_tensor_shape(model, gemm_node.output[0], conv_output_shape)     
+
+        #Reshape2
+        rs_output_shape = [conv_output_shape[1], conv_output_shape[2], conv_output_shape[3]]
+        logger.debug('-----+++ rs_output_shape: {}'.format(rs_output_shape))
+
+        const_shape_name = rs_node2.name + '_reshape_data_'
+        
+        const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs_output_shape)],
+                            vals=rs_output_shape)
+
+        model.graph.initializer.append(const_shape_tensor)
+
+        operation.remove_initializer_if_necessary_by_name(model, rs_node2.input[1], rs_node2)
+
+        rs_node2.input[1] = const_shape_name
+
+        update_tensor_shape(model, rs_node2.output[0], rs_output_shape)
+
+        #Transpose
+        del tp_node2.attribute[:]
+
+        attr = onnx.helper.make_attribute('perm', [1, 2, 0])
+        tp_node2.attribute.append(attr)
+
 def mha_optimizer(model):
     pattern = -1
     ret1 = match_mha_block_pattern_one(model) #for decoder_model_bs10.onnx
@@ -3756,9 +3998,9 @@ def mha_optimizer(model):
         model = onnx.shape_inference.infer_shapes(model)
         model = onnx.shape_inference.infer_shapes(model)
         gen_mul_add_block_by_rm_transpose(model)
-        #correct_reshape_expand_reshape_pattern(model)
-
+        gen_mul_add_block_by_rm_transpose2(model)
         handle_matmul_add_child_block(model)
+        handle_matmul_add_child_block2(model)
 
         #onnx.save(model, './ss.onnx')
         #sys.exit()
@@ -4221,6 +4463,140 @@ def match_mha_block_pattern_five(model):
                                                                                                                                     ret = 0
 
     return ret
+
+def match_mha_block_pattern_six(model):
+    ret = -1
+
+    logger.debug('into match_mha_block_pattern_five')
+
+    for node in model.graph.node:
+        if node.op_type == 'Add':
+            mul_node, ok = get_prev_node_by_input(model, node.input[0])
+            if ok == 0 and mul_node.op_type == 'Mul':
+                div_node = None
+                div_node_case1, ok1 = get_prev_node_by_input(model, mul_node.input[0])
+                div_node_case2, ok2 = get_prev_node_by_input(model, mul_node.input[1])
+                if ok1 == 0 and div_node_case1.op_type == 'Div':
+                    div_node = div_node_case1
+                elif ok2 == 0 and div_node_case2.op_type == 'Div':
+                    div_node = div_node_case2
+
+                #logger.debug('into match_mha_block_pattern_five, step 1')    
+
+                if div_node != None:
+                    sub_node, ok1 = get_prev_node_by_input(model, div_node.input[0])
+                    sqrt_node, ok2 = get_prev_node_by_input(model, div_node.input[1])
+                    if ok1 == 0 and sub_node.op_type == 'Sub' and ok2 == 0 and sqrt_node.op_type == 'Sqrt':
+                        add_node, ok = get_prev_node_by_input(model, sqrt_node.input[0])
+                        if ok == 0 and add_node.op_type == 'Add':
+                            #logger.debug('into match_mha_block_pattern_five, step 2')
+                            rm_node, ok = get_prev_node_by_input(model, add_node.input[0])
+                            if ok == 0 and rm_node.op_type == 'ReduceMean':
+                                pow_node, ok = get_prev_node_by_input(model, rm_node.input[0])
+                                if ok == 0 and pow_node.op_type == 'Pow':
+                                    #logger.debug('into match_mha_block_pattern_five, step 3')
+                                    sub_node, ok = get_prev_node_by_input(model, pow_node.input[0])
+                                    if ok == 0 and sub_node.op_type == 'Sub':
+                                        add_node, ok1 = get_prev_node_by_input(model, sub_node.input[0])
+                                        rm_node, ok2 = get_prev_node_by_input(model, sub_node.input[1])
+                                        if ok1 == 0 and add_node.op_type == 'Add' and ok2 == 0 and rm_node.op_type == 'ReduceMean':
+                                            #logger.debug('into match_mha_block_pattern_five, step 4')
+                                            add_node_, ok = get_prev_node_by_input(model, rm_node.input[0])
+                                            if ok == 0 and add_node_.op_type == 'Add' and add_node_ == add_node:
+                                                add_node_1, ok1 = get_prev_node_by_input(model, add_node_.input[0])
+                                                tp_node, ok2 = get_prev_node_by_input(model, add_node_.input[1])
+
+                                                logger.debug('into match_mha_block_pattern_five, step 5')
+                                                if ok1 == 0 and add_node_1.op_type == 'Add' and ok2 == 0 and tp_node.op_type == 'Transpose':
+                                                    add_node_2, ok = get_prev_node_by_input(model, tp_node.input[0])
+                                                    if ok == 0 and add_node_2.op_type == 'Add':  
+                                                        mm_node = None
+                                                        mm_node_case1, ok1 = get_prev_node_by_input(model, add_node_2.input[0])
+                                                        mm_node_case2, ok2 = get_prev_node_by_input(model, add_node_2.input[1])
+                                                        if ok1 == 0 and mm_node_case1.op_type == 'MatMul':
+                                                            mm_node = mm_node_case1
+                                                        elif ok2 == 0 and mm_node_case2.op_type == 'MatMul':
+                                                            mm_node = mm_node_case2
+
+                                                        logger.debug('into match_mha_block_pattern_five, step 6')
+                                                        if mm_node != None:
+                                                            #logger.debug('into match_mha_block_pattern_five, step 6.1')
+                                                            mul_node, ok = get_prev_node_by_input(model, mm_node.input[0])
+                                                            if ok == 0 and mul_node.op_type == 'Mul':
+                                                                #logger.debug('into match_mha_block_pattern_five, step 6.2') 
+                                                                mul_node_2, ok = get_prev_node_by_input(model, mul_node.input[0])
+                                                                if ok == 0 and mul_node_2.op_type == 'Mul':
+                                                                    add_node_1, ok1 = get_prev_node_by_input(model, mul_node_2.input[0])
+                                                                    add_node_2, ok2 = get_prev_node_by_input(model, mul_node_2.input[1])
+
+                                                                    #logger.debug('into match_mha_block_pattern_five, step 7')
+
+                                                                    if ok1 == 0 and add_node_1.op_type == 'Add' and ok2 == 0 and add_node_2.op_type == 'Add':
+                                                                        erf_node, ok = get_prev_node_by_input(model, add_node_2.input[0])
+                                                                        if ok == 0 and erf_node.op_type == 'Erf':
+                                                                            #logger.debug('into match_mha_block_pattern_five, step 8')
+                                                                            div_node, ok = get_prev_node_by_input(model, erf_node.input[0])
+                                                                            if ok == 0 and div_node.op_type == 'Div':
+                                                                                #logger.debug('into match_mha_block_pattern_five, step 9')
+                                                                                add_node, ok = get_prev_node_by_input(model, div_node.input[0])
+                                                                                if ok == 0 and add_node.op_type == 'Add' and add_node == add_node_1:
+                                                                                    logger.debug('into match_mha_block_pattern_five, step 10')
+                                                                                    mm_node = None
+                                                                                    mm_node_case1, ok1 = get_prev_node_by_input(model, add_node.input[0])
+                                                                                    mm_node_case2, ok2 = get_prev_node_by_input(model, add_node.input[1])
+
+                                                                                    if ok1 == 0 and mm_node_case1.op_type == 'MatMul':
+                                                                                        mm_node = mm_node_case1
+                                                                                    elif ok2 == 0 and mm_node_case2.op_type == 'MatMul':
+                                                                                        mm_node = mm_node_case2
+
+                                                                                    if mm_node != None:
+                                                                                        logger.debug('into match_mha_block_pattern_five, step 11')
+                                                                                        tp_node, ok = get_prev_node_by_input(model, mm_node.input[0])
+                                                                                        if ok == 0 and tp_node.op_type == 'Transpose':
+                                                                                            #################
+                                                                                            add_node, ok = get_prev_node_by_input(model, tp_node.input[0])
+                                                                                            if ok == 0 and add_node.op_type == 'Add':
+                                                                                                mul_node, ok = get_prev_node_by_input(model, add_node.input[0])
+                                                                                                if ok == 0 and mul_node.op_type == 'Mul':
+                                                                                                    div_node = None
+                                                                                                    div_node_case1, ok1 = get_prev_node_by_input(model, mul_node.input[0])
+                                                                                                    div_node_case2, ok2 = get_prev_node_by_input(model, mul_node.input[1])
+
+                                                                                                    if ok1 == 0 and div_node_case1.op_type == 'Div':
+                                                                                                        div_node = div_node_case1
+                                                                                                    elif ok2 == 0 and div_node_case2.op_type == 'Div':
+                                                                                                        div_node = div_node_case2
+
+                                                                                                    if div_node != None:
+                                                                                                        logger.debug('into match_mha_block_pattern_five, step 12')
+                                                                                                        sub_node, ok1 = get_prev_node_by_input(model, div_node.input[0])
+                                                                                                        sqrt_node, ok2 = get_prev_node_by_input(model, div_node.input[1])
+
+                                                                                                        if ok1 == 0 and sub_node.op_type == 'Sub' and ok2 == 0 and sqrt_node.op_type == 'Sqrt':
+                                                                                                            add_node, ok = get_prev_node_by_input(model, sqrt_node.input[0])
+                                                                                                            if ok == 0 and add_node.op_type == 'Add':
+                                                                                                                #logger.debug('into match_mha_block_pattern_five, step 13')
+                                                                                                                rm_node, ok = get_prev_node_by_input(model, add_node.input[0])
+                                                                                                                if ok == 0 and rm_node.op_type == 'ReduceMean':
+                                                                                                                    #logger.debug('into match_mha_block_pattern_five, step 14')
+                                                                                                                    pow_node, ok = get_prev_node_by_input(model, rm_node.input[0])
+                                                                                                                    if ok == 0 and pow_node.op_type == 'Pow':
+                                                                                                                        #logger.debug('into match_mha_block_pattern_five, step 15')
+                                                                                                                        sub_node_, ok = get_prev_node_by_input(model, pow_node.input[0])
+                                                                                                                        if ok == 0 and sub_node_.op_type == 'Sub' and sub_node_ == sub_node:
+                                                                                                                            add_node, ok1 = get_prev_node_by_input(model, sub_node_.input[0])
+                                                                                                                            rm_node, ok2 = get_prev_node_by_input(model, sub_node_.input[1]) 
+
+                                                                                                                            #logger.debug('into match_mha_block_pattern_five, step 16')
+                                                                                                                            if ok1 == 0 and add_node.op_type == 'Add' and ok2 == 0 and rm_node.op_type == 'ReduceMean':
+                                                                                                                                add_node_, ok = get_prev_node_by_input(model, rm_node.input[0])
+                                                                                                                                if ok == 0 and add_node_.op_type == 'Add' and add_node_ == add_node:
+                                                                                                                                    logger.debug('got common mha block')
+                                                                                                                                    ret = 0
+
+    return ret
+
 
 def get_node_group(model, input_name, num, index):
     node_list = []
