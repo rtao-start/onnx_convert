@@ -775,7 +775,7 @@ def reset_batch_size(model, input_batch, output_batch):
 
 def model_simplify(onnx_model, simplify_model, simplify_hw):
    #onnx_model = onnx.load(model_path)
-   dynamic_input_shape_ = False
+   is_dynamic_input_shape = False
 
    init_list = []
    input_shapes_ = {}
@@ -801,6 +801,7 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
 
             dynamic_input_shape_ = any(d==-1 or d==0 for d in input_shape)
             if dynamic_input_shape_ == True:
+               is_dynamic_input_shape = True
                logger.info('The model input is dynamic, input: {} {}'.format(input_.name, input_shape))
                input_shape[0] = 1
                if simplify_hw != '':
@@ -809,24 +810,15 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
                   input_shape[-2] = int(hw_list[0])
                   logger.debug('input_shape: {}'.format(input_shape))
 
-               input_shapes_[input_.name] = input_shape
-               #break
+            input_shapes_[input_.name] = input_shape
+            logger.info('----- input_shapes_: {}'.format(input_shapes_))
 
-            '''
-            dim_proto_input = input_.type.tensor_type.shape.dim[0]
-            if dim_proto_input.dim_value == -1 or dim_proto_input.dim_value == 0:
-               print('The model input is dynamic~~~~~~')
-               dynamic_input_shape_ = True
-               input_shape[0] = 1
-               input_shapes_[input_.name] = input_shape
-               break
-            '''
    skip_constant_folding_ = False
    if h <= 0 or w <= 0:
       skip_constant_folding_ = True
 
    if simplify_model == 2:
-      if dynamic_input_shape_ == True:
+      if is_dynamic_input_shape == True:
          model_simp, check = simplify(onnx_model, input_shapes=input_shapes_, skip_constant_folding=skip_constant_folding_)
          if simplify_hw == '':
             #correct_batch_for_opset_convert(model_simp)
@@ -838,7 +830,7 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
       else:   
          model_simp, check = simplify(onnx_model, dynamic_input_shape=False)
    else:
-      model_simp, check = simplify(onnx_model, dynamic_input_shape=dynamic_input_shape_, skip_constant_folding=skip_constant_folding_)
+      model_simp, check = simplify(onnx_model, dynamic_input_shape=is_dynamic_input_shape, skip_constant_folding=skip_constant_folding_)
 
    #onnx.save(model_simp, model_path)
 
