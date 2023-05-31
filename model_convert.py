@@ -833,6 +833,7 @@ def model_simplify(onnx_model, simplify_model, simplify_hw):
       model_simp, check = simplify(onnx_model, dynamic_input_shape=is_dynamic_input_shape, skip_constant_folding=skip_constant_folding_)
 
    #onnx.save(model_simp, model_path)
+   model_simp.producer_name = model_simp.producer_name + '(simplified by macaConverter)'
 
    return model_simp
 
@@ -1312,7 +1313,13 @@ def process(args):
 
    if simplify_model == 1 or simplify_model == 2:
       logger.info('begin doing simplify...')
-      new_model = model_simplify(new_model, simplify_model, simplify_hw)
+
+      producer_name = new_model.producer_name
+      simplify_flag = '(simplified by macaConverter)'
+      if simplify_flag not in producer_name:
+         new_model = model_simplify(new_model, simplify_model, simplify_hw)
+      else:
+         logger.info('The model has been simplified by macaConverter, ignore this operation~~')  
 
    post_process(new_model, inference_success, gap_to_ap)
 
