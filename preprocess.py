@@ -222,6 +222,12 @@ def insert_preproc_node(model, preproc_dict):
             print('first node name:', node.name)
             break
 
+    for node in graph.node:
+        if node.input[0] == graph.input[0].name and node.op_type == 'QuantizeLinear':
+            first_node = node
+            print('adjust first node to:', node.name)
+            break
+
     graph.node.insert(0, pre_process_node)
 
     print('after insert node 0')
