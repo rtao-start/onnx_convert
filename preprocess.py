@@ -215,6 +215,7 @@ def insert_preproc_node(model, preproc_dict):
 
     print('before insert node 0')                 
 
+    '''
     first_node = graph.node[1]
     for node in graph.node:
         if node.input[0] == graph.input[0].name:
@@ -227,12 +228,17 @@ def insert_preproc_node(model, preproc_dict):
             first_node = node
             print('adjust first node to:', node.name)
             break
+    '''
+
+    for node in model.graph.node:
+        if node.input[0] == graph.input[0].name:
+            node.input[0]='pre_process_output'
 
     graph.node.insert(0, pre_process_node)
 
     print('after insert node 0')
 
-    first_node.input[0]='pre_process_output'
+    #first_node.input[0]='pre_process_output'
 
     print('before change input 0')
              
