@@ -42,7 +42,7 @@ def matmul_reshape(model):
 
         for node_id, node in enumerate(model.graph.node):
             if node.op_type == 'MatMul':
-                print('xxxxx got MatMul, name:', node.name)
+                #print('xxxxx got MatMul, name:', node.name)
                 shape_in = get_shape(model, node.input[0])
                 if len(shape_in) > 2:
                     print('yyyyy got MatMul, name:', node.name)
@@ -69,7 +69,7 @@ def matmul_reshape(model):
                         shape_element = helper.make_tensor(shape_name, TensorProto.INT64, [2], shape_value)
 
                         reshape_node = helper.make_node(
-                            name = node.name + '_reshape1_',
+                            name = shape_name + '_reshape1_',
                             op_type='Reshape', 
                             inputs=[node.input[0], shape_name],
                             outputs=[reshape_output_name]  
@@ -91,7 +91,7 @@ def matmul_reshape(model):
                         print('zzzzzzzzzzzzzzzzz node.output[0]:', node.output[0])
 
                         reshape_node2 = helper.make_node(
-                            name = node.name + '_reshape2_',
+                            name = shape_name2 + '_reshape2_',
                             op_type='Reshape', 
                             inputs=[node.output[0], shape_name2],
                             outputs=[reshape_output_name2]  
@@ -119,7 +119,7 @@ def matmul_reshape(model):
                         break
 
 #model = onnx.load('/home/zqiu/models/decoder_model_bs10.onnx')
-model = onnx.load('./bert_cls_sim1a.onnx')
+model = onnx.load('/home/zqiu/models/platerecognition_model_v5.1.3_sim2.onnx')
 model = onnx.shape_inference.infer_shapes(model)
 
 matmul_reshape(model)
@@ -127,5 +127,5 @@ matmul_reshape(model)
 del model.graph.value_info[:]
 new_model = onnx.shape_inference.infer_shapes(model)
 new_model = onnx.shape_inference.infer_shapes(new_model)
-onnx.save(new_model, './tt2a.onnx')
+onnx.save(new_model, './tt.onnx')
 
