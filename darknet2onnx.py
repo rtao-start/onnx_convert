@@ -597,7 +597,9 @@ class GraphBuilderONNX(object):
         if neck == 'FPN':
             transposes = transposes[::-1]
 
-        output_name = 'ouputs'
+        print('transposes: ', transposes)
+
+        output_name = 'outputs'
         route_node = helper.make_node(
             'Concat',
             axis=1,
@@ -1226,4 +1228,4 @@ if __name__ == '__main__':
     parser.add_argument('--support_mish', type=int, default=0, help='mish mapping')
     args = parser.parse_args()
     main(cfg_file=args.cfg_file, weights_file=args.weights_file, output_file=args.output_file, strides=args.strides,
-         neck=args.neck, support_mish=args.support_mish)
+         neck=args.neck, support_mish=0) #args.support_mish) #do mish convert outside after simplify(inferrence) for fp16 convert

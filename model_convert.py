@@ -46,6 +46,8 @@ using_wheel = False
 
 support_mish = 0
 
+concat_result = 0
+
 inputs_as_nchw = ''
 
 #logging.basicConfig(level=logging.INFO, filename='./convert.log', filemode='w')
@@ -103,6 +105,12 @@ def parse_args():
    parser.add_argument("--output",
                         type=str,
                         help="Output path(ex: ./output.onnx)")
+
+   parser.add_argument("--concat_result",
+                        type=int, required=False,
+                        choices=[0, 1],
+                        default=0,
+                        help="When convert darknet to onnx, if set 1, the tool will concat the results")
 
    parser.add_argument("--op_set",
                         type=int, required=False,
@@ -588,8 +596,24 @@ def ckpt2h5(trained_checkpoint_prefix):
    builder.add_meta_graph_and_variables(sess, [tf.saved_model.TRAINING, tf.saved_model.SERVING],strip_default_attrs=False)
    builder.save()
 
+def undo_darknet_concat(output):
+   model = onnx.load(output)
+   for node in model.graph.node:
+      if node.name == 'outputs' and node.op_type == 'Concat':
+         del model.graph.output[:]
+         
+         for i in node.input:
+            model.graph.output.extend([onnx.ValueInfoProto(name=i)])
+
+         logger.info('undo concat, new outputs: {}'.format(model.graph.output))
+         model.graph.node.remove(node)
+         onnx.save(model, output)
+         break
+
 def convert_dn2onnx(model_path, output, op_set):
    global support_mish
+   global concat_result
+
    logger.info('Begin converting darknet to onnx...... support_mish: {}'.format(support_mish))
    cfg_file, weights_file = get_darknet_files(model_path)
    if cfg_file == '' or weights_file == '':
@@ -615,7 +639,10 @@ def convert_dn2onnx(model_path, output, op_set):
    r = os.system(cmd)
    if r != 0:
       logger.error('ERROR: convert_dn2onnx failed')
-      sys.exit(exit_code_convert_darknet2onnx) 
+      sys.exit(exit_code_convert_darknet2onnx)
+
+   if concat_result == 0:
+      undo_darknet_concat(output)
 
 def convert_mish(model_path, output, op_set):
    global support_mish
@@ -1113,10 +1140,12 @@ def extract_sub_graph(input_path, output_path, input_names, output_names):
 def process(args):
    global support_mish
    global inputs_as_nchw
+   global concat_result
 
    model_path = args.model_path
    model_type = args.model_type
    output = args.output
+   concat_result = args.concat_result
    op_set = args.op_set
    input_shape = args.input_shape
    inputs = args.inputs
