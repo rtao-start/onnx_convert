@@ -129,6 +129,13 @@ def parse_args():
                         default='',
                         help="When h/w is -1, you can specify h/w as you expected(together with --simplify 2)")  
 
+   #force simplify
+   parser.add_argument("--force_simplify",
+                        type=int, required=False,
+                        choices=[0, 1, 2],
+                        default=0,
+                        help="Force simplify the model(0:no simplify;1:do simplify; 2:for dynamic model)")   
+
    #for pytorch/dynamic_paddle
    parser.add_argument("--input_shape",
                         type=str, 
@@ -1170,6 +1177,7 @@ def process(args):
    keep_batch = args.keep_batch
    params_file = args.params_file
    simplify_hw = args.simplify_hw
+   force_simplify = args.force_simplify
    gemm_optimization = args.gemm_optimization
    expand_to_resize = args.expand_to_resize
    reset_value_info = args.reset_value_info
@@ -1352,7 +1360,11 @@ def process(args):
       if simplify_flag not in producer_name and simplify_flag not in producer_version:
          new_model = model_simplify(new_model, simplify_model, simplify_hw)
       else:
-         logger.info('The model has been simplified by macaConverter, ignore this operation~~')  
+         if force_simplify != 0:
+            simplify_model = force_simplify
+            new_model = model_simplify(new_model, simplify_model, simplify_hw)
+         else:
+            logger.info('The model has been simplified by macaConverter, ignore this operation~~')  
 
    post_process(new_model, inference_success, gap_to_ap)
 
