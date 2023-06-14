@@ -41,7 +41,7 @@ def remove_unused_initializer_list(model, unused_init_list):
 
 def remove_unused_initializer(model):
    for init in model.graph.initializer:
-      print('====got init: ', init.name)
+      #print('====got init: ', init.name)
       if is_unused_init(model, init):
          logger.debug('---remove unused init: {}'.format(init.name))
          model.graph.initializer.remove(init)                        
