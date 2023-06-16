@@ -725,6 +725,8 @@ def handle_split_block_pattern_seven(model):
         matmul_node = node_block['FirstMatMul']
         split_node = node_block['Split']
         add_node = node_block['Add']
+        reshape_node, _ = get_next_node_by_output(model, add_node.output[0])
+        transpose_node, _ = get_next_node_by_output(model, reshape_node.output[0])
 
         split_node.input[0] = matmul_node.input[0]
 
@@ -864,11 +866,11 @@ def handle_split_block_pattern_seven(model):
         ###add reshape-2
         rs_name = squeeze_v.output[0] + '_reshape_2_'
         rs_output_name = rs_name + '_output_'
-        rs_output_shape = [squeeze_v_output_shape[0], squeeze_v_output_shape[1], conv_output_shape[1]/squeeze_v_output_shape[1],conv_output_shape[3]]
+        rs_output_shape = [squeeze_v_output_shape[0], squeeze_v_output_shape[1], int(conv_output_shape[1]/squeeze_v_output_shape[1]),conv_output_shape[3]]
 
         rs_output = onnx.helper.make_tensor_value_info(rs_output_name, onnx.TensorProto.FLOAT, rs_output_shape)
 
-        const_shape_name = squeeze_v.output[0].output[0] + '_reshape_data2_'
+        const_shape_name = squeeze_v.output[0] + '_reshape_data2_'
         
         const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
                             data_type=onnx.TensorProto.INT64,
@@ -887,9 +889,14 @@ def handle_split_block_pattern_seven(model):
 
         insert_node(model, rs_node, squeeze_v)
 
-        matmul_v = node_blok['MatMul_V']
+        matmul_v = node_block['MatMul_V']
 
-        matmul_v.input[1] = rs_output_name  
+        matmul_v.input[1] = rs_output_name
+
+        operation.remove_onnx_node(model, transpose_node)
+        operation.remove_onnx_node(model, reshape_node)
+        operation.remove_onnx_node(model, add_node)
+        operation.remove_onnx_node(model, matmul_node) 
 
 def handle_add_combination_pattern_two_three(model):
     am_list = get_add_combination_pattern_two(model)
