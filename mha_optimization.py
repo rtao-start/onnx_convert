@@ -441,6 +441,7 @@ def get_add_combination_pattern_seven(model):
                 am['nextAddInput1'] = nextAddInput1
                 am['currentAdd'] = node
 
+                '''
                 match_rm_node = None
                 match_sub_node = None
 
@@ -453,13 +454,14 @@ def get_add_combination_pattern_seven(model):
                 for sub_node in sub_list:
                     if next_add_output in sub_node.input:
                         match_sub_node = sub_node
-                        break        
+                        break  
+                '''              
 
-                if match_rm_node != None and match_sub_node != None:
-                    am['nextSub'] = match_sub_node
-                    am['nextReduceMean'] = match_rm_node
+                if True:#match_rm_node != None and match_sub_node != None:
+                    #am['nextSub'] = match_sub_node
+                    #am['nextReduceMean'] = match_rm_node
 
-                    logger.debug('got sub and reducemean: {} {}'.format(match_sub_node.name, match_rm_node.name))
+                    #logger.debug('got sub and reducemean: {} {}'.format(match_sub_node.name, match_rm_node.name))
 
                     all_next_node, _ = get_all_next_node_by_output(model, node.output[0])
                     if len(all_next_node) == 3:
@@ -503,10 +505,13 @@ def handle_add_combination_pattern_seven(model):
 
     logger.debug('handle_add_combination_pattern_seven------------')
 
+    last_add_node = None
+
     #if len(am_list):
     for idx, am in enumerate(am_list):
         add_node = am['currentAdd']
         next_add_node = am['nextAdd']
+        last_add_node = next_add_node
         nextAddInput1 = am['nextAddInput1'] 
 
         logger.debug('handle_add_combination_pattern_seven, add_node: {}, next_add_node: {}'.format(add_node.name, next_add_node.name))
@@ -589,8 +594,11 @@ def handle_add_combination_pattern_seven(model):
             else:    
                 next_add_node.input[0] = rs2_output_name
 
-        ret = match_mtrma(model, add_node)
-        if True: #ret == 0 or idx == 0:
+        #ret = match_mtrma(model, add_node)
+        logger.debug('---handle Add node {}'.format(add_node.name))
+        if 'currentSub' in am.keys():
+            logger.debug('+++handle Add node {}'.format(add_node.name))
+        #if True: #ret == 0 or idx == 0:
             sub_node = am['currentSub']
             rm_node = am['currentReduceMean']
 
@@ -623,6 +631,40 @@ def handle_add_combination_pattern_seven(model):
 
             sub_node.input[0] = ts_output_name
             rm_node.input[0] = ts_output_name
+
+    if last_add_node != None:
+        print('last_add_node:', last_add_node.name)
+        last_output = last_add_node.output[0]
+        for output in model.graph.output:
+            if output.name == last_output:
+                ###add transpose
+                ts_name = last_add_node.name + '_transpose_'
+                ts_output_name = ts_name + '_output_'
+                add_output_shape = values.get_tensor_shape_by_name(model, last_add_node.output[0])
+                if len(add_output_shape) == 0:
+                    add_output_shape = [dim.dim_value for dim in output.type.tensor_type.shape.dim]
+
+                print('add_output_shape:', add_output_shape)
+                ts_output_shape = [add_output_shape[0], add_output_shape[2], add_output_shape[1]]
+                transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.FLOAT, ts_output_shape)
+                
+                ts_node = onnx.helper.make_node(
+                                                    'Transpose',
+                                                    name=ts_name,
+                                                    inputs=[last_add_node.output[0]],
+                                                    outputs=[ts_output_name],
+                                                    perm=[0,2,1])
+
+                model.graph.value_info.append(transpose_output)
+
+                insert_node(model, ts_node, last_add_node)
+
+                del model.graph.output[:]
+                #model.graph.output.extend([onnx.ValueInfoProto(name=ts_output_name)])
+                model.graph.output.extend([transpose_output])
+
+                break
+
 
 #       |-->Squeeze-----------------|
 #Split----->Squeeze-->Transpose-->MatMul-->Mul-->Softmax-----|
@@ -718,6 +760,130 @@ def get_matmul_input_path_pattern_seven(model):
 
     return node_list
 
+#MatMul-->Transpose-->Reshape-->MatMul-->Add
+def handle_trma(model, matmul_node):
+    tp_node, _ = get_next_node_by_output(model, matmul_node.output[0])
+    rs_node, _ = get_next_node_by_output(model, tp_node.output[0])
+    mm_node, _ = get_next_node_by_output(model, rs_node.output[0])
+    add_node, _ = get_next_node_by_output(model, mm_node.output[0])
+
+    ##Transpose-->Reshape
+    tp_node.op_type = 'Reshape'
+    del tp_node.attribute[:]
+
+    const_shape_name = tp_node.output[0] + '_reshape_data_'
+    tp_input_shape = values.get_tensor_shape_by_name(model, tp_node.input[0])
+    tp_output_shape = [tp_input_shape[0], tp_input_shape[1]*tp_input_shape[2], tp_input_shape[3]]
+    
+    const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                        data_type=onnx.TensorProto.INT64,
+                        dims=[len(tp_output_shape)],
+                        vals=tp_output_shape)
+
+    model.graph.initializer.append(const_shape_tensor)
+
+    tp_node.input.append(const_shape_name)
+
+    tp_node.input[1] = const_shape_name
+
+    update_tensor_shape(model, tp_node.output[0], tp_output_shape)
+
+    ##Reshape-->Reshape
+    const_shape_name = tp_node.output[0] + '_reshape_data2_'
+
+    rs_output_shape = [tp_output_shape[0], tp_output_shape[1], 1, tp_output_shape[2]]
+    const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                        data_type=onnx.TensorProto.INT64,
+                        dims=[len(rs_output_shape)],
+                        vals=rs_output_shape)
+
+    model.graph.initializer.append(const_shape_tensor)
+
+    rs_node.input[1] = const_shape_name
+
+    update_tensor_shape(model, rs_node.output[0], rs_output_shape)
+
+    ##MatMul-->Conv
+    mm_node.op_type = 'Conv'
+    logger.debug('-----reuse MatMul to Conv')
+    const_x_name = mm_node.name + '_to_conv_x_'
+
+    inputB, shapeB = values.get_init_value_and_shape(model, mm_node.input[1])
+
+    v = inputB
+    old_dims = [shapeB[0], shapeB[1]]
+    dims_ = [shapeB[1], shapeB[0], 1, 1]
+
+    operation.remove_initializer_if_necessary_by_name(model, mm_node.input[1], mm_node)
+        
+    if isinstance(v, np.ndarray) == True:
+        A = v.reshape(*old_dims)
+        A = A.transpose()
+        A = A.reshape(*dims_)
+        logger.debug('+++A.shape: {}'.format(A.shape))
+        A = A.flatten()
+    else:    
+        A = np.array(v).reshape(*old_dims)
+        A = A.transpose()
+        A = A.reshape(*dims_)
+        logger.debug('---A.shape: {}'.format(A.shape))
+        A = A.flatten()
+
+    A = A.tolist()  
+    const_x_tensor = onnx.helper.make_tensor(name=const_x_name,
+                        data_type=onnx.TensorProto.FLOAT,
+                        dims=dims_,
+                        vals=A)
+
+    model.graph.initializer.append(const_x_tensor)
+    mm_node.input[1] = const_x_name
+
+    attr = onnx.helper.make_attribute('dilations', [1, 1])
+    mm_node.attribute.append(attr)
+
+    attr = onnx.helper.make_attribute('group', 1)
+    mm_node.attribute.append(attr)
+
+    attr = onnx.helper.make_attribute('kernel_shape', [1,1])
+    mm_node.attribute.append(attr)
+
+    attr = onnx.helper.make_attribute('pads', [0,0,0,0])
+    mm_node.attribute.append(attr)
+
+    attr = onnx.helper.make_attribute('strides', [1,1])
+    mm_node.attribute.append(attr)        
+
+    mm_node.input.append(add_node.input[0])   
+
+    output_shape = values.get_tensor_shape_by_name(model, mm_node.output[0])
+    conv_output_shape = [output_shape[0], output_shape[2], 1, output_shape[1]]
+
+    update_tensor_shape(model, mm_node.output[0], conv_output_shape) 
+
+    #Add--->Reshape
+    add_node.op_type = 'Reshape'
+
+    del add_node.attribute[:]
+
+    rs_name = add_node.name + '_reshape_1_'
+    rs_output_name = rs_name + '_output_'
+    rs_output_shape = [conv_output_shape[0], conv_output_shape[1], conv_output_shape[3]]
+    logger.debug('-----rs_output_shape: {}'.format(rs_output_shape))
+
+    const_shape_name = add_node.name + '_reshape_data_'
+    
+    const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                        data_type=onnx.TensorProto.INT64,
+                        dims=[len(rs_output_shape)],
+                        vals=rs_output_shape)
+
+    model.graph.initializer.append(const_shape_tensor)
+
+    add_node.input[0] = add_node.input[1]
+    add_node.input[1] = const_shape_name
+
+    update_tensor_shape(model, add_node.output[0], rs_output_shape)
+
 def handle_split_block_pattern_seven(model):
     node_list = get_matmul_input_path_pattern_seven(model)
 
@@ -741,6 +907,8 @@ def handle_split_block_pattern_seven(model):
         ts_output_shape = [matmul_input_shape[0], matmul_input_shape[2], matmul_input_shape[1]]
 
         update_tensor_shape(model, split_node.output[0], ts_output_shape)
+
+        del split_node.output[1:]
 
         ###add reshape-1
         rs_name = matmul_node.output[0] + '_reshape_1_'
@@ -840,6 +1008,9 @@ def handle_split_block_pattern_seven(model):
         #squeeze_v.input[1] = const_w_name
         squeeze_v.input.append(const_w_name) 
 
+
+        del squeeze_v.attribute[:]
+
         attr = onnx.helper.make_attribute('dilations', [1, 1])
         squeeze_v.attribute.append(attr)
 
@@ -897,6 +1068,307 @@ def handle_split_block_pattern_seven(model):
         operation.remove_onnx_node(model, reshape_node)
         operation.remove_onnx_node(model, add_node)
         operation.remove_onnx_node(model, matmul_node) 
+
+        ########################
+        ##########################
+        ###add reshape-3
+        rs_name = matmul_node.output[0] + '_reshape_3_'
+        rs_output_name = rs_name + '_output_'
+        rs_output_shape = [ts_output_shape[0], ts_output_shape[1], 1, ts_output_shape[2]]
+
+        rs_output = onnx.helper.make_tensor_value_info(rs_output_name, onnx.TensorProto.FLOAT, rs_output_shape)
+
+        const_shape_name = matmul_node.output[0] + '_reshape_data3_'
+        
+        const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs_output_shape)],
+                            vals=rs_output_shape)
+
+        model.graph.initializer.append(const_shape_tensor)
+
+        rs_node = onnx.helper.make_node(
+                                            'Reshape',
+                                            name=rs_name,
+                                            inputs=[split_node.output[0], const_shape_name],
+                                            outputs=[rs_output_name])
+
+        model.graph.value_info.append(rs_output)
+
+        insert_node(model, rs_node, split_node)
+
+        #### path Q
+        squeeze_q = node_block['Squeeze_Q']
+
+        #Squeeze--->Conv
+        squeeze_q.input[0] = rs_output_name
+        squeeze_q.op_type = 'Conv'
+        logger.debug('-----reuse Squeeze to Conv')
+        const_w_name = squeeze_q.name + '_to_conv_w_'
+        const_b_name = squeeze_q.name + '_to_conv_b_'
+
+        index_end = int(dims_[0]/3)
+        weight = A[0:index_end,:,:,:]
+
+        print('weight.shape:', weight.shape)
+
+        weight = weight.flatten()
+        weight = weight.tolist()
+
+        print('weight.len:', len(weight))
+
+        const_w_tensor = onnx.helper.make_tensor(name=const_w_name,
+                            data_type=onnx.TensorProto.FLOAT,
+                            dims=[int(shapeB[1]/3), shapeB[0], 1, 1],
+                            vals=weight)
+
+        index_end = int(shapeA[0]/3)
+        bias = addA[0:index_end]
+        bias = bias.flatten()
+        bias = bias.tolist()
+
+        const_b_tensor = onnx.helper.make_tensor(name=const_b_name,
+                            data_type=onnx.TensorProto.FLOAT,
+                            dims=[int(shapeA[0]/3)],
+                            vals=bias)
+
+        model.graph.initializer.append(const_w_tensor)
+        model.graph.initializer.append(const_b_tensor)
+
+        #squeeze_v.input[1] = const_w_name
+        squeeze_q.input.append(const_w_name) 
+
+        del squeeze_q.attribute[:]
+
+        attr = onnx.helper.make_attribute('dilations', [1, 1])
+        squeeze_q.attribute.append(attr)
+
+        attr = onnx.helper.make_attribute('group', 1)
+        squeeze_q.attribute.append(attr)
+
+        attr = onnx.helper.make_attribute('kernel_shape', [1,1])
+        squeeze_q.attribute.append(attr)
+
+        attr = onnx.helper.make_attribute('pads', [0,0,0,0])
+        squeeze_q.attribute.append(attr)
+
+        attr = onnx.helper.make_attribute('strides', [1,1])
+        squeeze_q.attribute.append(attr)        
+
+        squeeze_q.input.append(const_b_name)   
+
+        conv_output_shape = [rs_output_shape[0], int(shapeB[1]/3), rs_output_shape[2], rs_output_shape[3]]
+
+        squeeze_q_output_shape = values.get_tensor_shape_by_name(model, squeeze_q.output[0])
+
+        update_tensor_shape(model, squeeze_q.output[0], conv_output_shape)
+
+        ###add reshape-2
+        rs_name = squeeze_q.output[0] + '_reshape_2_'
+        rs_output_name = rs_name + '_output_'
+        rs_output_shape = [squeeze_q_output_shape[0], squeeze_q_output_shape[1], int(conv_output_shape[1]/squeeze_q_output_shape[1]),conv_output_shape[3]]
+
+        rs_output = onnx.helper.make_tensor_value_info(rs_output_name, onnx.TensorProto.FLOAT, rs_output_shape)
+
+        const_shape_name = squeeze_q.output[0] + '_reshape_data2_'
+        
+        const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs_output_shape)],
+                            vals=rs_output_shape)
+
+        model.graph.initializer.append(const_shape_tensor)
+
+        rs_node = onnx.helper.make_node(
+                                            'Reshape',
+                                            name=rs_name,
+                                            inputs=[squeeze_q.output[0], const_shape_name],
+                                            outputs=[rs_output_name])
+
+        model.graph.value_info.append(rs_output)
+
+        insert_node(model, rs_node, squeeze_q)
+
+        matmul_qk = node_block['MatMul_QK']
+
+        matmul_qk.input[1] = rs_output_name
+
+        ###################################
+        ########################################
+        ###add reshape-4
+        rs_name = matmul_node.output[0] + '_reshape_4_'
+        rs_output_name = rs_name + '_output_'
+        rs_output_shape = [ts_output_shape[0], ts_output_shape[1], 1, ts_output_shape[2]]
+
+        rs_output = onnx.helper.make_tensor_value_info(rs_output_name, onnx.TensorProto.FLOAT, rs_output_shape)
+
+        const_shape_name = matmul_node.output[0] + '_reshape_data4_'
+        
+        const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs_output_shape)],
+                            vals=rs_output_shape)
+
+        model.graph.initializer.append(const_shape_tensor)
+
+        rs_node = onnx.helper.make_node(
+                                            'Reshape',
+                                            name=rs_name,
+                                            inputs=[split_node.output[0], const_shape_name],
+                                            outputs=[rs_output_name])
+
+        model.graph.value_info.append(rs_output)
+
+        insert_node(model, rs_node, split_node)
+
+        #### path K
+        squeeze_k = node_block['Squeeze_K']
+
+        #Squeeze--->Conv
+        squeeze_k.input[0] = rs_output_name
+        squeeze_k.op_type = 'Conv'
+        logger.debug('-----reuse Squeeze to Conv')
+        const_w_name = squeeze_k.name + '_to_conv_w_'
+        const_b_name = squeeze_k.name + '_to_conv_b_'
+
+        index_begin = int(dims_[0]/3)
+        index_end = int(2*dims_[0]/3)
+        weight = A[index_begin:index_end,:,:,:]
+
+        print('weight.shape:', weight.shape)
+
+        weight = weight.flatten()
+        weight = weight.tolist()
+
+        print('weight.len:', len(weight))
+
+        const_w_tensor = onnx.helper.make_tensor(name=const_w_name,
+                            data_type=onnx.TensorProto.FLOAT,
+                            dims=[int(shapeB[1]/3), shapeB[0], 1, 1],
+                            vals=weight)
+
+        index_begin = int(shapeA[0]/3)
+        index_end = int(2*shapeA[0]/3)
+        bias = addA[index_begin:index_end]
+        bias = bias.flatten()
+        bias = bias.tolist()
+
+        const_b_tensor = onnx.helper.make_tensor(name=const_b_name,
+                            data_type=onnx.TensorProto.FLOAT,
+                            dims=[int(shapeA[0]/3)],
+                            vals=bias)
+
+        model.graph.initializer.append(const_w_tensor)
+        model.graph.initializer.append(const_b_tensor)
+
+        #squeeze_v.input[1] = const_w_name
+        squeeze_k.input.append(const_w_name) 
+
+        del squeeze_k.attribute[:]
+
+        attr = onnx.helper.make_attribute('dilations', [1, 1])
+        squeeze_k.attribute.append(attr)
+
+        attr = onnx.helper.make_attribute('group', 1)
+        squeeze_k.attribute.append(attr)
+
+        attr = onnx.helper.make_attribute('kernel_shape', [1,1])
+        squeeze_k.attribute.append(attr)
+
+        attr = onnx.helper.make_attribute('pads', [0,0,0,0])
+        squeeze_k.attribute.append(attr)
+
+        attr = onnx.helper.make_attribute('strides', [1,1])
+        squeeze_k.attribute.append(attr)        
+
+        squeeze_k.input.append(const_b_name)   
+
+        conv_output_shape = [rs_output_shape[0], int(shapeB[1]/3), rs_output_shape[2], rs_output_shape[3]]
+
+        squeeze_k_output_shape = values.get_tensor_shape_by_name(model, squeeze_k.output[0])
+
+        update_tensor_shape(model, squeeze_k.output[0], conv_output_shape)
+
+        ###add reshape-2
+        rs_name = squeeze_k.output[0] + '_reshape_2_'
+        rs_output_name = rs_name + '_output_'
+        rs_output_shape = [squeeze_k_output_shape[0], squeeze_k_output_shape[1], int(conv_output_shape[1]/squeeze_k_output_shape[1]),conv_output_shape[3]]
+
+        rs_output = onnx.helper.make_tensor_value_info(rs_output_name, onnx.TensorProto.FLOAT, rs_output_shape)
+
+        const_shape_name = squeeze_k.output[0] + '_reshape_data2_'
+        
+        const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs_output_shape)],
+                            vals=rs_output_shape)
+
+        model.graph.initializer.append(const_shape_tensor)
+
+        rs_node = onnx.helper.make_node(
+                                            'Reshape',
+                                            name=rs_name,
+                                            inputs=[squeeze_k.output[0], const_shape_name],
+                                            outputs=[rs_output_name])
+
+        model.graph.value_info.append(rs_output)
+
+        insert_node(model, rs_node, squeeze_k)
+
+        transpose_node = node_block['Transpose']
+        transpose_node.input[0] = rs_output_name
+
+        ts_output_shape = values.get_tensor_shape_by_name(model, transpose_node.output[0])
+        update_tensor_shape(model, transpose_node.output[0], [ts_output_shape[0], ts_output_shape[1], ts_output_shape[3], ts_output_shape[2]])
+
+        matmul_qk = node_block['MatMul_QK']
+        matmul_qk.input[0] = transpose_node.output[0]
+
+        ##################
+        mul_node = node_block['Mul']
+        ts_name = mul_node.name + '_transpose_'
+        ts_output_name = ts_name + '_output_'
+
+        ts_node = onnx.helper.make_node(
+                                            'Transpose',
+                                            name=ts_name,
+                                            inputs=[mul_node.output[0]],
+                                            outputs=[ts_output_name],
+                                            perm=[0,1,3,2])
+
+        mul_output_shape = values.get_tensor_shape_by_name(model, mul_node.output[0])
+        transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.FLOAT, mul_output_shape)
+        model.graph.value_info.append(transpose_output)
+
+        insert_node(model, ts_node, mul_node)
+        ########################
+
+        softmax_node = node_block['Softmax']
+        softmax_node.input[0] = ts_output_name
+
+        ts2_name = softmax_node.name + '_transpose_'
+        ts2_output_name = ts2_name + '_output_'
+
+        ts2_node = onnx.helper.make_node(
+                                            'Transpose',
+                                            name=ts2_name,
+                                            inputs=[softmax_node.output[0]],
+                                            outputs=[ts2_output_name],
+                                            perm=[0,1,3,2])
+
+        transpose_output2 = onnx.helper.make_tensor_value_info(ts2_output_name, onnx.TensorProto.FLOAT, mul_output_shape)
+        model.graph.value_info.append(transpose_output2)
+
+        insert_node(model, ts2_node, softmax_node)
+
+        matmul_v = node_block['MatMul_V']
+        matmul_v.input[0] = matmul_v.input[1]
+        matmul_v.input[1] = ts2_output_name
+
+        matmul_v_output_shape = values.get_tensor_shape_by_name(model, matmul_v.output[0])
+        update_tensor_shape(model, matmul_v.output[0], [matmul_v_output_shape[0], matmul_v_output_shape[1], matmul_v_output_shape[3], matmul_v_output_shape[2]])
+
+        handle_trma(model, matmul_v)
 
 def handle_add_combination_pattern_two_three(model):
     am_list = get_add_combination_pattern_two(model)
@@ -1480,7 +1952,7 @@ def handle_mul_add_block(model, pattern):
 
         insert_node(model, ts_node, rs_node)
 
-        if pattern != 5:
+        if pattern != 5 and pattern != 7:
             if nextAddInput1 == True:
                 nextAdd.input[1] = ts_output_name
             else:    
