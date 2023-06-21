@@ -478,6 +478,24 @@ def get_add_combination_pattern_seven(model):
  
     return am_list 
 
+def get_add_combination_pattern_eight(model):
+    block_list = []
+
+    for node in model.graph.node:
+        if node.op_type == 'Add':
+            all_next_node, ok = get_all_next_node_by_output(model, node.output[0])
+            if ok == 0 and len(all_next_node) == 3:
+                asra = {}
+                asra['currentAdd'] = node
+
+                for n in all_next_node:
+                    asra[n.op_type] = n
+                
+                if 'Sub' in asra.keys() and 'ReduceMean' in asra.keys() and 'Add' in asra.keys():
+                    block_list.append(asra)
+
+    return block_list                
+
 def get_add_combination_pattern_five(model):
     pass
 
@@ -665,7 +683,6 @@ def handle_add_combination_pattern_seven(model):
 
                 break
 
-
 #       |-->Squeeze-----------------|
 #Split----->Squeeze-->Transpose-->MatMul-->Mul-->Softmax-----|
 #       |-->Squeeze---------------------------------------->MatMul
@@ -759,6 +776,7 @@ def get_matmul_input_path_pattern_seven(model):
         logger.debug('----got block, q: {}, k: {}, v: {}'.format(nn['Squeeze_Q'].name, nn['Squeeze_K'].name, nn['Squeeze_V'].name))
 
     return node_list
+
 
 #MatMul-->Transpose-->Reshape-->MatMul-->Add
 def handle_trma(model, matmul_node):
@@ -883,6 +901,70 @@ def handle_trma(model, matmul_node):
     add_node.input[1] = const_shape_name
 
     update_tensor_shape(model, add_node.output[0], rs_output_shape)
+
+#MatMul-->Transpose-->Reshape-->MatMul-->Add
+def handle_trma_pattern_eight(model, matmul_node):
+    handle_trma(model, matmul_node)
+
+    tp_node, _ = get_next_node_by_output(model, matmul_node.output[0])
+    rs_node, _ = get_next_node_by_output(model, tp_node.output[0])
+    mm_node, _ = get_next_node_by_output(model, rs_node.output[0])
+    add_node, _ = get_next_node_by_output(model, mm_node.output[0])
+    rs_node, _ = get_next_node_by_output(model, add_node.output[0])
+
+    ts_name = add_node.name + '_transpose_'
+    ts_output_name = ts_name + '_output_'
+
+    ts_node = onnx.helper.make_node(
+                                        'Transpose',
+                                        name=ts_name,
+                                        inputs=[add_node.output[0]],
+                                        outputs=[ts_output_name],
+                                        perm=[0,2,1])
+
+    add_output_shape = values.get_tensor_shape_by_name(model, add_node.output[0])
+    ts_output_shape = [add_output_shape[0], add_output_shape[2], add_output_shape[1]]
+    transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.FLOAT, ts_output_shape)
+    model.graph.value_info.append(transpose_output)
+
+    insert_node(model, ts_node, add_node)
+    rs_node.input[0] = ts_output_name
+
+def handle_add_combination_pattern_eight(model):
+    am_list = get_add_combination_pattern_eight(model)
+
+    logger.debug('handle_add_combination_pattern_eight------------')
+
+    for idx, am in enumerate(am_list):
+        add_node = am['currentAdd']
+        sub_node = am['Sub']
+        rm_node = am['ReduceMean']
+        next_add = am['Add']
+
+        logger.debug('get_add_combination_pattern_eight, add_node: {}'.format(add_node.name))
+
+        if idx != 0:
+            ###add transpose
+            ts_name = add_node.name + '_transpose_'
+            ts_output_name = ts_name + '_output_'
+            add_output_shape = values.get_tensor_shape_by_name(model, add_node.output[0])
+            ts_output_shape = [add_output_shape[0], add_output_shape[1], add_output_shape[2]]
+            transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.FLOAT, ts_output_shape)
+            
+            ts_node = onnx.helper.make_node(
+                                                'Transpose',
+                                                name=ts_name,
+                                                inputs=[add_node.output[0]],
+                                                outputs=[ts_output_name],
+                                                perm=[0,2,1])
+
+            model.graph.value_info.append(transpose_output)
+
+            insert_node(model, ts_node, add_node)
+
+            sub_node.input[0] = ts_output_name
+            rm_node.input[0] = ts_output_name
+            next_add.input[0] = ts_output_name
 
 def handle_split_block_pattern_seven(model):
     node_list = get_matmul_input_path_pattern_seven(model)
@@ -1457,6 +1539,8 @@ def handle_split_block_pattern_eight(model, node_block_list):
                     const_w_name = gather_v.name + '_to_conv_w_'
                     const_b_name = gather_v.name + '_to_conv_b_'
 
+                    operation.remove_initializer_if_necessary_by_name(model, gather_v.input[1], gather_v)
+
                     index = int(2*dims_[0]/3)
                     weight = A[index:,:,:,:]
 
@@ -1583,6 +1667,8 @@ def handle_split_block_pattern_eight(model, node_block_list):
                     const_w_name = gather_q.name + '_to_conv_w_'
                     const_b_name = gather_q.name + '_to_conv_b_'
 
+                    operation.remove_initializer_if_necessary_by_name(model, gather_q.input[1], gather_q)
+
                     index_end = int(dims_[0]/3)
                     weight = A[:index_end,:,:,:]
 
@@ -1703,6 +1789,8 @@ def handle_split_block_pattern_eight(model, node_block_list):
                     logger.debug('-----reuse Squeeze to Conv')
                     const_w_name = gather_k.name + '_to_conv_w_'
                     const_b_name = gather_k.name + '_to_conv_b_'
+
+                    operation.remove_initializer_if_necessary_by_name(model, gather_k.input[1], gather_k)
 
                     index_begin = int(dims_[0]/3)
                     index_end = int(2*dims_[0]/3)
@@ -1843,6 +1931,10 @@ def handle_split_block_pattern_eight(model, node_block_list):
 
                     matmul_qk_v_output_shape = values.get_tensor_shape_by_name(model, matmul_qk_v.output[0])
                     update_tensor_shape(model, matmul_qk_v.output[0], [matmul_qk_v_output_shape[0], matmul_qk_v_output_shape[1], matmul_qk_v_output_shape[3], matmul_qk_v_output_shape[2]])
+
+                    handle_trma_pattern_eight(model, matmul_qk_v)
+
+
 
 def handle_add_combination_pattern_two_three(model):
     am_list = get_add_combination_pattern_two(model)
@@ -2426,7 +2518,7 @@ def handle_mul_add_block(model, pattern):
 
         insert_node(model, ts_node, rs_node)
 
-        if pattern != 5 and pattern != 7:
+        if pattern != 5 and pattern != 7 and pattern != 8:
             if nextAddInput1 == True:
                 nextAdd.input[1] = ts_output_name
             else:    
@@ -2688,7 +2780,7 @@ def handle_mul_add_block(model, pattern):
                 update_tensor_shape(model, mul_node2.output[0], new_shape)
 
         ######insert Transpose before ReduceMean and Sub
-        if pattern == 5:
+        if pattern == 5 or pattern == 8:
             ###add transpose
             ts3_name = nextAdd.name + '_transpose_'
             ts3_output_name = ts3_name + '_output_'
@@ -2706,7 +2798,7 @@ def handle_mul_add_block(model, pattern):
 
             insert_node(model, ts3_node, add2) 
             nextAdd.input[1] = ts3_output_name
-        else:    
+        else: 
             update_tensor_shape(model, nextAdd.output[0], rs2_output_shape)
 
             rm_sub, ok = get_all_next_node_by_output(model, nextAdd.output[0])
@@ -5704,8 +5796,7 @@ def mha_optimizer(model):
         handle_split_block_pattern_seven(model)
         return model   
     elif pattern == 8:   
-        #handle_add_combination_pattern_seven(model)
-        #handle_mul_add_block(model, pattern)
+        handle_mul_add_block(model, pattern)
         handle_split_block_pattern_eight(model, node_block_list)
         return model   
 
@@ -6631,6 +6722,22 @@ def match_mha_block_pattern_eight(model):
                                                 if ok == 0 and mm_node == matmul_qk_v:
                                                     logger.debug('match pattern eight~')
                                                     node_list.append(tgm)
+                                            else:
+                                                if ok == 0 and softmax_node.op_type == 'Reshape':
+                                                    tgm['Reshape1'] = softmax_node
+                                                    add_node2, ok = get_next_node_by_output(model, softmax_node.output[0])
+                                                    if ok == 0 and add_node2.op_type == 'Add':
+                                                        tgm['Add2'] = add_node2
+                                                        rs_node2, ok = get_next_node_by_output(model, add_node2.output[0])
+                                                        if ok == 0 and rs_node2.op_type == 'Reshape':
+                                                            tgm['Reshape2'] = rs_node2
+                                                            softmax_node, ok = get_next_node_by_output(model, rs_node2.output[0])
+                                                            if ok == 0 and softmax_node.op_type == 'Softmax':
+                                                                tgm['Softmax'] = softmax_node
+                                                                mm_node, ok = get_next_node_by_output(model, softmax_node.output[0])
+                                                                if ok == 0 and mm_node == matmul_qk_v:
+                                                                    logger.debug('~~~ match pattern eight~')
+                                                                    node_list.append(tgm)
 
     if len(node_list) > 0:
         ret = 0
