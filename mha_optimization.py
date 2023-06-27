@@ -902,6 +902,134 @@ def handle_trma(model, matmul_node):
 
     update_tensor_shape(model, add_node.output[0], rs_output_shape)
 
+#             |->Slice->| 
+#             |->Slice->|
+#Add-->Reshape-->Slice--->Concat-->Reshape
+#             |->Slice->|
+def get_ars4cr_block(model):
+    asr4cr_list = []
+    for node in model.graph.node:
+        if node.op_type == 'Add':
+            rs_node, ok = get_next_node_by_output(model, node.output[0])
+            if ok == 0 and rs_node.op_type == 'Reshape':
+                all_next_node, _ = get_all_next_node_by_output(model, rs_node.output[0])
+                if len(all_next_node) == 4:
+                    ars4cr = {}
+                    ars4cr['Add'] = node
+                    ars4cr['Reshape'] = rs_node
+                    ars4cr['SliceList'] = []
+
+                    for n in all_next_node:
+                        if n.op_type == 'Slice':
+                            ars4cr['SliceList'].append(n)
+
+                    if len(ars4cr['SliceList']) == 4:
+                        logger.debug('got asr4: {}'.format(node.name))
+                        concat_node, _ = get_next_node_by_output(model, ars4cr['SliceList'][0].output[0])
+                        ars4cr['Concat'] = concat_node
+                        rs_node2, _ = get_next_node_by_output(model, concat_node.output[0])
+                        ars4cr['Reshape2'] = rs_node2
+
+                        asr4cr_list.append(ars4cr)
+
+    return asr4cr_list
+
+def handle_ars4cr(model):
+    ars4cr_list = get_ars4cr_block(model)
+    for ars4cr in ars4cr_list:
+        rs_node = ars4cr['Reshape']
+        concat_node = ars4cr['Concat']
+        rs_node2 = ars4cr['Reshape2']
+
+        rs_output_shape_old = values.get_tensor_shape_by_name(model, rs_node.output[0])
+        rs_output_shape = [rs_output_shape_old[0], rs_output_shape_old[3], rs_output_shape_old[1], rs_output_shape_old[2]]
+        update_tensor_shape(model, rs_node.output[0], rs_output_shape)
+
+        const_shape_name = rs_node.output[0] + '_reshape_data_'
+        
+        const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs_output_shape)],
+                            vals=rs_output_shape)
+
+        model.graph.initializer.append(const_shape_tensor)
+
+        update_tensor_shape(model, rs_node.output[0], rs_output_shape)
+
+        operation.remove_initializer_if_necessary_by_name(model, rs_node.input[1], rs_node)
+
+        rs_node.input[1] = const_shape_name
+
+        ####
+        const_axes_name = rs_node.output[0] + '_axes_'
+
+        const_axes_tensor = onnx.helper.make_tensor(name=const_axes_name,
+                    data_type=onnx.TensorProto.INT64,
+                    dims=[2],
+                    vals=[2,3])
+
+        model.graph.initializer.append(const_axes_tensor)
+
+        slice_list = ars4cr['SliceList']
+        for slice_node in slice_list:
+            operation.remove_initializer_if_necessary_by_name(model, slice_node.input[3], slice_node)
+            slice_node.input[3] = const_axes_name
+
+            slice_output_shape_old = values.get_tensor_shape_by_name(model, slice_node.output[0])
+            slice_output_shape = [slice_output_shape_old[0], slice_output_shape_old[3], slice_output_shape_old[1], slice_output_shape_old[2]]
+            update_tensor_shape(model, slice_node.output[0], slice_output_shape)
+
+        del concat_node.attribute[:]
+
+        attr = onnx.helper.make_attribute('axis', 1)
+        concat_node.attribute.append(attr)
+
+        concat_output_shape_old = values.get_tensor_shape_by_name(model, concat_node.output[0])
+        concat_output_shape = [concat_output_shape_old[0], concat_output_shape_old[3], concat_output_shape_old[1], concat_output_shape_old[2]]
+        update_tensor_shape(model, concat_node.output[0], concat_output_shape)
+
+        ###update reshape-2
+        rs_output_shape_old = values.get_tensor_shape_by_name(model, rs_node2.output[0])
+        rs_output_shape = [rs_output_shape_old[0], rs_output_shape_old[2], rs_output_shape_old[1]]
+
+        const_shape_name = rs_node2.output[0] + '_reshape_data_'
+        
+        const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs_output_shape)],
+                            vals=rs_output_shape)
+
+        model.graph.initializer.append(const_shape_tensor)
+
+        update_tensor_shape(model, rs_node2.output[0], rs_output_shape)
+
+        operation.remove_initializer_if_necessary_by_name(model, rs_node2.input[1], rs_node2)
+
+        rs_node2.input[1] = const_shape_name
+
+        ###insert transpose
+        ts_name = rs_node2.name + '_transpose_'
+        ts_output_name = ts_name + '_output_'
+
+        ts_node = onnx.helper.make_node(
+                                            'Transpose',
+                                            name=ts_name,
+                                            inputs=[rs_node2.output[0]],
+                                            outputs=[ts_output_name],
+                                            perm=[0,2,1])
+
+        add_output_shape = values.get_tensor_shape_by_name(model, rs_node2.output[0])
+        ts_output_shape = [add_output_shape[0], add_output_shape[2], add_output_shape[1]]
+        transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.FLOAT, ts_output_shape)
+        model.graph.value_info.append(transpose_output)
+
+        insert_node(model, ts_node, rs_node2)
+
+        all_next_node, _ = get_all_next_node_by_output(model, rs_node2.output[0])
+        for n in all_next_node:
+            if n.name != ts_name:
+                n.input[0] = ts_output_name
+        
 #MatMul-->Transpose-->Reshape-->MatMul-->Add
 def handle_trma_pattern_eight(model, matmul_node):
     handle_trma(model, matmul_node)
@@ -1041,7 +1169,7 @@ def handle_trma_pattern_eight(model, matmul_node):
                     update_tensor_shape(model, node.output[0], slice_output_shape)
 
                     if const_axes_name == '':
-                        const_axes_name = node.input[3] + '_axes_'
+                        const_axes_name = node.name + '_' + node.input[3] + '_axes_'
             
                         const_axes_tensor = onnx.helper.make_tensor(name=const_axes_name,
                                             data_type=onnx.TensorProto.INT64,
@@ -1076,7 +1204,7 @@ def handle_trma_pattern_eight(model, matmul_node):
                         update_tensor_shape(model, node.output[0], slice_output_shape)
 
                         if const_axes_name == '':
-                            const_axes_name = node.input[3] + '_axes_'
+                            const_axes_name = node.name + '_' + node.input[3] + '_axes_'
                 
                             const_axes_tensor = onnx.helper.make_tensor(name=const_axes_name,
                                                 data_type=onnx.TensorProto.INT64,
@@ -1106,7 +1234,7 @@ def handle_trma_pattern_eight(model, matmul_node):
                             reshape_output_shape = [reshape_output_shape_old[0], reshape_output_shape_old[2], reshape_output_shape_old[1]]  
 
                             ###
-                            const_shape_name = reshape_node.input[1] + '_reshape_'
+                            const_shape_name = reshape_node.name + '_' + reshape_node.input[1] + '_reshape_'
         
                             const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
                                                 data_type=onnx.TensorProto.INT64,
@@ -6540,6 +6668,7 @@ def mha_optimizer(model):
         handle_add_combination_pattern_eight(model)   
         handle_mul_add_block(model, pattern)
         handle_split_block_pattern_eight(model, node_block_list)
+        handle_ars4cr(model)
         return model   
 
     if pattern != 4:   
