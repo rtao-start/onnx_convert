@@ -911,6 +911,16 @@ def handle_trma_pattern_eight(model, matmul_node):
     mm_node, _ = get_next_node_by_output(model, rs_node.output[0])
     add_node, _ = get_next_node_by_output(model, mm_node.output[0])
     rs_node, _ = get_next_node_by_output(model, add_node.output[0])
+    rs_node2, _ = get_next_node_by_output(model, rs_node.output[0])
+
+    ts_node2, _ = get_next_node_by_output(model, rs_node2.output[0])
+
+    rs_node3, _ = get_next_node_by_output(model, ts_node2.output[0])
+
+
+    rs_node4, _ = get_next_node_by_output(model, rs_node3.output[0])
+
+    next_node, _ = get_next_node_by_output(model, rs_node4.output[0])
 
     ts_name = add_node.name + '_transpose_'
     ts_output_name = ts_name + '_output_'
@@ -920,15 +930,203 @@ def handle_trma_pattern_eight(model, matmul_node):
                                         name=ts_name,
                                         inputs=[add_node.output[0]],
                                         outputs=[ts_output_name],
-                                        perm=[0,2,1])
+                                        perm=[1,0,2])
 
     add_output_shape = values.get_tensor_shape_by_name(model, add_node.output[0])
-    ts_output_shape = [add_output_shape[0], add_output_shape[2], add_output_shape[1]]
+    ts_output_shape = [add_output_shape[1], add_output_shape[0], add_output_shape[2]]
     transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.FLOAT, ts_output_shape)
     model.graph.value_info.append(transpose_output)
 
     insert_node(model, ts_node, add_node)
     rs_node.input[0] = ts_output_name
+
+    ###update reshape-1
+    rs_output_shape_old = values.get_tensor_shape_by_name(model, rs_node.output[0])
+    rs_output_shape = [rs_output_shape_old[3], rs_output_shape_old[0], rs_output_shape_old[1], rs_output_shape_old[2]]
+
+    const_shape_name = rs_node.output[0] + '_reshape_data_'
+    
+    const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                        data_type=onnx.TensorProto.INT64,
+                        dims=[len(rs_output_shape)],
+                        vals=rs_output_shape)
+
+    model.graph.initializer.append(const_shape_tensor)
+
+    update_tensor_shape(model, rs_node.output[0], rs_output_shape)
+
+    operation.remove_initializer_if_necessary_by_name(model, rs_node.input[1], rs_node)
+
+    rs_node.input[1] = const_shape_name
+
+    ###update reshape-2
+    rs_output_shape_old = values.get_tensor_shape_by_name(model, rs_node2.output[0])
+    rs_output_shape = [rs_output_shape_old[0], rs_output_shape_old[5], rs_output_shape_old[1], rs_output_shape_old[2], rs_output_shape_old[3], rs_output_shape_old[4]]
+
+    const_shape_name = rs_node2.output[0] + '_reshape_data_'
+    
+    const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                        data_type=onnx.TensorProto.INT64,
+                        dims=[len(rs_output_shape)],
+                        vals=rs_output_shape)
+
+    model.graph.initializer.append(const_shape_tensor)
+
+    update_tensor_shape(model, rs_node2.output[0], rs_output_shape)
+
+    operation.remove_initializer_if_necessary_by_name(model, rs_node2.input[1], rs_node2)
+
+    rs_node2.input[1] = const_shape_name
+
+    ###update transpose node
+    ts_output_shape_old = values.get_tensor_shape_by_name(model, ts_node2.output[0])
+    ts_output_shape = [ts_output_shape_old[0], ts_output_shape_old[5],ts_output_shape_old[1],ts_output_shape_old[2],ts_output_shape_old[3],ts_output_shape_old[4]]
+    del ts_node2.attribute[:]
+
+    attr = onnx.helper.make_attribute('perm', [0,1,2,4,3,5])
+    ts_node2.attribute.append(attr)
+
+    update_tensor_shape(model, ts_node2.output[0], ts_output_shape)
+
+    ###update reshape-3
+    rs_output_shape_old = values.get_tensor_shape_by_name(model, rs_node3.output[0])
+    rs_output_shape = [rs_output_shape_old[0], rs_output_shape_old[3], rs_output_shape_old[1], rs_output_shape_old[2]]
+
+    const_shape_name = rs_node3.output[0] + '_reshape_data_'
+    
+    const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                        data_type=onnx.TensorProto.INT64,
+                        dims=[len(rs_output_shape)],
+                        vals=rs_output_shape)
+
+    model.graph.initializer.append(const_shape_tensor)
+
+    update_tensor_shape(model, rs_node3.output[0], rs_output_shape)
+
+    operation.remove_initializer_if_necessary_by_name(model, rs_node3.input[1], rs_node3)
+
+    rs_node3.input[1] = const_shape_name
+
+    ###update reshape-4
+    if rs_node4.op_type == 'Reshape':
+        rs_output_shape_old = values.get_tensor_shape_by_name(model, rs_node4.output[0])
+        rs_output_shape = [rs_output_shape_old[0], rs_output_shape_old[2], rs_output_shape_old[1]]
+
+        const_shape_name = rs_node4.output[0] + '_reshape_data_'
+        
+        const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                            data_type=onnx.TensorProto.INT64,
+                            dims=[len(rs_output_shape)],
+                            vals=rs_output_shape)
+
+        model.graph.initializer.append(const_shape_tensor)
+
+        update_tensor_shape(model, rs_node4.output[0], rs_output_shape)
+
+        operation.remove_initializer_if_necessary_by_name(model, rs_node4.input[1], rs_node4)
+
+        rs_node4.input[1] = const_shape_name
+        
+        next_add_output_shape = values.get_tensor_shape_by_name(model, next_node.output[0]) 
+        update_tensor_shape(model, next_node.output[0], [next_add_output_shape[0], next_add_output_shape[2], next_add_output_shape[1]])  
+    else:
+        all_next_node, _ = get_all_next_node_by_output(model, rs_node3.output[0])
+        if len(all_next_node) == 2:
+            concat_node = None
+            const_axes_name = ''
+            for node in all_next_node:
+                if node.op_type == 'Slice':
+                    slice_output_shape_old = values.get_tensor_shape_by_name(model, node.output[0])
+                    slice_output_shape = [slice_output_shape_old[0], slice_output_shape_old[3], slice_output_shape_old[1], slice_output_shape_old[2]]
+                    update_tensor_shape(model, node.output[0], slice_output_shape)
+
+                    if const_axes_name == '':
+                        const_axes_name = node.input[3] + '_axes_'
+            
+                        const_axes_tensor = onnx.helper.make_tensor(name=const_axes_name,
+                                            data_type=onnx.TensorProto.INT64,
+                                            dims=[1],
+                                            vals=[2])
+
+                        model.graph.initializer.append(const_axes_tensor)
+
+                    operation.remove_initializer_if_necessary_by_name(model, node.input[3], node)
+
+                    node.input[3] = const_axes_name
+
+                    if concat_node == None:
+                        concat_node, _ = get_next_node_by_output(model, node.output[0])
+                        del concat_node.attribute[:]
+
+                        attr = onnx.helper.make_attribute('axis', 2)
+                        concat_node.attribute.append(attr)
+
+                        concat_output_shape_old = values.get_tensor_shape_by_name(model, concat_node.output[0])
+                        concat_output_shape = [concat_output_shape_old[0], concat_output_shape_old[3], concat_output_shape_old[1], concat_output_shape_old[2]]
+                        update_tensor_shape(model, concat_node.output[0], concat_output_shape)
+
+            all_next_node, _ = get_all_next_node_by_output(model, concat_node.output[0])
+            if len(all_next_node) == 2:
+                concat_node = None
+                const_axes_name = ''
+                for node in all_next_node:
+                    if node.op_type == 'Slice':
+                        slice_output_shape_old = values.get_tensor_shape_by_name(model, node.output[0])
+                        slice_output_shape = [slice_output_shape_old[0], slice_output_shape_old[3], slice_output_shape_old[1], slice_output_shape_old[2]]
+                        update_tensor_shape(model, node.output[0], slice_output_shape)
+
+                        if const_axes_name == '':
+                            const_axes_name = node.input[3] + '_axes_'
+                
+                            const_axes_tensor = onnx.helper.make_tensor(name=const_axes_name,
+                                                data_type=onnx.TensorProto.INT64,
+                                                dims=[1],
+                                                vals=[3])
+
+                            model.graph.initializer.append(const_axes_tensor)
+
+                        operation.remove_initializer_if_necessary_by_name(model, node.input[3], node)
+
+                        node.input[3] = const_axes_name
+
+                        if concat_node == None:
+                            concat_node, _ = get_next_node_by_output(model, node.output[0])
+
+                            del concat_node.attribute[:]
+
+                            attr = onnx.helper.make_attribute('axis', 3)
+                            concat_node.attribute.append(attr)
+
+                            concat_output_shape_old = values.get_tensor_shape_by_name(model, concat_node.output[0])
+                            concat_output_shape = [concat_output_shape_old[0], concat_output_shape_old[3], concat_output_shape_old[1], concat_output_shape_old[2]]
+                            update_tensor_shape(model, concat_node.output[0], concat_output_shape)
+
+                            reshape_node, _ = get_next_node_by_output(model, concat_node.output[0])
+                            reshape_output_shape_old = values.get_tensor_shape_by_name(model, reshape_node.output[0])
+                            reshape_output_shape = [reshape_output_shape_old[0], reshape_output_shape_old[2], reshape_output_shape_old[1]]  
+
+                            ###
+                            const_shape_name = reshape_node.input[1] + '_reshape_'
+        
+                            const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                                                data_type=onnx.TensorProto.INT64,
+                                                dims=[len(reshape_output_shape)],
+                                                vals=reshape_output_shape)
+
+                            model.graph.initializer.append(const_shape_tensor)
+
+                            update_tensor_shape(model, reshape_node.output[0], reshape_output_shape)
+
+                            operation.remove_initializer_if_necessary_by_name(model, reshape_node.input[1], reshape_node)
+
+                            reshape_node.input[1] = const_shape_name
+
+                            next_add_node, _ = get_next_node_by_output(model, reshape_node.output[0])
+                            add_output_shape_old = values.get_tensor_shape_by_name(model, next_add_node.output[0])
+                            add_output_shape = [add_output_shape_old[0], add_output_shape_old[2], add_output_shape_old[1]]
+
+                            update_tensor_shape(model, next_add_node.output[0], add_output_shape)
+
 
 def handle_add_combination_pattern_eight(model):
     am_list = get_add_combination_pattern_eight(model)
@@ -964,7 +1162,105 @@ def handle_add_combination_pattern_eight(model):
 
             sub_node.input[0] = ts_output_name
             rm_node.input[0] = ts_output_name
-            next_add.input[0] = ts_output_name
+            #next_add.input[0] = ts_output_name
+        else:
+            ###add transpose
+            ts_name = add_node.name + '_transpose_'
+            ts_output_name = ts_name + '_output_'
+            add_output_shape = values.get_tensor_shape_by_name(model, add_node.output[0])
+            ts_output_shape = [add_output_shape[0], add_output_shape[2], add_output_shape[1]]
+            transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.FLOAT, ts_output_shape)
+            
+            ts_node = onnx.helper.make_node(
+                                                'Transpose',
+                                                name=ts_name,
+                                                inputs=[add_node.output[0]],
+                                                outputs=[ts_output_name],
+                                                perm=[0,2,1])
+
+            model.graph.value_info.append(transpose_output)
+
+            insert_node(model, ts_node, add_node)
+
+            #sub_node.input[0] = ts_output_name
+            #rm_node.input[0] = ts_output_name
+
+            ###add reshape-1
+            rs_name = add_node.output[0] + '_reshape_1_'
+            rs_output_name = rs_name + '_output_'
+            rs_output_shape = [ts_output_shape[1], ts_output_shape[2]]
+
+            rs_output = onnx.helper.make_tensor_value_info(rs_output_name, onnx.TensorProto.FLOAT, rs_output_shape)
+
+            const_shape_name = add_node.output[0] + '_reshape_data_1'
+            
+            const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                                data_type=onnx.TensorProto.INT64,
+                                dims=[len(rs_output_shape)],
+                                vals=rs_output_shape)
+
+            model.graph.initializer.append(const_shape_tensor)
+
+            rs_node = onnx.helper.make_node(
+                                                'Reshape',
+                                                name=rs_name,
+                                                inputs=[ts_output_name, const_shape_name],
+                                                outputs=[rs_output_name])
+
+            model.graph.value_info.append(rs_output)
+
+            insert_node(model, rs_node, ts_node)
+
+            ###add reshape-2
+            rs_name = add_node.output[0] + '_reshape_2_'
+            rs_output_name2 = rs_name + '_output_'
+            rs_output_shape = [ts_output_shape[0], ts_output_shape[1], ts_output_shape[2]]
+
+            rs_output = onnx.helper.make_tensor_value_info(rs_output_name2, onnx.TensorProto.FLOAT, rs_output_shape)
+
+            const_shape_name = add_node.output[0] + '_reshape_data_2'
+            
+            const_shape_tensor = onnx.helper.make_tensor(name=const_shape_name,
+                                data_type=onnx.TensorProto.INT64,
+                                dims=[len(rs_output_shape)],
+                                vals=rs_output_shape)
+
+            model.graph.initializer.append(const_shape_tensor)
+
+            rs_node2 = onnx.helper.make_node(
+                                                'Reshape',
+                                                name=rs_name,
+                                                inputs=[rs_output_name, const_shape_name],
+                                                outputs=[rs_output_name2])
+
+            model.graph.value_info.append(rs_output)
+
+            insert_node(model, rs_node2, rs_node)
+
+            next_add.input[0] = rs_output_name2
+
+            ###add transpose
+            ts_name = add_node.name + '_transpose_2_'
+            ts_output_name = ts_name + '_output_'
+            ts_output_shape = [rs_output_shape[0], rs_output_shape[2], rs_output_shape[1]]
+            transpose_output = onnx.helper.make_tensor_value_info(ts_output_name, onnx.TensorProto.FLOAT, ts_output_shape)
+            
+            ts_node2 = onnx.helper.make_node(
+                                                'Transpose',
+                                                name=ts_name,
+                                                inputs=[rs_output_name2],
+                                                outputs=[ts_output_name],
+                                                perm=[0,2,1])
+
+            model.graph.value_info.append(transpose_output)
+
+            insert_node(model, ts_node2, add_node)
+
+            sub_node.input[0] = ts_output_name
+            rm_node.input[0] = ts_output_name
+
+
+
 
 def handle_split_block_pattern_seven(model):
     node_list = get_matmul_input_path_pattern_seven(model)
@@ -2780,7 +3076,7 @@ def handle_mul_add_block(model, pattern):
                 update_tensor_shape(model, mul_node2.output[0], new_shape)
 
         ######insert Transpose before ReduceMean and Sub
-        if pattern == 5 or pattern == 8:
+        if pattern == 5: #or pattern == 8:
             ###add transpose
             ts3_name = nextAdd.name + '_transpose_'
             ts3_output_name = ts3_name + '_output_'
@@ -6240,7 +6536,8 @@ def mha_optimizer(model):
         handle_mul_add_block(model, pattern)
         handle_split_block_pattern_seven(model)
         return model   
-    elif pattern == 8:   
+    elif pattern == 8:
+        handle_add_combination_pattern_eight(model)   
         handle_mul_add_block(model, pattern)
         handle_split_block_pattern_eight(model, node_block_list)
         return model   
