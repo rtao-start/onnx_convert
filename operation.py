@@ -19,6 +19,13 @@ def is_unused_init(model, init):
 
     return True
 
+def is_unused_init_by_name(model, init_name):
+   for node in model.graph.node:
+      if init_name in node.input:
+         return False
+         
+   return True
+
 def is_unused_init2(model, init, node_):
     for node in model.graph.node:
         if init.name in node.input and node != node_:
@@ -26,7 +33,7 @@ def is_unused_init2(model, init, node_):
 
     return True
 
-def is_unused_init_by_name(model, init_name, node_):
+def is_unused_init_by_node(model, init_name, node_):
     for node in model.graph.node:
         if init_name in node.input and node != node_:
             return False
@@ -270,9 +277,6 @@ def get_all_next_node_by_output(model, output):
     return node_list, ok
 
 def insert_onnx_node(model, insert_node, follow_up_node):
-    # 根据插入Node的输出修改后续node的输入
-    #follow_up_node.input[0] = insert_node.output[0]
-    # 找到后续Node的索引位置，并将插入节点插入到graph中
     for follow_up_node_index, _follow_up_node in enumerate(model.graph.node):
         if _follow_up_node == follow_up_node:
             logger.debug("follow_up_node_index: {}".format(follow_up_node_index))
@@ -299,7 +303,14 @@ def remove_initializer_if_necessary(model, init, node):
       model.graph.initializer.remove(init)
 
 def remove_initializer_if_necessary_by_name(model, init_name, node):
-   if is_unused_init_by_name(model, init_name, node):
+   if is_unused_init_by_node(model, init_name, node):
+      for init in model.graph.initializer:
+         if init.name == init_name:
+            model.graph.initializer.remove(init)
+            break
+
+def remove_initializer_by_name(model, init_name):
+   if is_unused_init_by_name(model, init_name): 
       for init in model.graph.initializer:
          if init.name == init_name:
             model.graph.initializer.remove(init)

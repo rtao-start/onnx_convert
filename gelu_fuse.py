@@ -14,8 +14,10 @@ def merge_gelu1(model):
     dict_mul2 = {}
 
     got_gelu = False
-
     search = True
+
+    divB_list = []
+    addB_list = []
 
     while search == True:
         search = False
@@ -112,7 +114,8 @@ def merge_gelu1(model):
 
                     dict_add['input'] = node.input
                     dict_add['output'] = node.output
-                    dict_add['id'] = node_id                
+                    dict_add['id'] = node_id
+                    dict_add['node'] = node                 
                 else:
                     logger.debug('clear dict_add and dict_erf, ')
                     logger.debug('dict_add: {}'.format(dict_add))
@@ -180,8 +183,14 @@ def merge_gelu1(model):
                         dict_mul2['output'] = node.output
                         dict_mul2['id'] = node_id
 
+                        operation.remove_initializer_if_necessary_by_name(model, node.input[1], node)
+
                         ###################################
-                        old_node = model.graph.node[dict_div['id']] 
+                        old_node = model.graph.node[dict_div['id']]
+
+                        if old_node.input[1] not in divB_list:
+                            divB_list.append(old_node.input[1])
+
                         model.graph.node.remove(old_node)
 
                         gelu_node = onnx.helper.make_node(
@@ -195,6 +204,11 @@ def merge_gelu1(model):
                         model.graph.node.insert(dict_div['id'], gelu_node)
 
                         operation.remove_node(model, dict_erf['input'], dict_erf['output'])
+                        add_node = dict_add['node']
+
+                        if add_node.input[1] not in addB_list:
+                            addB_list.append(add_node.input[1])
+
                         operation.remove_node(model, dict_add['input'], dict_add['output'])
                         operation.remove_node(model, dict_mul['input'], dict_mul['output'])
                         operation.remove_node(model, dict_mul2['input'], dict_mul2['output'])
@@ -228,6 +242,12 @@ def merge_gelu1(model):
         op_set = model.opset_import.add()
         op_set.domain = 'com.microsoft'
         op_set.version = 1
+
+        for divB in divB_list:
+            operation.remove_initializer_by_name(model, divB)
+
+        for addB in addB_list:
+            operation.remove_initializer_by_name(model, addB)
 
     return model
 
