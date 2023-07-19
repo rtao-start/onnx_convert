@@ -232,6 +232,8 @@ def run_onnx_model_for_darknet(model_path, detect_img):
                 old_img = detect_img.split('/')[-1]
                 output_path = 'inference_' + old_img 
                 image.save(output_path)
+
+            #####画框、保存 finish    
             ###########################################################################
 
 
@@ -248,9 +250,6 @@ def run_onnx_model_for_darknet(model_path, detect_img):
 
             for i, c in enumerate(top_label):
                 score = top_conf[i]
-
-                top, left, bottom, right = box_corner[i]
-
                 extra[i] = np.array([score, c])
 
             result = np.concatenate((box_corner, extra), axis=1)
