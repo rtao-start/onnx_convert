@@ -1,0 +1,12 @@
+1 命令行
+python ./inference.py --onnx_model_path ../../my_v3.onnx  --input_pic  /home/zqiu/video/street.jpg
+   --onnx_model_path onnx模型路径
+   --input_pic 待推理的图片路径
+
+2 功能
+  加载由maca_converter转换出来的onnx模型(原始模型为darknet)，进行推理和后处理，在原图画框(或返回推理结果)。
+
+3 代码说明
+  (1)需根据模型的实际输入大小和分类大小, 修改inference.py中model_input_h、model_input_w、cls_num这三个变量的值。
+  (2)三个尺度的预设anchors, 需根据实际修改(inference.py 130、138、145行)
+  (3)如需在后处理的图上展示分类名称, 需提供对应的分类文件, 如本例中的coco_classes.txt文件。

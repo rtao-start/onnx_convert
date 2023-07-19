@@ -10,11 +10,11 @@ import subprocess
 import torch
 import argparse
 import cv2
-
+import colorsys
 from collections import OrderedDict
 from onnx import shape_inference
 from onnx import numpy_helper, helper
-
+from PIL import Image, ImageDraw, ImageFont
 from detect import (DecodeBox, non_max_suppression, yolo_correct_boxes)
 
 logging.basicConfig(level=logging.INFO, filename='./inference.log', filemode='w')
@@ -23,185 +23,10 @@ from onnx import shape_inference, TensorProto, version_converter, numpy_helper
 
 logger = logging.getLogger("[INFERENCE]")
 
-'''
-  --------------------ONNX Data Type-----------------
-  enum DataType {
-    UNDEFINED = 0;
-    // Basic types.
-    FLOAT = 1;   // float
-    UINT8 = 2;   // uint8_t
-    INT8 = 3;    // int8_t
-    UINT16 = 4;  // uint16_t
-    INT16 = 5;   // int16_t
-    INT32 = 6;   // int32_t
-    INT64 = 7;   // int64_t
-    STRING = 8;  // string
-    BOOL = 9;    // bool
-
-    // IEEE754 half-precision floating-point format (16 bits wide).
-    // This format has 1 sign bit, 5 exponent bits, and 10 mantissa bits.
-    FLOAT16 = 10;
-
-    DOUBLE = 11;
-    UINT32 = 12;
-    UINT64 = 13;
-    COMPLEX64 = 14;     // complex with float32 real and imaginary components
-    COMPLEX128 = 15;    // complex with float64 real and imaginary components
-
-    // Non-IEEE floating-point format based on IEEE754 single-precision
-    // floating-point number truncated to 16 bits.
-    // This format has 1 sign bit, 8 exponent bits, and 7 mantissa bits.
-    BFLOAT16 = 16;
-
-    // Future extensions go here.
-  }
-'''
-
-network_size = (416,416)
-
-def convert_ort_type_2_np(ort_data_type):
-
-    types = {
-        1 : np.float32,
-        2 : np.uint8,
-        3 : np.int8,
-        4 : np.uint16,
-        5 : np.int16,
-        6 : np.int32,
-        7 : np.int64,
-        8 : "",  #string
-        9 : np.bool_,
-        10 : np.float16,
-        11 : np.float64,
-        12 : np.uint32,
-        13 : np.uint64,
-        14 : np.complex64,
-        15 : np.complex_,
-        16 : ""
-    }
-
-    return types.get(ort_data_type, None)
-
-
-def get_tensor_type_by_data_type(dtype):
-
-    print('get_tensor_type_by_data_type: ', dtype.name)
-
-    types__ = {
-        'float16' : TensorProto.FLOAT16,
-        'float32' : TensorProto.FLOAT,
-        'int8' : TensorProto.INT8,
-        'int16' : TensorProto.INT16,
-        'int32' : TensorProto.INT32,
-        'int64' : TensorProto.INT64,
-        'uint8' : TensorProto.UINT8,
-        'uint16' : TensorProto.UINT16,
-        'uint32' : TensorProto.UINT32,
-        'uint64' : TensorProto.UINT64,
-        'float64' : TensorProto.DOUBLE
-    }
-
-    t = types__.get(dtype.name, None) 
-    #print('t = ', t)
-
-    return t 
-
 def get_output(command):
     p = subprocess.run(command, check=True, stdout=subprocess.PIPE)
     output = p.stdout.decode("ascii").strip()
     return output
-
-def get_cosine(gpu_array, cpu_array):
-    x = np.square(gpu_array)
-    x = np.sum(x) 
-    x = np.sqrt(x)
-
-    y = np.square(cpu_array)
-    y = np.sum(y) 
-    y = np.sqrt(y)
-
-    z = gpu_array * cpu_array
-    z = sum(z)
-
-    print('x y z:', x, y, z)
-
-    cosine_sim  = (z + 1e-7) / ((x * y) + 1e-7) # eps
-
-    cosine_sim = max(cosine_sim, 1.0)
-
-    cosine = np.mean(cosine_sim)
-
-    print('-----cosine:', cosine)
-
-    #cosine = max(cosine, 1.0)
-
-    cosine = 1.0 - cosine
-
-    #cosine = max(0, cosine)
-
-    print('+++++cosine:', cosine)
-
-    return cosine  
-
-def get_mse(gpu_array, cpu_array):
-    diff_array = np.subtract(cpu_array, gpu_array)
-    x = np.square(diff_array)
-    mse = np.mean(x)
-
-    print('mse:', mse)
-
-    return mse  
-
-def get_snr(gpu_array, cpu_array):
-    diff_array = np.subtract(cpu_array, gpu_array)
-    x = np.square(diff_array)
-    x = np.sum(x)
-
-    y = np.square(cpu_array)
-    y = np.sum(y) 
-
-    snr = (x) / (y + 1e-7)
-
-    snr = np.mean(snr)
-
-    print('snr:', snr)
-
-    return snr  
-    
-precision_cmp_method = {
-    "mse": get_mse,
-    "cosine": get_cosine,
-    "snr": get_snr
-}
-
-precision_cmp_str = 'snr'
-precision_threshold = 0.1 
-
-import math 
-
-def compare_result(ort_outs_onnx, ort_outs_origin): 
-    match=True 
-    seq = 0
-
-
-    v1 = ort_outs_onnx.flatten()
-    print('v1:', v1.tolist()[:32])
-
-    #print('ort_outs_origin:', ort_outs_origin[:, 21660:21665, 4:10])
-  
-    v2 = ort_outs_origin.flatten()
-    print('v2:', v2.tolist()[:32])
-
-    cmp_value = get_snr(v1, v2) 
-    if cmp_value > 0.001:
-        print('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
-        print('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
-        print('WARNING: output is abnormal, please check it~~')
-        print('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
-        print('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
-        return False
-
-    return True    
 
 def generate_onnx_model_input(model, image_npy):
     ort_inputs = {}
@@ -213,15 +38,25 @@ def generate_onnx_model_input(model, image_npy):
 
     for input_ in model.graph.input:
         if input_.name not in initializer:
-            print('-----input_ name is', input_.name)
-
             ort_inputs[input_.name] = image_npy
 
     return ort_inputs
 
+def get_class(classes_path):
+        classes_path = os.path.expanduser(classes_path)
+        with open(classes_path) as f:
+            class_names = f.readlines()
+        class_names = [c.strip() for c in class_names]
+        print(class_names)
+        return class_names
+
 def run_onnx_model_for_darknet(model_path, detect_img):
-    model_input_h = 416
-    model_input_w = 416
+    #模型输入的宽和高，需根据实际修改
+    model_input_h = 608
+    model_input_w = 608
+
+    #分类数，需根据实际修改
+    cls_num = 80
 
     try:
         model = onnx.load(model_path)
@@ -231,7 +66,7 @@ def run_onnx_model_for_darknet(model_path, detect_img):
     else:
         print('Load mode success')
 
-    img_path = input_pic
+    img_path = detect_img
     img = cv2.imread(img_path)
     target_size = (model_input_h, model_input_w)
     mean = [0.0, 0.0, 0.0]
@@ -263,14 +98,14 @@ def run_onnx_model_for_darknet(model_path, detect_img):
 
     ort_inputs = generate_onnx_model_input(model, image_blob)
 
-    print('ort_inputs:', ort_inputs)
+    #print('ort_inputs:', ort_inputs)
 
     outputs = [x.name for x in ort_session.get_outputs()]
 
     print('output list:')
     print(outputs)
 
-    print('begin run cpu......')
+    print('begin run onnx model......')
 
     try:
         ort_outs = ort_session.run(outputs, ort_inputs)
@@ -282,9 +117,8 @@ def run_onnx_model_for_darknet(model_path, detect_img):
     
     ort_outs = OrderedDict(zip(outputs, ort_outs))
 
-    print('outputs[0].shape:', ort_outs[outputs[0]].shape)
-    print('outputs[1].shape:', ort_outs[outputs[1]].shape)
-    print('outputs[2].shape:', ort_outs[outputs[2]].shape)
+    for out_name, out_value in ort_outs.items():
+        print('output: {}, shape: {}'.format(out_name, out_value.shape))
 
     ort_outs_0 = ort_outs[outputs[0]]
     ort_outs_1 = ort_outs[outputs[1]]
@@ -292,26 +126,30 @@ def run_onnx_model_for_darknet(model_path, detect_img):
 
     output_list = []
 
-    anchors = [[147, 153], [323, 111], [278, 257]]
-    db = DecodeBox(anchors, 1, [model_input_h, model_input_w])
+    ##三个尺度的预设anchors，需根据实际修改
+    #anchors = [[147, 153], [323, 111], [278, 257]]
+    anchors = [[116,90],[156,198],[373,326]]
+    db = DecodeBox(anchors, cls_num, [model_input_h, model_input_w])
     ort_outs_0 = torch.from_numpy(ort_outs_0)
     output_13x13 = db.detect(ort_outs_0)
     output_list.append(output_13x13)
 
-    anchors = [[130, 48], [183, 61], [241, 77]]
-    db = DecodeBox(anchors, 1, [model_input_h, model_input_w])
+    #anchors = [[130, 48], [183, 61], [241, 77]]
+    anchors = [[30,61],[62,45],[59,119]]
+    db = DecodeBox(anchors, cls_num, [model_input_h, model_input_w])
     ort_outs_1 = torch.from_numpy(ort_outs_1)
     output_26x26 = db.detect(ort_outs_1)
     output_list.append(output_26x26)
 
-    anchors = [[24, 14], [54, 25], [88, 36]]
-    db = DecodeBox(anchors, 1, [model_input_h, model_input_w])
+    #anchors = [[24, 14], [54, 25], [88, 36]]
+    anchors = [[10,13],[16,30],[33,23]]
+    db = DecodeBox(anchors, cls_num, [model_input_h, model_input_w])
     ort_outs_2 = torch.from_numpy(ort_outs_2)
     output_52x52 = db.detect(ort_outs_2)
     output_list.append(output_52x52)
 
     detect_output = torch.cat(output_list, 1)
-    batch_detections = non_max_suppression(detect_output, 1,
+    batch_detections = non_max_suppression(detect_output, cls_num,
                                                 conf_thres=0.5,
                                                 nms_thres=0.45)
 
@@ -335,6 +173,70 @@ def run_onnx_model_for_darknet(model_path, detect_img):
             #-----------------------------------------------------------------#
             boxes = yolo_correct_boxes(top_ymin,top_xmin,top_ymax,top_xmax,np.array([model_input_h, model_input_w]), np.array(orign_size))
             
+            #如果需要在原图画框，可执行以下代码
+            image = Image.open(detect_img)
+            font = ImageFont.truetype(font='./simhei.ttf',size=np.floor(3e-2 * np.shape(image)[1] + 0.5).astype('int32'))
+            thickness = max((np.shape(image)[0] + np.shape(image)[1]) // model_input_h, 1)
+
+            class_names = get_class('./coco_classes.txt')
+            hsv_tuples = [(x / len(class_names), 1., 1.)
+                        for x in range(len(class_names))]
+
+            colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
+
+            colors = list(
+                map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)), colors))
+
+            for i, c in enumerate(top_label):
+                predicted_class = class_names[c]
+                score = top_conf[i]
+
+                top, left, bottom, right = boxes[i]
+                top = top - 5
+                left = left - 5
+                bottom = bottom + 5
+                right = right + 5
+
+                top = max(0, np.floor(top + 0.5).astype('int32'))
+                left = max(0, np.floor(left + 0.5).astype('int32'))
+                bottom = min(np.shape(image)[0], np.floor(bottom + 0.5).astype('int32'))
+                right = min(np.shape(image)[1], np.floor(right + 0.5).astype('int32'))
+
+                # 画框框
+                label = '{} {:.2f}'.format(predicted_class, score)
+                draw = ImageDraw.Draw(image)
+                #label_size = draw.textsize(label, font)
+                text_bbox = draw.textbbox((0, 0), label, font=font)
+                label_size = (text_bbox[2] - text_bbox[0], text_bbox[3] - text_bbox[1])
+                label = label.encode('utf-8')
+
+                print(label, top, left, bottom, right)
+                
+                if top - label_size[1] >= 0:
+                    text_origin = np.array([left, top - label_size[1]])
+                else:
+                    text_origin = np.array([left, top + 1])
+
+                for i in range(thickness):
+                    draw.rectangle(
+                        [left + i, top + i, right - i, bottom - i],
+                        outline=colors[class_names.index(predicted_class)])
+                draw.rectangle(
+                    [tuple(text_origin), tuple(text_origin + label_size)],
+                    fill=colors[class_names.index(predicted_class)])
+                draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
+                del draw
+
+                #image.show()
+
+                old_img = detect_img.split('/')[-1]
+                output_path = 'inference_' + old_img 
+                image.save(output_path)
+            ###########################################################################
+
+
+            #如果不需要画框，只需要得到推理结果(x,y,w,h,prob,class)，可执行以下代码
+            '''
             box_corner = np.ones_like(boxes)
             box_corner[:, 0] = boxes[:, 1] + (boxes[:, 3] - boxes[:, 1]) / 2
             box_corner[:, 1] = boxes[:, 0] + (boxes[:, 2] - boxes[:, 0]) / 2
@@ -355,10 +257,13 @@ def run_onnx_model_for_darknet(model_path, detect_img):
 
             print('detect result:', result)
 
+            return result
+            '''
+
     return True
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Convert caffe/tensorflow/torch/paddle/darknet model to ONNX.')
+    parser = argparse.ArgumentParser(description='')
 
     parser.add_argument("--onnx_model_path",
                         type=str)
@@ -377,6 +282,6 @@ if __name__ == "__main__":
 
     print('onnx_model_path:{}, input_pic:{}'.format(onnx_model_path, input_pic))
 
-    dn_out = run_onnx_model_for_darknet(onnx_model_path, input_pic)
+    run_onnx_model_for_darknet(onnx_model_path, input_pic)
 
     
