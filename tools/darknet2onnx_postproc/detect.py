@@ -36,6 +36,7 @@ class DecodeBox():
         #   此时获得的scaled_anchors大小是相对于特征层的
         #-------------------------------------------------#
         scaled_anchors = [(anchor_width / stride_w, anchor_height / stride_h) for anchor_width, anchor_height in self.anchors]
+        #print('scaled_anchors:', scaled_anchors)
 
         #-----------------------------------------------#
         #   输入的input一共有三个，他们的shape分别是
@@ -70,6 +71,7 @@ class DecodeBox():
         #   batch_size,3,13,13
         #----------------------------------------------------------#
         # tensor.repeat(repeats, axis=None) repeats:每个元素重复的次数， axis:需要重复的维度
+        print('input_width:{}, input_height:{}, img_size:{}'.format(input_width, input_height, self.img_size))
         grid_x = torch.linspace(0, input_width - 1, input_width).repeat(input_height, 1).repeat(
             batch_size * self.num_anchors, 1, 1).view(x.shape).type(FloatTensor)
         grid_y = torch.linspace(0, input_height - 1, input_height).repeat(input_width, 1).t().repeat(
@@ -191,7 +193,7 @@ def non_max_suppression(prediction, num_classes, conf_thres=0.5, nms_thres=0.4):
 
     return output
 
-def yolo_correct_boxes(top, left, bottom, right, input_shape, image_shape):
+def yolo_correct_boxes(top, left, bottom, right, input_shape, image_shape, added_gray = True):
     new_shape = image_shape*np.min(input_shape/image_shape)
 
     offset = (input_shape-new_shape)/2./input_shape
@@ -200,8 +202,9 @@ def yolo_correct_boxes(top, left, bottom, right, input_shape, image_shape):
     box_yx = np.concatenate(((top+bottom)/2,(left+right)/2),axis=-1)/input_shape
     box_hw = np.concatenate((bottom-top,right-left),axis=-1)/input_shape
 
-    box_yx = (box_yx - offset) * scale
-    box_hw *= scale
+    if added_gray == True:
+        box_yx = (box_yx - offset) * scale
+        box_hw *= scale
 
     box_mins = box_yx - (box_hw / 2.)
     box_maxes = box_yx + (box_hw / 2.)

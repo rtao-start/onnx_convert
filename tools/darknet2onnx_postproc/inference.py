@@ -47,16 +47,29 @@ def get_class(classes_path):
         with open(classes_path) as f:
             class_names = f.readlines()
         class_names = [c.strip() for c in class_names]
+        print('class:')
         print(class_names)
         return class_names
 
+def letterbox_image(image, size):
+    iw, ih = image.size
+    w, h = size
+    scale = min(w/iw, h/ih)
+    nw = int(iw*scale)
+    nh = int(ih*scale)
+    #双三次插值算子
+    image = image.resize((nw,nh), Image.BICUBIC)
+    new_image = Image.new('RGB', size, (128,128,128))
+    new_image.paste(image, ((w-nw)//2, (h-nh)//2))
+    return new_image
+
 def run_onnx_model_for_darknet(model_path, detect_img):
     #模型输入的宽和高，需根据实际修改
-    model_input_h = 608
-    model_input_w = 608
+    model_input_h = 416#608
+    model_input_w = 416#608
 
     #分类数，需根据实际修改
-    cls_num = 80
+    cls_num = 1#80
 
     try:
         model = onnx.load(model_path)
@@ -66,14 +79,28 @@ def run_onnx_model_for_darknet(model_path, detect_img):
     else:
         print('Load mode success')
 
+    #'''
     img_path = detect_img
     img = cv2.imread(img_path)
     target_size = (model_input_h, model_input_w)
     mean = [0.0, 0.0, 0.0]
     orign_size = [img.shape[0], img.shape[1]]
+    print('000 orign_size:', orign_size)
 
     image_blob = cv2.dnn.blobFromImage(img, 1 / 255.0, target_size, mean=mean, swapRB=True, crop=False)
+    #'''
 
+    '''###
+    img = Image.open(detect_img)
+    width, height = img.size
+    orign_size = [height, width]
+    print('orign_size:', orign_size)
+    img = np.array(letterbox_image(img, (model_input_h, model_input_w)), dtype=np.float32)
+    img = img.transpose([2, 0, 1])
+    img = img.reshape(1, img.shape[0], img.shape[1], img.shape[2])
+    image_blob = img/255.0
+    '''###
+    
     ori_outputs = [x.name for x in model.graph.output]
     ori_outputs_backup=model.graph.output[:]
 
@@ -127,31 +154,37 @@ def run_onnx_model_for_darknet(model_path, detect_img):
     output_list = []
 
     ##三个尺度的预设anchors，需根据实际修改
-    #anchors = [[147, 153], [323, 111], [278, 257]]
-    anchors = [[116,90],[156,198],[373,326]]
+    anchors = [[147, 153], [323, 111], [278, 257]]
+    #anchors = [[116,90],[156,198],[373,326]]
     db = DecodeBox(anchors, cls_num, [model_input_h, model_input_w])
     ort_outs_0 = torch.from_numpy(ort_outs_0)
     output_13x13 = db.detect(ort_outs_0)
     output_list.append(output_13x13)
 
-    #anchors = [[130, 48], [183, 61], [241, 77]]
-    anchors = [[30,61],[62,45],[59,119]]
+    anchors = [[130, 48], [183, 61], [241, 77]]
+    #anchors = [[30,61],[62,45],[59,119]]
     db = DecodeBox(anchors, cls_num, [model_input_h, model_input_w])
     ort_outs_1 = torch.from_numpy(ort_outs_1)
     output_26x26 = db.detect(ort_outs_1)
     output_list.append(output_26x26)
 
-    #anchors = [[24, 14], [54, 25], [88, 36]]
-    anchors = [[10,13],[16,30],[33,23]]
+    anchors = [[24, 14], [54, 25], [88, 36]]
+    #anchors = [[10,13],[16,30],[33,23]]
     db = DecodeBox(anchors, cls_num, [model_input_h, model_input_w])
     ort_outs_2 = torch.from_numpy(ort_outs_2)
     output_52x52 = db.detect(ort_outs_2)
     output_list.append(output_52x52)
 
     detect_output = torch.cat(output_list, 1)
+    '''
     batch_detections = non_max_suppression(detect_output, cls_num,
                                                 conf_thres=0.5,
                                                 nms_thres=0.45)
+    '''
+
+    batch_detections = non_max_suppression(detect_output, cls_num,
+                                                conf_thres=0.28,
+                                                nms_thres=0.45)                                            
 
     for batch_detection in batch_detections:
         if isinstance(batch_detection, type(None)) == False:
@@ -160,7 +193,7 @@ def run_onnx_model_for_darknet(model_path, detect_img):
             #---------------------------------------------------------#
             #   对预测框进行得分筛选
             #---------------------------------------------------------#
-            top_index = batch_detection[:,4] * batch_detection[:,5] > 0.5
+            top_index = batch_detection[:,4] * batch_detection[:,5] > 0.28
             top_conf = batch_detection[top_index,4]*batch_detection[top_index,5]
             top_label = np.array(batch_detection[top_index,-1],np.int32)
             top_bboxes = np.array(batch_detection[top_index,:4])
@@ -171,7 +204,7 @@ def run_onnx_model_for_darknet(model_path, detect_img):
             #   因此生成的top_bboxes是相对于有灰条的图像的
             #   我们需要对其进行修改，去除灰条的部分。
             #-----------------------------------------------------------------#
-            boxes = yolo_correct_boxes(top_ymin,top_xmin,top_ymax,top_xmax,np.array([model_input_h, model_input_w]), np.array(orign_size))
+            boxes = yolo_correct_boxes(top_ymin,top_xmin,top_ymax,top_xmax,np.array([model_input_h, model_input_w]), np.array(orign_size), False)
             
             #如果需要在原图画框，可执行以下代码
             image = Image.open(detect_img)
