@@ -7,7 +7,6 @@ import onnxruntime
 import sys, getopt
 import json
 import subprocess
-import torch
 import argparse
 import cv2
 import colorsys
@@ -15,7 +14,7 @@ from collections import OrderedDict
 from onnx import shape_inference
 from onnx import numpy_helper, helper
 from PIL import Image, ImageDraw, ImageFont
-from detect import (DecodeBox, non_max_suppression, yolo_correct_boxes)
+from detect_new import (DecodeBox, non_max_suppression, yolo_correct_boxes)
 
 logging.basicConfig(level=logging.INFO, filename='./inference.log', filemode='w')
 
@@ -157,25 +156,23 @@ def run_onnx_model_for_darknet(model_path, detect_img):
     anchors = [[147, 153], [323, 111], [278, 257]]
     #anchors = [[116,90],[156,198],[373,326]]
     db = DecodeBox(anchors, cls_num, [model_input_h, model_input_w])
-    ort_outs_0 = torch.from_numpy(ort_outs_0)
     output_13x13 = db.detect(ort_outs_0)
     output_list.append(output_13x13)
 
     anchors = [[130, 48], [183, 61], [241, 77]]
     #anchors = [[30,61],[62,45],[59,119]]
     db = DecodeBox(anchors, cls_num, [model_input_h, model_input_w])
-    ort_outs_1 = torch.from_numpy(ort_outs_1)
     output_26x26 = db.detect(ort_outs_1)
     output_list.append(output_26x26)
 
     anchors = [[24, 14], [54, 25], [88, 36]]
     #anchors = [[10,13],[16,30],[33,23]]
     db = DecodeBox(anchors, cls_num, [model_input_h, model_input_w])
-    ort_outs_2 = torch.from_numpy(ort_outs_2)
     output_52x52 = db.detect(ort_outs_2)
     output_list.append(output_52x52)
 
-    detect_output = torch.cat(output_list, 1)
+    detect_output = np.concatenate(output_list, 1)
+
     '''
     batch_detections = non_max_suppression(detect_output, cls_num,
                                                 conf_thres=0.5,
@@ -188,7 +185,7 @@ def run_onnx_model_for_darknet(model_path, detect_img):
 
     for batch_detection in batch_detections:
         if isinstance(batch_detection, type(None)) == False:
-            batch_detection = batch_detection.numpy()
+            batch_detection = batch_detection#.numpy()
 
             #---------------------------------------------------------#
             #   对预测框进行得分筛选
