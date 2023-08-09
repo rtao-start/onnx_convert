@@ -14,7 +14,7 @@ from collections import OrderedDict
 from onnx import shape_inference
 from onnx import numpy_helper, helper
 from PIL import Image, ImageDraw, ImageFont
-from detect_new import (DecodeBox, non_max_suppression, yolo_correct_boxes)
+from detect import (DecodeBox, non_max_suppression, yolo_correct_boxes)
 
 logging.basicConfig(level=logging.INFO, filename='./inference.log', filemode='w')
 
@@ -191,6 +191,7 @@ def run_onnx_model_for_darknet(model_path, detect_img):
             #   对预测框进行得分筛选
             #---------------------------------------------------------#
             top_index = batch_detection[:,4] * batch_detection[:,5] > 0.28
+            print('batch_detection[:,4:]:', batch_detection[:,4:])
             top_conf = batch_detection[top_index,4]*batch_detection[top_index,5]
             top_label = np.array(batch_detection[top_index,-1],np.int32)
             top_bboxes = np.array(batch_detection[top_index,:4])
