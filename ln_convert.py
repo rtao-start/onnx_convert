@@ -58,6 +58,22 @@ def remove_invalid_sub_node(model):
     for node in invalid_sub_node_list:
         model.graph.node.remove(node)
 
+def remove_invalid_tensor(model):
+    invalid_value_info_list = []
+    for vi in model.graph.value_info:
+        valid = False
+        for node in model.graph.node:
+            if vi.name in node.input or vi.name in node.output:
+                valid = True
+                break
+
+        if valid == False:
+           invalid_value_info_list.append(vi)
+
+    for invalid_vi in invalid_value_info_list:
+        model.graph.value_info.remove(invalid_vi)
+        print('delete invalid value_info:', invalid_vi.name)
+
 # pattern 1:
 #                                 ---     ---     ---      ---        ---       ---    ---    --
 #                               |                                                              |
@@ -146,12 +162,18 @@ class MergeLNPattern1():
                         self.dict_rm['output'] = node.output
                         self.dict_rm['id'] = node_id
 
+                        input_shape = values.get_tensor_shape_by_name(self.model, node.input[0])
+                        #print('reducemean input: {}, input_shape: {}'.format(node.input[0], input_shape))
+                        target_axes = -1
+                        if len(input_shape) > 0:
+                            target_axes = len(input_shape) - 1
+
                         attributes = node.attribute
                         for attr in attributes:
                             if attr.name == 'axes':
                                 self.rm1_axes = attr.ints
                                 logger.debug('self.rm1_axes: {}'.format(self.rm1_axes))
-                                if len(self.rm1_axes) != 1:
+                                if len(self.rm1_axes) != 1 or (self.rm1_axes[0] != target_axes and self.rm1_axes[0] != -1):
                                     logger.debug('This ReduceMean IsNot we are looking for...')
                                     self.clear()
 
@@ -215,6 +237,21 @@ class MergeLNPattern1():
 
                             scale_name = self.dict_mul['input'][1]
                             beta_name = self.dict_add2['input'][1]
+
+                            found_init_scale = False
+                            found_init_beta = False
+                            for init in self.model.graph.initializer:
+                                if scale_name == init.name:
+                                    found_init_scale = True
+                                if beta_name == init.name:
+                                    found_init_beta = True
+
+                            if found_init_scale == False:
+                                scale_name = self.dict_mul['input'][0]    
+
+                            if found_init_beta == False:
+                                beta_name = self.dict_add2['input'][0]    
+                            
                             '''
                             for init in self.model.graph.initializer:
                                 if init.name == self.dict_mul['input'][1]:
@@ -459,12 +496,18 @@ class MergeLNPattern2():
                         self.dict_rm['id'] = node_id
 
                         if node.op_type == 'ReduceMean':
+                            input_shape = values.get_tensor_shape_by_name(self.model, node.input[0])
+                            #print('reducemean input: {}, input_shape: {}'.format(node.input[0], input_shape))
+                            target_axes = -1
+                            if len(input_shape) > 0:
+                                target_axes = len(input_shape) - 1
+
                             attributes = node.attribute
                             for attr in attributes:
                                 if attr.name == 'axes':
                                     self.rm1_axes = attr.ints
                                     logger.debug('self.rm1_axes: {}'.format(self.rm1_axes))
-                                    if len(self.rm1_axes) != 1:
+                                    if len(self.rm1_axes) != 1 or (self.rm1_axes[0] != target_axes and self.rm1_axes[0] != -1):
                                         logger.debug('This ReduceMean IsNot we are looking for...')
                                         self.clear()
 
@@ -577,6 +620,23 @@ class MergeLNPattern2():
 
                             scale_name = self.dict_mul2['input'][1]
                             beta_name = self.dict_sub2['input'][0]
+
+                            found_init_scale = False
+                            found_init_beta = False
+                            for init in self.model.graph.initializer:
+                                if scale_name == init.name:
+                                    found_init_scale = True
+                                if beta_name == init.name:
+                                    found_init_beta = True
+
+                            if found_init_scale == False:
+                                scale_name = self.dict_mul['input'][0]    
+
+                            if found_init_beta == False:
+                                beta_name = self.dict_add2['input'][1]    
+
+
+
                             '''
                             for init in self.model.graph.initializer:
                                 if init.name == self.dict_mul2['input'][1]:
@@ -759,11 +819,18 @@ class MergeRMSLn():
                         print('got first pair:', self.dict_rm['input'], self.dict_rm['output'])
 
                         attributes = node.attribute
+
+                        input_shape = values.get_tensor_shape_by_name(self.model, node.input[0])
+                        #print('reducemean input: {}, input_shape: {}'.format(node.input[0], input_shape))
+                        target_axes = -1
+                        if len(input_shape) > 0:
+                            target_axes = len(input_shape) - 1
+
                         for attr in attributes:
                             if attr.name == 'axes':
                                 self.rm1_axes = attr.ints
                                 print('self.rm1_axes: ', self.rm1_axes)
-                                if len(self.rm1_axes) != 1:
+                                if len(self.rm1_axes) != 1 or (self.rm1_axes[0] != target_axes and self.rm1_axes[0] != -1):
                                     print('This ReduceMean IsNot we are looking for...')
                                     self.clear()
 
@@ -913,6 +980,8 @@ def merge_layernorm(model):
 
     #mlp3 = MergeRMSLn(model)
     #model = mlp3.merge()
+
+    remove_invalid_tensor(model)
 
     return model
 
