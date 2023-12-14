@@ -42,7 +42,7 @@ def create_pad_node(layer, node_name, input_name, output_name, input_shape):
     return node
 
 
-def get_pool_attributes(layer, pool_type, input_shape):
+def get_pool_attributes(layer, pool_type, input_shape, ceil_floor_reverse=0):
     number = input_shape[0][0]
     channel = input_shape[0][1]
     height = input_shape[0][2]
@@ -102,7 +102,12 @@ def get_pool_attributes(layer, pool_type, input_shape):
     # onnx ceil_mode floor = 0, ceil = 1, default: floor = 0
     round_mode_ceil = 0
     round_mode_floor = 1
+
+
     round_mode = 0
+
+    print('layer.pooling_param.round_mode:', layer.pooling_param.round_mode)
+
     if layer.pooling_param.round_mode == 0:
         round_mode = round_mode_ceil
     elif layer.pooling_param.round_mode == 1:
@@ -110,6 +115,13 @@ def get_pool_attributes(layer, pool_type, input_shape):
     else:
         # wrong condition
         exit(-1)
+
+    if ceil_floor_reverse == 1:
+        if layer.pooling_param.round_mode == 1:
+            round_mode = round_mode_ceil
+        elif layer.pooling_param.round_mode == 0:
+            round_mode = round_mode_floor
+
     if round_mode == round_mode_ceil:
         ceil_mode = 1
     else:
@@ -183,10 +195,10 @@ def pooling_type(layer):
         exit(-1)
 
 
-def create_pooling_node(layer, nodename, inname, outname, input_shape):
+def create_pooling_node(layer, nodename, inname, outname, input_shape, ceil_floor_reverse=0):
     pool_type = pooling_type(layer)
     node = None
-    attributes = get_pool_attributes(layer, pool_type, input_shape)
+    attributes = get_pool_attributes(layer, pool_type, input_shape, ceil_floor_reverse)
     with_indices = True if len(outname) == 2 else False
     output_shape = get_pooling_output_shape(input_shape, layer, attributes, with_indices=with_indices)
 
