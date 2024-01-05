@@ -78,6 +78,8 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
     if params_file != '':
         params_file_module = params_file.split('/')[-1]
         params_file_module = params_file_module.split('.')[-2]
+        logger.info('+++ params_file_module: {}'.format(params_file_module))
+
 
         module_find = check_module(params_file_module)
         if module_find != None:
@@ -90,7 +92,7 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
                 logger.error('Cannot get params from file: {}'.format(params_file))
                 sys.exit(-1)       
         else:
-            logger.error('Cannot load params file: {}'.format(params_file))
+            logger.error('---Cannot load params file: {}'.format(params_file))
             sys.exit(-1)    
 
     input_type_list = []
@@ -196,7 +198,7 @@ def convert_pt_model_and_params_2_onnx(model_path, output, op_set, input_shape_l
                 model = cls()
                 m = torch.load(model_path, map_location=torch.device('cpu'))
                 
-            m = m.cpu() #cuda()
+            #m = m.cpu() #cuda()
             
             torch.onnx.export(
                 m,
@@ -340,8 +342,24 @@ def convert_pt_state_dict_2_onnx(model_path, output, op_set, input_shape_list,
             else:    
                 m = cls()
 
-            m.load_state_dict(torch.load(model_weights_file, map_location=torch.device('cpu')))
+            ####
+            orig_state_dict = m.state_dict()
+            param_names = orig_state_dict.keys()
+
+            state_dict = torch.load(model_weights_file, map_location=torch.device('cpu'))
+            new_state_dict = {}
+            for key, value in state_dict.items():
+                for name in param_names:
+                    if key in name:
+                        #print('got key:', key, name)
+                        new_state_dict[name] = value
+                        break
+            ######    
+
+            #m.load_state_dict(torch.load(model_weights_file, map_location=torch.device('cpu')))
+            m.load_state_dict(new_state_dict)
             m = m.cpu() #cuda()
+            
             #x = torch.randn(int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3]))
             torch.onnx.export(
                 m,
