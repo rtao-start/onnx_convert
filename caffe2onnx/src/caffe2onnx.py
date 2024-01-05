@@ -10,9 +10,10 @@ from typing import *
 import onnx
 
 class Caffe2Onnx():
-    def __init__(self, net, model, onnxname, op_set=11):
+    def __init__(self, net, model, onnxname, op_set=11, ceil_floor_reverse=0):
         #qiuzy add for op map
         self.op_set = op_set
+        self.ceil_floor_reverse = ceil_floor_reverse
 
         # Initialize a c2oGraph object
         self.onnxmodel = c2oGraph(onnxname)
@@ -467,7 +468,7 @@ class Caffe2Onnx():
             elif Layers[i].type == "Pooling" or Layers[i].type == Layer_POOLING:
                 # TODO:
                 # Pooling <= Pad + Pool
-                # NOTEï¼š Because Caffe and ONNX handle the AveragePool differently, you need to add the Pad node before the pool node 
+                # NOTEï¼„1¤7 Because Caffe and ONNX handle the AveragePool differently, you need to add the Pad node before the pool node 
                 # 1.Get node input name, input dimension, output name, node name 
                 input_name, input_shape = self.GetLastLayerOutNameAndShape(Layers[i])  # Get a list of input names and input shapes 
                 output_name = self.GetCurrentLayerOutName(Layers[i])  # Get a list of output names 
@@ -502,7 +503,8 @@ class Caffe2Onnx():
 
                 #qiuzy
                 pool_node = op.create_pooling_node(Layers[i], node_name, input_name, output_name,
-                                                   input_shape)                                   
+                                                   input_shape,
+                                                   self.ceil_floor_reverse)                                   
 
                 # 3.Add node to node list 
                 self.onnxNodeList.append(pool_node)
@@ -834,7 +836,7 @@ class Caffe2Onnx():
                 need_reshape = 0 if reshape_output_shape[0] == node_input_shape[0] else 1
 
                 if need_reshape:
-                    # ä¸€. reshape  [N, C, H, W] tensor to [N, G, C', H, W]
+                    # ä¸¢ã. reshape  [N, C, H, W] tensor to [N, G, C', H, W]
                     # 1.Get node input name, input dimension, output name, node name 
                     reshape_outname = [node_layer.name + "_Reshape"]
                     reshape_nodename = node_layer.name + "_Reshape"
@@ -888,7 +890,7 @@ class Caffe2Onnx():
                 # 4.Add node to node list 
                 self.onnxNodeList.append(transpose_node)
 
-                # ä¸‰ã€ Reshape [N, C', G, H, W] tensor to [N, C, H, W]
+                # ä¸‰ã¢ã„1¤7 Reshape [N, C', G, H, W] tensor to [N, C, H, W]
                 #
                 end_layer = copy.deepcopy(Layers[i])
                 end_layer.type = "DeReshape"

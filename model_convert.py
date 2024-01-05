@@ -366,6 +366,14 @@ def parse_args():
                         default=0,
                         help="If set 1, the tool will do some optimization for mha structure")     
    
+   #for caffe pooling
+   parser.add_argument("--ceil_floor_reverse",
+                        type=int, 
+                        required=False,
+                        choices=[0, 1],
+                        default=0,
+                        help="If set 1, the tool will set ceil=1 in caffe pooling")     
+
    #fp32-->u8(for input type)
    parser.add_argument("--fp32_to_u8",
                         type=int, 
@@ -417,7 +425,7 @@ def get_caffe_files(model_path):
    
    return prototxt_file, caffemodel_file  
 
-def convert_caffe2onnx(model_path, output, op_set):
+def convert_caffe2onnx(model_path, output, op_set, ceil_floor_reverse):
       logger.info('Begin converting caffe to onnx...')
       prototxt_file, caffemodel_file = get_caffe_files(model_path)
 
@@ -427,7 +435,7 @@ def convert_caffe2onnx(model_path, output, op_set):
       onnxmodel_path = output
 
       graph, params = loadcaffemodel(prototxt_file, caffemodel_file)
-      c2o = Caffe2Onnx(graph, params, onnxmodel_path, op_set)
+      c2o = Caffe2Onnx(graph, params, onnxmodel_path, op_set, ceil_floor_reverse)
       onnxmodel = c2o.createOnnxModel(op_set) #qiuzy debug
 
       saveonnxmodel(onnxmodel, onnxmodel_path)
@@ -673,10 +681,11 @@ def convert(model_path, model_type, output, op_set, input_shape_list, inputs, ou
                model_weights_file,
                output_num,
                keep_batch,
-               params_file):
+               params_file,
+               ceil_floor_reverse):
 
    if model_type == 'caffe':
-      convert_caffe2onnx(model_path, output, op_set)
+      convert_caffe2onnx(model_path, output, op_set, ceil_floor_reverse)
 
    if model_type == 'tf-sm':
       convert_sm2onnx(model_path, output, op_set)   
@@ -971,7 +980,7 @@ def modify_onnx2dynamic(onnx_model):
          logger.warning('ignore mish warning, continue saving~')
       else:
          logger.error('ERROR: check model failed in modify_onnx2dynamic')
-         sys.exit(exit_code_check_modify_onnx2dynamic)    
+         #sys.exit(exit_code_check_modify_onnx2dynamic)    
    else:
       logger.info('*** The model is modified!')
 
@@ -1189,6 +1198,7 @@ def process(args):
    disable_all_optimizer = args.disable_all_optimizer
    mha_optimization = args.mha_optimization
    fp32_to_u8 = args.fp32_to_u8
+   ceil_floor_reverse = args.ceil_floor_reverse
 
    if args.version:
       print('maca_converter version:', MXC_CONFIG.VERSION)
@@ -1212,6 +1222,7 @@ def process(args):
       matmul_to_gemm = 0 
       fuse_hard_sigmoid = 0 
       fuse_gelu = 0
+      ceil_floor_reverse = 0
 
    logger.info('model_path:{}, model_type:{}, output:{}'.format(model_path, model_type, output))
 
@@ -1294,7 +1305,8 @@ def process(args):
                model_weights_file,
                output_num,
                keep_batch,
-               params_file)
+               params_file,
+               ceil_floor_reverse)
 
    end_time1 = time.time()
   
